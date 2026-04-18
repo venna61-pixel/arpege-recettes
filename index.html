@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>L'Arpège - Gestion des Recettes</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -10,12 +10,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
+
         body { font-family: 'Inter', sans-serif; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .slide-in { animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         .procedure-text { white-space: pre-wrap; line-height: 1.6; }
         .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
     </style>
@@ -25,29 +31,25 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        
-        // URL du logo (tu devras l'héberger sur GitHub aussi)
-        const LOGO_URL = "https://github.com/venna61-pixel/arpege-recettes/blob/main/logo.png";
-        
-        // Composant Logo avec l'image officielle
+
+        const LOGO_URL = "https://raw.githubusercontent.com/venna61-pixel/arpege-recettes/main/logo.png";
+
         const LogoArpege = ({ className = "", size = "large" }) => {
             const isSmall = size === "small";
-            
+
             return (
                 <div className={`flex flex-col items-center ${className}`}>
-                    <img 
+                    <img
                         src={LOGO_URL}
                         alt="L'Arpège - Cuisine Libre & Inspirée"
-                        className={`object-contain ${isSmall ? 'h-12' : 'h-24'}`}
+                        className={`object-contain ${isSmall ? "h-12" : "h-24"}`}
                         onError={(e) => {
-                            // Fallback si l'image ne charge pas
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
                         }}
                     />
-                    {/* Fallback texte si l'image ne charge pas */}
                     <div className="hidden flex-col items-center">
-                        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? 'text-lg' : 'text-3xl'}`}>
+                        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? "text-lg" : "text-3xl"}`}>
                             L'ARPÈGE
                         </span>
                         {!isSmall && (
@@ -85,15 +87,115 @@
         ];
 
         const UNITS = [
-            "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8", 
-            "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe", "Botte", "Bouteille", 
-            "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Kg", "Lot", "Litre", "Pack", 
-            "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", 
+            "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8",
+            "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe", "Botte", "Bouteille",
+            "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Kg", "Lot", "Litre", "Pack",
+            "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
             "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
         ];
 
         const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
         const CATEGORIES_REC = ["Entrée", "Plat", "Dessert", "Amuse-bouche", "Soupe", "Salade", "Boisson"];
+
+        const MASS_UNITS = {
+            "Kg": 1000,
+            "Gramme": 1
+        };
+
+        const VOLUME_UNITS = {
+            "Litre": 1000,
+            "Ml": 1,
+            "Cl": 10
+        };
+
+        const COUNT_UNITS = [
+            "Pièce", "Unité", "Part", "Portion", "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte",
+            "Boîte 1/4", "Boîte 1/8", "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe",
+            "Botte", "Bouteille", "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Lot", "Pack",
+            "Pain", "Paire", "Paquet", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", "Seau",
+            "Tablette", "Terrine", "Tube", "Tubo", "Carton"
+        ];
+
+        const roundTo = (value, decimals = 2) => {
+            return Number((value || 0).toFixed(decimals));
+        };
+
+        const getUnitGroup = (unit) => {
+            if (MASS_UNITS[unit]) return "mass";
+            if (VOLUME_UNITS[unit]) return "volume";
+            if (COUNT_UNITS.includes(unit)) return "count";
+            return "unknown";
+        };
+
+        const convertQuantity = (quantity, fromUnit, toUnit) => {
+            if (quantity == null || fromUnit === toUnit) return quantity;
+
+            const fromGroup = getUnitGroup(fromUnit);
+            const toGroup = getUnitGroup(toUnit);
+
+            if (fromGroup !== toGroup) return null;
+
+            if (fromGroup === "mass") {
+                return quantity * MASS_UNITS[fromUnit] / MASS_UNITS[toUnit];
+            }
+
+            if (fromGroup === "volume") {
+                return quantity * VOLUME_UNITS[fromUnit] / VOLUME_UNITS[toUnit];
+            }
+
+            if (fromGroup === "count") {
+                return quantity;
+            }
+
+            return null;
+        };
+
+        const calculateIngredientCost = (ingredientLine) => {
+            const recipeQty = Number(ingredientLine.quantity || 0);
+            const recipeUnit = ingredientLine.unit;
+            const purchaseUnit = ingredientLine.unitPrice;
+            const unitPrice = Number(ingredientLine.pricePerUnit || 0);
+            const wasteCoeff = Number(ingredientLine.wasteCoeff || 1);
+
+            const convertedQty = convertQuantity(recipeQty, recipeUnit, purchaseUnit);
+
+            if (convertedQty == null) {
+                return null;
+            }
+
+            return convertedQty * unitPrice * wasteCoeff;
+        };
+
+        const calculateRecipeCost = (recipe) => {
+            let total = 0;
+
+            for (const ing of recipe.ingredients || []) {
+                const cost = calculateIngredientCost(ing);
+                if (cost == null) return null;
+                total += cost;
+            }
+
+            return total * Number(recipe.wasteCoeff || 1);
+        };
+
+        const getCostStatus = (recipe) => {
+            for (const ing of recipe.ingredients || []) {
+                const convertedQty = convertQuantity(
+                    Number(ing.quantity || 0),
+                    ing.unit,
+                    ing.unitPrice
+                );
+
+                if (convertedQty == null) {
+                    return {
+                        valid: false,
+                        message: `Conversion impossible entre ${ing.unit} et ${ing.unitPrice} pour ${ing.name}`
+                    };
+                }
+            }
+
+            return { valid: true, message: "" };
+        };
 
         const useLocalStorage = (key, initialValue) => {
             const [storedValue, setStoredValue] = useState(() => {
@@ -231,7 +333,11 @@
                                     className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                                     title="Déconnexion"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                        <polyline points="16 17 21 12 16 7"/>
+                                        <line x1="21" x2="9" y1="12" y2="12"/>
+                                    </svg>
                                 </button>
                             </div>
                         </div>
@@ -252,21 +358,28 @@
                 supplier: ""
             });
 
-            const filteredIngredients = ingredients.filter(ing => 
+            const filteredIngredients = ingredients.filter(ing =>
                 ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 ing.category.toLowerCase().includes(searchTerm.toLowerCase())
             );
 
             const handleSubmit = (e) => {
                 e.preventDefault();
+
+                const normalized = {
+                    ...formData,
+                    price: parseFloat(formData.price)
+                };
+
                 if (editingId) {
-                    setIngredients(ingredients.map(ing => 
-                        ing.id === editingId ? { ...formData, id: editingId, price: parseFloat(formData.price) } : ing
+                    setIngredients(ingredients.map(ing =>
+                        ing.id === editingId ? { ...normalized, id: editingId } : ing
                     ));
                 } else {
                     const newId = Math.max(...ingredients.map(i => i.id), 0) + 1;
-                    setIngredients([...ingredients, { ...formData, id: newId, price: parseFloat(formData.price) }]);
+                    setIngredients([...ingredients, { ...normalized, id: newId }]);
                 }
+
                 resetForm();
             };
 
@@ -350,7 +463,7 @@
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label>
                                     <select
                                         value={formData.unit}
                                         onChange={(e) => setFormData({...formData, unit: e.target.value})}
@@ -401,7 +514,7 @@
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 font-medium">{ing.name}</td>
-                                        <td className="px-6 py-4 text-gray-600">{ing.price.toFixed(2)} €</td>
+                                        <td className="px-6 py-4 text-gray-600">{Number(ing.price).toFixed(2)} €</td>
                                         <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
                                         <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
                                         {isChef && (
@@ -433,10 +546,10 @@
             });
 
             useEffect(() => {
-                const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+                const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
                 if (isOpen) {
-                    window.addEventListener('keydown', handleEsc);
-                    return () => window.removeEventListener('keydown', handleEsc);
+                    window.addEventListener("keydown", handleEsc);
+                    return () => window.removeEventListener("keydown", handleEsc);
                 }
             }, [isOpen, onClose]);
 
@@ -450,6 +563,13 @@
                     price: parseFloat(formData.price)
                 };
                 onAdd(newIngredient);
+                setFormData({
+                    category: CATEGORIES_ING[0],
+                    name: "",
+                    price: "",
+                    unit: "Kg",
+                    supplier: ""
+                });
                 onClose();
             };
 
@@ -461,14 +581,17 @@
                 <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={handleOverlayClick}>
                     <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full slide-in relative">
                         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" x2="6" y1="6" y2="18"/>
+                                <line x1="6" x2="18" y1="6" y2="18"/>
+                            </svg>
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
                             <h3 className="text-xl font-bold text-[#1A3A4A]">Nouvel ingrédient</h3>
                             <p className="text-sm text-gray-500 mt-1">Ajouté à la base et à la recette</p>
                         </div>
-                        
+
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -493,7 +616,7 @@
                                     />
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label>
@@ -508,7 +631,7 @@
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label>
                                     <select
                                         value={formData.unit}
                                         onChange={(e) => setFormData({...formData, unit: e.target.value})}
@@ -519,7 +642,7 @@
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label>
                                 <input
@@ -546,10 +669,10 @@
 
         const RecipeDetailModal = ({ recipe, isOpen, onClose, isChef }) => {
             useEffect(() => {
-                const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+                const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
                 if (isOpen) {
-                    window.addEventListener('keydown', handleEsc);
-                    return () => window.removeEventListener('keydown', handleEsc);
+                    window.addEventListener("keydown", handleEsc);
+                    return () => window.removeEventListener("keydown", handleEsc);
                 }
             }, [isOpen, onClose]);
 
@@ -559,11 +682,16 @@
                 if (e.target === e.currentTarget) onClose();
             };
 
+            const costStatus = getCostStatus(recipe);
+
             return (
                 <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={handleOverlayClick}>
                     <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
                         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full z-10">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" x2="6" y1="6" y2="18"/>
+                                <line x1="6" x2="18" y1="6" y2="18"/>
+                            </svg>
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
@@ -573,7 +701,7 @@
                             <h3 className="text-2xl font-bold text-[#1A3A4A]">{recipe.name}</h3>
                             <p className="text-sm text-gray-500 mt-1">{recipe.covers} couverts de base</p>
                         </div>
-                        
+
                         <div className="p-6 space-y-6">
                             <div>
                                 <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients ({recipe.ingredients.length})</h4>
@@ -587,17 +715,20 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {recipe.ingredients.map((ing, idx) => (
-                                                <tr key={idx} className="border-b border-gray-100 last:border-0">
-                                                    <td className="py-3 font-medium">{ing.name}</td>
-                                                    <td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>
-                                                    {isChef && (
-                                                        <td className="py-3 text-right text-[#C8956C] font-medium">
-                                                            {(ing.quantity * ing.pricePerUnit * ing.wasteCoeff).toFixed(2)}€
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            ))}
+                                            {recipe.ingredients.map((ing, idx) => {
+                                                const ingredientCost = calculateIngredientCost(ing);
+                                                return (
+                                                    <tr key={idx} className="border-b border-gray-100 last:border-0">
+                                                        <td className="py-3 font-medium">{ing.name}</td>
+                                                        <td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>
+                                                        {isChef && (
+                                                            <td className="py-3 text-right text-[#C8956C] font-medium">
+                                                                {ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -608,7 +739,7 @@
                                 <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">
                                     {recipe.procedure ? (
                                         <div className="procedure-text text-gray-800">
-                                            {recipe.procedure.split('\n').map((step, idx) => (
+                                            {recipe.procedure.split("\n").map((step, idx) => (
                                                 <p key={idx} className="mb-2 last:mb-0">{step}</p>
                                             ))}
                                         </div>
@@ -620,14 +751,26 @@
 
                             {isChef && (
                                 <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 border border-[#C8956C] border-opacity-30">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="font-semibold text-[#1A3A4A]">Coût total:</span>
-                                        <span className="text-2xl font-bold text-[#C8956C]">{recipe.totalCost?.toFixed(2)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
-                                        <span>Coût par couvert:</span>
-                                        <span>{(recipe.totalCost / recipe.covers).toFixed(2)}€</span>
-                                    </div>
+                                    {!costStatus.valid ? (
+                                        <div className="text-sm text-red-700 font-medium">
+                                            {costStatus.message}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="font-semibold text-[#1A3A4A]">Coût total:</span>
+                                                <span className="text-2xl font-bold text-[#C8956C]">
+                                                    {Number(recipe.totalCost || 0).toFixed(2)}€
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
+                                                <span>Coût par couvert:</span>
+                                                <span>
+                                                    {recipe.covers > 0 ? (Number(recipe.totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -643,131 +786,264 @@
         };
 
         const AdaptModal = ({ recipe, isOpen, onClose, isChef }) => {
-            const [adaptParams, setAdaptParams] = useState({ covers: 4, quantity: 1, budget: null });
+            const [pivotType, setPivotType] = useState("covers");
+            const [pivotValue, setPivotValue] = useState("");
+            const [selectedIngredientIndex, setSelectedIngredientIndex] = useState(0);
 
             useEffect(() => {
                 if (recipe && isOpen) {
-                    setAdaptParams({ covers: recipe.covers, quantity: 1, budget: null });
+                    setPivotType("covers");
+                    setPivotValue(String(recipe.covers || 1));
+                    setSelectedIngredientIndex(0);
                 }
             }, [recipe, isOpen]);
 
             useEffect(() => {
-                const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+                const handleEsc = (e) => {
+                    if (e.key === "Escape") onClose();
+                };
                 if (isOpen) {
-                    window.addEventListener('keydown', handleEsc);
-                    return () => window.removeEventListener('keydown', handleEsc);
+                    window.addEventListener("keydown", handleEsc);
+                    return () => window.removeEventListener("keydown", handleEsc);
                 }
             }, [isOpen, onClose]);
 
             if (!isOpen || !recipe) return null;
 
+            const baseRecipeCost = calculateRecipeCost(recipe);
+            const costStatus = getCostStatus(recipe);
+
+            const baseTotalIngredientQuantity = (recipe.ingredients || []).reduce(
+                (sum, ing) => sum + Number(ing.quantity || 0),
+                0
+            );
+
+            const getDefaultPivotValue = (type, ingredientIndex = selectedIngredientIndex) => {
+                if (type === "covers") return recipe.covers || 1;
+                if (type === "globalQuantity") return baseTotalIngredientQuantity || 1;
+                if (type === "budget") return baseRecipeCost || "";
+                if (type === "ingredientQuantity") {
+                    return recipe.ingredients?.[ingredientIndex]?.quantity || 1;
+                }
+                return 1;
+            };
+
+            const handlePivotTypeChange = (newType) => {
+                setPivotType(newType);
+                setPivotValue(String(getDefaultPivotValue(newType)));
+            };
+
+            const handleIngredientPivotChange = (newIndex) => {
+                setSelectedIngredientIndex(newIndex);
+                if (pivotType === "ingredientQuantity") {
+                    setPivotValue(String(getDefaultPivotValue("ingredientQuantity", newIndex)));
+                }
+            };
+
+            const getMultiplier = () => {
+                const numericPivot = parseFloat(pivotValue);
+
+                if (!numericPivot || numericPivot <= 0) return 1;
+
+                if (pivotType === "covers") {
+                    return numericPivot / (recipe.covers || 1);
+                }
+
+                if (pivotType === "globalQuantity") {
+                    return numericPivot / (baseTotalIngredientQuantity || 1);
+                }
+
+                if (pivotType === "budget") {
+                    if (!baseRecipeCost || baseRecipeCost <= 0) return 1;
+                    return numericPivot / baseRecipeCost;
+                }
+
+                if (pivotType === "ingredientQuantity") {
+                    const baseIngQty = Number(recipe.ingredients?.[selectedIngredientIndex]?.quantity || 1);
+                    return numericPivot / baseIngQty;
+                }
+
+                return 1;
+            };
+
+            const multiplier = getMultiplier();
+
+            const adaptedIngredients = (recipe.ingredients || []).map((ing) => ({
+                ...ing,
+                adaptedQuantity: Number(ing.quantity || 0) * multiplier
+            }));
+
+            const adaptedCovers = (recipe.covers || 0) * multiplier;
+            const adaptedTotalIngredientQuantity = baseTotalIngredientQuantity * multiplier;
+
+            const adaptedRecipe = {
+                ...recipe,
+                covers: adaptedCovers,
+                ingredients: adaptedIngredients.map(ing => ({
+                    ...ing,
+                    quantity: ing.adaptedQuantity
+                }))
+            };
+
+            const adaptedCost = calculateRecipeCost(adaptedRecipe);
+
+            const pivotLabel = (() => {
+                if (pivotType === "covers") return "Couverts";
+                if (pivotType === "globalQuantity") return "Quantité globale";
+                if (pivotType === "budget") return "Budget";
+                if (pivotType === "ingredientQuantity") return "Quantité ingrédient";
+                return "Pivot";
+            })();
+
             const handleOverlayClick = (e) => {
                 if (e.target === e.currentTarget) onClose();
             };
 
-            const calculateCost = (params) => {
-                let totalCost = 0;
-                const multiplier = (params.covers / recipe.covers) * params.quantity;
-                
-                recipe.ingredients.forEach(ing => {
-                    const baseCost = (ing.quantity * ing.pricePerUnit) * multiplier;
-                    const wasteCost = baseCost * (ing.wasteCoeff || 1);
-                    totalCost += wasteCost;
-                });
-                
-                return totalCost * (recipe.wasteCoeff || 1);
-            };
-
-            const getAdaptedIngredients = () => {
-                const multiplier = (adaptParams.covers / recipe.covers) * adaptParams.quantity;
-                return recipe.ingredients.map(ing => ({
-                    ...ing,
-                    adaptedQuantity: ing.quantity * multiplier
-                }));
-            };
-
-            const adaptedCost = calculateCost(adaptParams);
-
             return (
-                <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={handleOverlayClick}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
-                        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full z-10">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                <div
+                    className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50"
+                    onClick={handleOverlayClick}
+                >
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
+                        <button
+                            onClick={onClose}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full z-10"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" x2="6" y1="6" y2="18" />
+                                <line x1="6" x2="18" y1="6" y2="18" />
+                            </svg>
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
-                            <h3 className="text-xl font-bold text-[#1A3A4A]">Adapter: {recipe.name}</h3>
+                            <h3 className="text-xl font-bold text-[#1A3A4A]">Adapter : {recipe.name}</h3>
+                            <p className="text-sm text-gray-500 mt-1">Choisis un pivot. Tout le reste se recalculera proportionnellement.</p>
                         </div>
 
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Couverts</label>
-                                    <input
-                                        type="number"
-                                        value={adaptParams.covers}
-                                        onChange={(e) => setAdaptParams({...adaptParams, covers: parseInt(e.target.value) || 1})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        min="1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
-                                    <input
-                                        type="number"
-                                        value={adaptParams.quantity}
-                                        onChange={(e) => setAdaptParams({...adaptParams, quantity: parseInt(e.target.value) || 1})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        min="1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Budget max (€)</label>
-                                    <input
-                                        type="number"
-                                        value={adaptParams.budget || ""}
-                                        onChange={(e) => setAdaptParams({...adaptParams, budget: e.target.value ? parseFloat(e.target.value) : null})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        placeholder="Optionnel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                                <h4 className="font-semibold text-gray-700 mb-3">Ingrédients adaptés</h4>
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
-                                    {getAdaptedIngredients().map((ing, idx) => (
-                                        <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
-                                            <span className="font-medium">{ing.name}</span>
-                                            <span className="text-gray-600 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
-                                                {ing.adaptedQuantity.toFixed(2)} {ing.unit}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {isChef && (
-                                <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 mb-6 border border-[#C8956C] border-opacity-30">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="font-semibold text-[#1A3A4A]">Coût total estimé:</span>
-                                        <span className="text-2xl font-bold text-[#C8956C]">{adaptedCost.toFixed(2)}€</span>
+                        <div className="p-6 space-y-6">
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Type de pivot</label>
+                                        <select
+                                            value={pivotType}
+                                            onChange={(e) => handlePivotTypeChange(e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                                        >
+                                            <option value="covers">Nombre de couverts</option>
+                                            <option value="globalQuantity">Quantité globale de recette</option>
+                                            <option value="budget">Budget cible</option>
+                                            <option value="ingredientQuantity">Quantité d’un ingrédient</option>
+                                        </select>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
-                                        <span>Coût par couvert:</span>
-                                        <span>{(adaptedCost / adaptParams.covers).toFixed(2)}€</span>
-                                    </div>
-                                    {adaptParams.budget && (
-                                        <div className={`mt-3 px-3 py-2 rounded-lg text-sm font-medium ${
-                                            adaptedCost <= adaptParams.budget ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                        }`}>
-                                            {adaptedCost <= adaptParams.budget ? "✓ Dans le budget" : `✗ Dépasse de ${(adaptedCost - adaptParams.budget).toFixed(2)}€`}
+
+                                    {pivotType === "ingredientQuantity" && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédient pivot</label>
+                                            <select
+                                                value={selectedIngredientIndex}
+                                                onChange={(e) => handleIngredientPivotChange(parseInt(e.target.value))}
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                                            >
+                                                {(recipe.ingredients || []).map((ing, idx) => (
+                                                    <option key={idx} value={idx}>
+                                                        {ing.name} ({ing.quantity} {ing.unit})
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     )}
                                 </div>
-                            )}
 
-                            <button onClick={onClose} className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg hover:bg-[#2A4A5A] font-medium">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Valeur cible — {pivotLabel}
+                                        {pivotType === "budget" ? " (€)" : ""}
+                                        {pivotType === "ingredientQuantity" ? ` (${recipe.ingredients?.[selectedIngredientIndex]?.unit || ""})` : ""}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        value={pivotValue}
+                                        onChange={(e) => setPivotValue(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-[#C8956C] bg-opacity-10 rounded-xl p-4 border border-[#C8956C] border-opacity-30">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="font-medium text-[#1A3A4A]">Coefficient :</span>
+                                        <span>{multiplier.toFixed(4)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span>
+                                        <span>{adaptedCovers.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="font-medium text-[#1A3A4A]">Quantité globale recalculée :</span>
+                                        <span>{adaptedTotalIngredientQuantity.toFixed(2)}</span>
+                                    </div>
+                                    {isChef && (
+                                        <div className="flex justify-between">
+                                            <span className="font-medium text-[#1A3A4A]">Coût recalculé :</span>
+                                            <span>
+                                                {!costStatus.valid || adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {!costStatus.valid && isChef && (
+                                    <div className="mt-3 text-sm text-red-700 font-medium">
+                                        {costStatus.message}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients adaptés</h4>
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                                        {adaptedIngredients.map((ing, idx) => {
+                                            const lineForCost = { ...ing, quantity: ing.adaptedQuantity };
+                                            const lineCost = calculateIngredientCost(lineForCost);
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className="flex justify-between items-center py-3 border-b border-gray-200 last:border-0"
+                                                >
+                                                    <div>
+                                                        <div className="font-medium text-[#1A3A4A]">{ing.name}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            Base : {Number(ing.quantity).toFixed(2)} {ing.unit}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-right">
+                                                        <div className="text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
+                                                            {ing.adaptedQuantity.toFixed(2)} {ing.unit}
+                                                        </div>
+                                                        {isChef && (
+                                                            <div className="text-xs text-[#C8956C] mt-1">
+                                                                {lineCost == null ? "Coût N/A" : `${lineCost.toFixed(2)}€`}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={onClose}
+                                className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg hover:bg-[#2A4A5A] font-medium"
+                            >
                                 Fermer
                             </button>
                         </div>
@@ -783,7 +1059,7 @@
             const [detailRecipe, setDetailRecipe] = useState(null);
             const [adaptRecipe, setAdaptRecipe] = useState(null);
             const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
-            
+
             const [formData, setFormData] = useState({
                 category: CATEGORIES_REC[0],
                 name: "",
@@ -801,22 +1077,22 @@
                 searchText: ""
             });
 
-            const filteredRecipes = recipes.filter(recipe => 
+            const filteredRecipes = recipes.filter(recipe =>
                 recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 recipe.category.toLowerCase().includes(searchTerm.toLowerCase())
             );
 
-            const filteredIngredientsForSearch = ingredients.filter(ing => 
+            const filteredIngredientsForSearch = ingredients.filter(ing =>
                 ing.name.toLowerCase().includes(currentIng.searchText.toLowerCase())
             );
 
             const addIngredientToRecipe = (ingredientId = null) => {
                 const finalIngredientId = ingredientId || currentIng.ingredientId;
                 if (!finalIngredientId || !currentIng.quantity) return;
-                
+
                 const ing = ingredients.find(i => i.id === parseInt(finalIngredientId));
                 if (!ing) return;
-                
+
                 setFormData({
                     ...formData,
                     ingredients: [...formData.ingredients, {
@@ -829,11 +1105,13 @@
                         unitPrice: ing.unit
                     }]
                 });
+
                 setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
             };
 
             const handleAddNewIngredient = (newIngredient) => {
                 setIngredients([...ingredients, newIngredient]);
+
                 setFormData({
                     ...formData,
                     ingredients: [...formData.ingredients, {
@@ -846,6 +1124,7 @@
                         unitPrice: newIngredient.unit
                     }]
                 });
+
                 setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
             };
 
@@ -856,36 +1135,27 @@
                 });
             };
 
-            const calculateCost = (recipe, params = null) => {
-                let totalCost = 0;
-                const multiplier = params ? (params.covers / recipe.covers) * params.quantity : 1;
-                
-                recipe.ingredients.forEach(ing => {
-                    const baseCost = (ing.quantity * ing.pricePerUnit) * multiplier;
-                    const wasteCost = baseCost * (ing.wasteCoeff || 1);
-                    totalCost += wasteCost;
-                });
-                
-                return totalCost * (recipe.wasteCoeff || 1);
-            };
-
             const handleSubmit = (e) => {
                 e.preventDefault();
+
                 if (formData.ingredients.length === 0) {
                     alert("Ajoutez au moins un ingrédient");
                     return;
                 }
-                
-                const cost = calculateCost({ ...formData, ingredients: formData.ingredients });
-                
+
+                const recipeDraft = { ...formData, ingredients: formData.ingredients };
+                const computedCost = calculateRecipeCost(recipeDraft);
+                const totalCost = computedCost == null ? 0 : computedCost;
+
                 if (editingId) {
-                    setRecipes(recipes.map(r => 
-                        r.id === editingId ? { ...formData, id: editingId, totalCost: cost } : r
+                    setRecipes(recipes.map(r =>
+                        r.id === editingId ? { ...recipeDraft, id: editingId, totalCost } : r
                     ));
                 } else {
                     const newId = Math.max(...recipes.map(r => r.id), 0) + 1;
-                    setRecipes([...recipes, { ...formData, id: newId, totalCost: cost }]);
+                    setRecipes([...recipes, { ...recipeDraft, id: newId, totalCost }]);
                 }
+
                 resetForm();
             };
 
@@ -911,20 +1181,20 @@
 
             return (
                 <div className="p-6 max-w-7xl mx-auto fade-in">
-                    <AddIngredientModal 
+                    <AddIngredientModal
                         isOpen={showAddIngredientModal}
                         onClose={() => setShowAddIngredientModal(false)}
                         onAdd={handleAddNewIngredient}
                     />
 
-                    <RecipeDetailModal 
+                    <RecipeDetailModal
                         recipe={detailRecipe}
                         isOpen={!!detailRecipe}
                         onClose={() => setDetailRecipe(null)}
                         isChef={isChef}
                     />
 
-                    <AdaptModal 
+                    <AdaptModal
                         recipe={adaptRecipe}
                         isOpen={!!adaptRecipe}
                         onClose={() => setAdaptRecipe(null)}
@@ -958,7 +1228,7 @@
                             <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">
                                 {editingId ? "Modifier la recette" : "Nouvelle recette"}
                             </h3>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
@@ -985,9 +1255,10 @@
                                     <input
                                         type="number"
                                         value={formData.covers}
-                                        onChange={(e) => setFormData({...formData, covers: parseInt(e.target.value)})}
+                                        onChange={(e) => setFormData({...formData, covers: parseFloat(e.target.value) || 1})}
                                         className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         min="1"
+                                        step="0.01"
                                         required
                                     />
                                 </div>
@@ -995,7 +1266,7 @@
 
                             <div className="bg-gray-50 rounded-lg p-4 mb-4">
                                 <h4 className="font-medium text-gray-700 mb-3">Ingrédients</h4>
-                                
+
                                 <div className="relative mb-3">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
                                     <input
@@ -1005,7 +1276,7 @@
                                         placeholder="Tapez pour chercher..."
                                         className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     />
-                                    
+
                                     {currentIng.searchText && (
                                         <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
                                             {filteredIngredientsForSearch.length > 0 ? (
@@ -1017,7 +1288,7 @@
                                                         className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"
                                                     >
                                                         <span>{ing.name}</span>
-                                                        <span className="text-sm text-gray-500">{ing.price}€/{ing.unit}</span>
+                                                        <span className="text-sm text-gray-500">{Number(ing.price).toFixed(2)}€/{ing.unit}</span>
                                                     </button>
                                                 ))
                                             ) : (
@@ -1048,7 +1319,7 @@
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label>
                                         <select
                                             value={currentIng.unit}
                                             onChange={(e) => setCurrentIng({...currentIng, unit: e.target.value})}
@@ -1063,7 +1334,7 @@
                                             type="number"
                                             step="0.01"
                                             value={currentIng.wasteCoeff}
-                                            onChange={(e) => setCurrentIng({...currentIng, wasteCoeff: parseFloat(e.target.value)})}
+                                            onChange={(e) => setCurrentIng({...currentIng, wasteCoeff: parseFloat(e.target.value) || 1})}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         />
                                     </div>
@@ -1072,7 +1343,11 @@
                                             type="button"
                                             onClick={() => addIngredientToRecipe()}
                                             disabled={!currentIng.ingredientId || !currentIng.quantity}
-                                            className={`w-full py-2 rounded-lg font-medium ${currentIng.ingredientId && currentIng.quantity ? "bg-[#1A3A4A] text-white hover:bg-[#2A4A5A]" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                                            className={`w-full py-2 rounded-lg font-medium ${
+                                                currentIng.ingredientId && currentIng.quantity
+                                                    ? "bg-[#1A3A4A] text-white hover:bg-[#2A4A5A]"
+                                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                            }`}
                                         >
                                             Ajouter
                                         </button>
@@ -1104,7 +1379,12 @@
                                     <div className="space-y-2">
                                         {formData.ingredients.map((ing, idx) => (
                                             <div key={idx} className="flex items-center justify-between bg-amber-50 px-4 py-2 rounded-lg">
-                                                <span className="font-medium">{ing.name} - {ing.quantity} {ing.unit}</span>
+                                                <span className="font-medium">
+                                                    {ing.name} - {ing.quantity} {ing.unit}
+                                                    <span className="text-xs text-gray-500 ml-2">
+                                                        (achat : {ing.unitPrice})
+                                                    </span>
+                                                </span>
                                                 <button
                                                     type="button"
                                                     onClick={() => removeIngredientFromRecipe(idx)}
@@ -1119,12 +1399,12 @@
                             )}
 
                             <div className="flex items-center space-x-4 mb-4">
-                                <label className="text-sm font-medium text-gray-700">Coeff. perte global:</label>
+                                <label className="text-sm font-medium text-gray-700">Coeff. perte global :</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     value={formData.wasteCoeff}
-                                    onChange={(e) => setFormData({...formData, wasteCoeff: parseFloat(e.target.value)})}
+                                    onChange={(e) => setFormData({...formData, wasteCoeff: parseFloat(e.target.value) || 1})}
                                     className="w-24 px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                 />
                             </div>
@@ -1141,74 +1421,92 @@
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredRecipes.map(recipe => (
-                            <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                                <div className="p-6">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
-                                            {recipe.category}
-                                        </span>
-                                        <span className="text-sm text-gray-500">{recipe.covers} couverts</span>
-                                    </div>
-                                    <h3 
-                                        className="text-lg font-bold text-[#1A3A4A] mb-2 cursor-pointer hover:text-[#C8956C] transition-colors"
-                                        onClick={() => setDetailRecipe(recipe)}
-                                    >
-                                        {recipe.name}
-                                    </h3>
-                                    <div className="space-y-1 mb-4">
-                                        <p className="text-sm text-gray-600">{recipe.ingredients.length} ingrédient(s)</p>
-                                        {recipe.procedure && <p className="text-xs text-[#C8956C]">✓ Procédé renseigné</p>}
-                                        {isChef && (
-                                            <p className="text-lg font-bold text-[#C8956C]">
-                                                {recipe.totalCost?.toFixed(2)}€
-                                                <span className="text-sm font-normal text-gray-500 ml-2">
-                                                    ({(recipe.totalCost / recipe.covers).toFixed(2)}€/couvert)
-                                                </span>
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="flex space-x-2">
-                                        <button
+                        {filteredRecipes.map(recipe => {
+                            const costStatus = getCostStatus(recipe);
+                            return (
+                                <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                                    <div className="p-6">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
+                                                {recipe.category}
+                                            </span>
+                                            <span className="text-sm text-gray-500">{recipe.covers} couverts</span>
+                                        </div>
+                                        <h3
+                                            className="text-lg font-bold text-[#1A3A4A] mb-2 cursor-pointer hover:text-[#C8956C] transition-colors"
                                             onClick={() => setDetailRecipe(recipe)}
-                                            className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium"
                                         >
-                                            Voir détail
-                                        </button>
-                                        <button
-                                            onClick={() => setAdaptRecipe(recipe)}
-                                            className="flex-1 bg-[#C8956C] bg-opacity-10 text-[#C8956C] py-2 rounded-lg hover:bg-opacity-20 text-sm font-medium"
-                                        >
-                                            Adapter
-                                        </button>
-                                        {isChef && (
-                                            <>
-                                                <button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 hover:text-[#1A3A4A] bg-gray-50 rounded-lg">
-                                                    ✎
-                                                </button>
-                                                <button onClick={() => handleDelete(recipe.id)} className="p-2 text-gray-600 hover:text-red-600 bg-gray-50 rounded-lg">
-                                                    🗑
-                                                </button>
-                                            </>
-                                        )}
+                                            {recipe.name}
+                                        </h3>
+                                        <div className="space-y-1 mb-4">
+                                            <p className="text-sm text-gray-600">{recipe.ingredients.length} ingrédient(s)</p>
+                                            {recipe.procedure && <p className="text-xs text-[#C8956C]">✓ Procédé renseigné</p>}
+                                            {isChef && (
+                                                <>
+                                                    {costStatus.valid ? (
+                                                        <p className="text-lg font-bold text-[#C8956C]">
+                                                            {Number(recipe.totalCost || 0).toFixed(2)}€
+                                                            <span className="text-sm font-normal text-gray-500 ml-2">
+                                                                ({recipe.covers > 0 ? (Number(recipe.totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)
+                                                            </span>
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-sm text-red-600 font-medium">Coût indisponible</p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="flex space-x-2">
+                                            <button
+                                                onClick={() => setDetailRecipe(recipe)}
+                                                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium"
+                                            >
+                                                Voir détail
+                                            </button>
+                                            <button
+                                                onClick={() => setAdaptRecipe(recipe)}
+                                                className="flex-1 bg-[#C8956C] bg-opacity-10 text-[#C8956C] py-2 rounded-lg hover:bg-opacity-20 text-sm font-medium"
+                                            >
+                                                Adapter
+                                            </button>
+                                            {isChef && (
+                                                <>
+                                                    <button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 hover:text-[#1A3A4A] bg-gray-50 rounded-lg">
+                                                        ✎
+                                                    </button>
+                                                    <button onClick={() => handleDelete(recipe.id)} className="p-2 text-gray-600 hover:text-red-600 bg-gray-50 rounded-lg">
+                                                        🗑
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             );
         };
 
         const CostsView = ({ recipes, ingredients }) => {
-            const avgCostPerRecipe = recipes.length ? recipes.reduce((sum, r) => sum + (r.totalCost || 0), 0) / recipes.length : 0;
-            const mostExpensive = recipes.length ? recipes.reduce((max, r) => r.totalCost > max.totalCost ? r : max, recipes[0]) : null;
-            const cheapest = recipes.length ? recipes.reduce((min, r) => r.totalCost < min.totalCost ? r : min, recipes[0]) : null;
+            const validRecipes = recipes.filter(r => getCostStatus(r).valid);
+            const avgCostPerRecipe = validRecipes.length
+                ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length
+                : 0;
+
+            const mostExpensive = validRecipes.length
+                ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0])
+                : null;
+
+            const cheapest = validRecipes.length
+                ? validRecipes.reduce((min, r) => Number(r.totalCost || 0) < Number(min.totalCost || 0) ? r : min, validRecipes[0])
+                : null;
 
             return (
                 <div className="p-6 max-w-7xl mx-auto fade-in">
                     <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Analyse des Coûts</h2>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3>
@@ -1217,12 +1515,12 @@
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3>
                             <p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExpensive?.name || "-"}</p>
-                            <p className="text-2xl font-bold text-red-600">{mostExpensive?.totalCost?.toFixed(2) || "0"}€</p>
+                            <p className="text-2xl font-bold text-red-600">{mostExpensive ? Number(mostExpensive.totalCost || 0).toFixed(2) : "0.00"}€</p>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3>
                             <p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "-"}</p>
-                            <p className="text-2xl font-bold text-green-600">{cheapest?.totalCost?.toFixed(2) || "0"}€</p>
+                            <p className="text-2xl font-bold text-green-600">{cheapest ? Number(cheapest.totalCost || 0).toFixed(2) : "0.00"}€</p>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Ingrédients</h3>
@@ -1244,14 +1542,23 @@
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {recipes.map(recipe => (
-                                    <tr key={recipe.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td>
-                                        <td className="px-6 py-4 text-gray-600">{recipe.category}</td>
-                                        <td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.totalCost?.toFixed(2)}€</td>
-                                        <td className="px-6 py-4 text-gray-600">{(recipe.totalCost / recipe.covers).toFixed(2)}€</td>
-                                    </tr>
-                                ))}
+                                {recipes.map(recipe => {
+                                    const status = getCostStatus(recipe);
+                                    return (
+                                        <tr key={recipe.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td>
+                                            <td className="px-6 py-4 text-gray-600">{recipe.category}</td>
+                                            <td className="px-6 py-4 font-bold text-[#C8956C]">
+                                                {status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">
+                                                {status.valid && recipe.covers > 0
+                                                    ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€`
+                                                    : "N/A"}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -1281,24 +1588,24 @@
 
             return (
                 <div className="min-h-screen bg-gray-50">
-                    <Header 
-                        user={user} 
-                        onLogout={handleLogout} 
-                        activeTab={activeTab} 
+                    <Header
+                        user={user}
+                        onLogout={handleLogout}
+                        activeTab={activeTab}
                         setActiveTab={setActiveTab}
                     />
-                    
+
                     <main className="pb-12">
                         {activeTab === "ingredients" && isChef && (
-                            <IngredientsManager 
-                                ingredients={ingredients} 
+                            <IngredientsManager
+                                ingredients={ingredients}
                                 setIngredients={setIngredients}
                                 isChef={isChef}
                             />
                         )}
-                        
+
                         {activeTab === "recettes" && (
-                            <RecipesManager 
+                            <RecipesManager
                                 ingredients={ingredients}
                                 setIngredients={setIngredients}
                                 recipes={recipes}
@@ -1306,7 +1613,7 @@
                                 isChef={isChef}
                             />
                         )}
-                        
+
                         {activeTab === "couts" && isChef && (
                             <CostsView recipes={recipes} ingredients={ingredients} />
                         )}
