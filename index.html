@@ -18,6 +18,7 @@
         .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .slide-in { animation: slideIn 0.3s ease-out; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .procedure-text { white-space: pre-wrap; line-height: 1.6; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -34,6 +35,22 @@
             { id: 3, category: "Légumes", name: "Carottes", price: 1.20, unit: "Kg", supplier: "Maraîcher Local" },
             { id: 4, category: "Épicerie", name: "Huile d'olive", price: 8.50, unit: "Litre", supplier: "Oliviers du Sud" },
             { id: 5, category: "Boulangerie", name: "Pain de campagne", price: 3.20, unit: "Pièce", supplier: "Boulangerie Dupont" }
+        ];
+
+        const INITIAL_RECIPES = [
+            {
+                id: 1,
+                category: "Entrée",
+                name: "Velouté de potiron",
+                covers: 4,
+                ingredients: [
+                    { ingredientId: 3, name: "Carottes", quantity: 0.5, unit: "Kg", wasteCoeff: 1.0, pricePerUnit: 1.20, unitPrice: "Kg" },
+                    { ingredientId: 1, name: "Crème fraîche", quantity: 0.2, unit: "Litre", wasteCoeff: 1.05, pricePerUnit: 2.50, unitPrice: "Litre" }
+                ],
+                procedure: "1. Éplucher et couper le potiron en dés\n2. Faire revenir les oignons dans du beurre\n3. Ajouter le potiron et couvrir d'eau\n4. Laisser mijoter 25 minutes\n5. Mixer et ajouter la crème\n6. Assaisonner et servir chaud",
+                wasteCoeff: 1.05,
+                totalCost: 2.12
+            }
         ];
 
         const UNITS = [
@@ -384,7 +401,6 @@
             );
         };
 
-        // Modal pour ajouter un nouvel ingrédient depuis la recette
         const AddIngredientModal = ({ isOpen, onClose, onAdd }) => {
             const [formData, setFormData] = useState({
                 category: CATEGORIES_ING[0],
@@ -398,7 +414,7 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                const newId = Date.now(); // ID unique temporaire
+                const newId = Date.now();
                 const newIngredient = {
                     ...formData,
                     id: newId,
@@ -507,6 +523,100 @@
             );
         };
 
+        const RecipeDetailModal = ({ recipe, isOpen, onClose, isChef }) => {
+            if (!isOpen || !recipe) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 mb-2 inline-block">
+                                        {recipe.category}
+                                    </span>
+                                    <h3 className="text-2xl font-bold text-gray-800">{recipe.name}</h3>
+                                </div>
+                                <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                                    <i data-lucide="x" className="w-6 h-6"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            {/* Ingrédients */}
+                            <div>
+                                <h4 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                    <i data-lucide="shopping-basket" className="w-5 h-5 mr-2 text-purple-600"></i>
+                                    Ingrédients ({recipe.covers} couverts)
+                                </h4>
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="text-left text-xs font-medium text-gray-500 uppercase">
+                                                <th className="pb-2">Ingrédient</th>
+                                                <th className="pb-2">Quantité</th>
+                                                {isChef && <th className="pb-2 text-right">Coût</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                            {recipe.ingredients.map((ing, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="py-2 font-medium text-gray-800">{ing.name}</td>
+                                                    <td className="py-2 text-gray-600">{ing.quantity} {ing.unit}</td>
+                                                    {isChef && (
+                                                        <td className="py-2 text-right text-purple-600 font-medium">
+                                                            {(ing.quantity * ing.pricePerUnit * ing.wasteCoeff).toFixed(2)}€
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Procédé */}
+                            <div>
+                                <h4 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                    <i data-lucide="list-ordered" className="w-5 h-5 mr-2 text-purple-600"></i>
+                                    Procédé / Préparation
+                                </h4>
+                                <div className="bg-yellow-50 rounded-lg p-4 border-l-4 border-yellow-400">
+                                    {recipe.procedure ? (
+                                        <div className="procedure-text text-gray-800">
+                                            {recipe.procedure.split('\n').map((step, idx) => (
+                                                <p key={idx} className="mb-2">{step}</p>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 italic">Aucun procédé renseigné</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Coûts */}
+                            {isChef && (
+                                <div className="bg-purple-50 rounded-lg p-4">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-semibold text-purple-900">Coût total:</span>
+                                        <span className="text-2xl font-bold text-purple-600">{recipe.totalCost?.toFixed(2)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-purple-700">
+                                        <span>Coût par couvert:</span>
+                                        <span>{(recipe.totalCost / recipe.covers).toFixed(2)}€</span>
+                                    </div>
+                                    <div className="mt-2 text-xs text-purple-600">
+                                        Coefficient de perte: {recipe.wasteCoeff || 1}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef }) => {
             const [showForm, setShowForm] = useState(false);
             const [editingId, setEditingId] = useState(null);
@@ -515,14 +625,15 @@
             const [adaptMode, setAdaptMode] = useState(false);
             const [adaptParams, setAdaptParams] = useState({ covers: 4, quantity: 1, budget: null });
             const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
-            const [searchIngredient, setSearchIngredient] = useState("");
-            const [showIngredientDropdown, setShowIngredientDropdown] = useState(false);
+            const [showDetailModal, setShowDetailModal] = useState(false);
+            const [detailRecipe, setDetailRecipe] = useState(null);
             
             const [formData, setFormData] = useState({
                 category: CATEGORIES_REC[0],
                 name: "",
                 covers: 4,
                 ingredients: [],
+                procedure: "",
                 wasteCoeff: 1.05
             });
 
@@ -563,13 +674,10 @@
                     }]
                 });
                 setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-                setShowIngredientDropdown(false);
             };
 
             const handleAddNewIngredient = (newIngredient) => {
-                // Ajouter à la base de données
                 setIngredients([...ingredients, newIngredient]);
-                // Ajouter directement à la recette en cours
                 setFormData({
                     ...formData,
                     ingredients: [...formData.ingredients, {
@@ -626,7 +734,7 @@
             };
 
             const resetForm = () => {
-                setFormData({ category: CATEGORIES_REC[0], name: "", covers: 4, ingredients: [], wasteCoeff: 1.05 });
+                setFormData({ category: CATEGORIES_REC[0], name: "", covers: 4, ingredients: [], procedure: "", wasteCoeff: 1.05 });
                 setEditingId(null);
                 setShowForm(false);
                 setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
@@ -650,6 +758,11 @@
                 setAdaptMode(true);
             };
 
+            const openDetail = (recipe) => {
+                setDetailRecipe(recipe);
+                setShowDetailModal(true);
+            };
+
             const getAdaptedIngredients = () => {
                 if (!selectedRecipe) return [];
                 const multiplier = (adaptParams.covers / selectedRecipe.covers) * adaptParams.quantity;
@@ -667,6 +780,13 @@
                         isOpen={showAddIngredientModal}
                         onClose={() => setShowAddIngredientModal(false)}
                         onAdd={handleAddNewIngredient}
+                    />
+
+                    <RecipeDetailModal 
+                        recipe={detailRecipe}
+                        isOpen={showDetailModal}
+                        onClose={() => setShowDetailModal(false)}
+                        isChef={isChef}
                     />
 
                     <div className="flex justify-between items-center mb-6">
@@ -733,10 +853,13 @@
                                 </div>
                             </div>
 
+                            {/* Section Ingrédients */}
                             <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                                <h4 className="font-medium text-gray-700 mb-3">Ajouter un ingrédient</h4>
+                                <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                                    <i data-lucide="shopping-basket" className="w-4 h-4 mr-2"></i>
+                                    Ingrédients
+                                </h4>
                                 
-                                {/* Recherche avec autocomplete */}
                                 <div className="relative mb-3">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher un ingrédient</label>
                                     <div className="relative">
@@ -744,18 +867,13 @@
                                         <input
                                             type="text"
                                             value={currentIng.searchText}
-                                            onChange={(e) => {
-                                                setCurrentIng({...currentIng, searchText: e.target.value});
-                                                setShowIngredientDropdown(true);
-                                            }}
-                                            onFocus={() => setShowIngredientDropdown(true)}
+                                            onChange={(e) => setCurrentIng({...currentIng, searchText: e.target.value})}
                                             placeholder="Tapez pour chercher..."
                                             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-600"
                                         />
                                     </div>
                                     
-                                    {/* Dropdown des résultats */}
-                                    {showIngredientDropdown && currentIng.searchText && (
+                                    {currentIng.searchText && (
                                         <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
                                             {filteredIngredientsForSearch.length > 0 ? (
                                                 filteredIngredientsForSearch.map(ing => (
@@ -764,7 +882,6 @@
                                                         type="button"
                                                         onClick={() => {
                                                             setCurrentIng({...currentIng, ingredientId: ing.id, searchText: ing.name});
-                                                            setShowIngredientDropdown(false);
                                                         }}
                                                         className="w-full text-left px-4 py-2 hover:bg-purple-50 flex justify-between items-center"
                                                     >
@@ -777,10 +894,7 @@
                                                     <p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p>
                                                     <button
                                                         type="button"
-                                                        onClick={() => {
-                                                            setShowIngredientDropdown(false);
-                                                            setShowAddIngredientModal(true);
-                                                        }}
+                                                        onClick={() => setShowAddIngredientModal(true)}
                                                         className="text-purple-600 font-medium text-sm hover:text-purple-800 flex items-center justify-center space-x-1"
                                                     >
                                                         <i data-lucide="plus-circle" className="w-4 h-4"></i>
@@ -793,7 +907,7 @@
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <div className="md:col-span-1">
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
                                         <input
                                             type="number"
@@ -841,7 +955,6 @@
                                     </div>
                                 </div>
 
-                                {/* Bouton pour ajouter un nouvel ingrédient manuellement */}
                                 <button
                                     type="button"
                                     onClick={() => setShowAddIngredientModal(true)}
@@ -850,6 +963,24 @@
                                     <i data-lucide="plus-circle" className="w-4 h-4"></i>
                                     <span>Créer un nouvel ingrédient qui n'existe pas</span>
                                 </button>
+                            </div>
+
+                            {/* Section Procédé */}
+                            <div className="bg-yellow-50 rounded-lg p-4 mb-4 border-l-4 border-yellow-400">
+                                <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                                    <i data-lucide="list-ordered" className="w-4 h-4 mr-2"></i>
+                                    Procédé / Préparation
+                                </h4>
+                                <textarea
+                                    value={formData.procedure}
+                                    onChange={(e) => setFormData({...formData, procedure: e.target.value})}
+                                    placeholder="Décrivez ici les étapes de préparation de la recette...&#10;1. Préchauffer le four à 180°C&#10;2. Mélanger les ingrédients secs&#10;3. Ajouter les ingrédients liquides&#10;4. Enfourner pendant 30 minutes..."
+                                    className="w-full h-40 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-600 focus:border-transparent resize-none"
+                                />
+                                <p className="text-xs text-gray-500 mt-2">
+                                    <i data-lucide="info" className="w-3 h-3 inline mr-1"></i>
+                                    Décrivez les étapes de préparation, les temps de cuisson, les températures, les astuces...
+                                </p>
                             </div>
 
                             {formData.ingredients.length > 0 && (
@@ -880,7 +1011,7 @@
                                 </div>
                             )}
 
-                            <div className="flex items-center space-x-4 mb-4 bg-yellow-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-4 mb-4 bg-gray-50 p-3 rounded-lg">
                                 <label className="text-sm font-medium text-gray-700">Coefficient de perte global:</label>
                                 <input
                                     type="number"
@@ -916,6 +1047,12 @@
                                     <h3 className="text-lg font-bold text-gray-800 mb-2">{recipe.name}</h3>
                                     <div className="space-y-1 mb-4">
                                         <p className="text-sm text-gray-600">{recipe.ingredients.length} ingrédient(s)</p>
+                                        {recipe.procedure && (
+                                            <p className="text-xs text-yellow-600 flex items-center">
+                                                <i data-lucide="check-circle" className="w-3 h-3 mr-1"></i>
+                                                Procédé renseigné
+                                            </p>
+                                        )}
                                         {isChef && (
                                             <div className="mt-2 p-2 bg-purple-50 rounded-lg">
                                                 <p className="text-lg font-bold text-purple-600">
@@ -928,6 +1065,12 @@
                                         )}
                                     </div>
                                     <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => openDetail(recipe)}
+                                            className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                                        >
+                                            Voir détail
+                                        </button>
                                         <button
                                             onClick={() => openAdapt(recipe)}
                                             className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
@@ -1112,7 +1255,7 @@
                                         <td className="px-6 py-4 text-gray-600">{recipe.category}</td>
                                         <td className="px-6 py-4 text-gray-600">{recipe.covers}</td>
                                         <td className="px-6 py-4 font-bold text-purple-600">{recipe.totalCost?.toFixed(2)}€</td>
-                                        <td className="text-gray-600">({(recipe.totalCost / recipe.covers).toFixed(2)}€</td>
+                                        <td className="px-6 py-4 text-gray-600">({(recipe.totalCost / recipe.covers).toFixed(2)}€</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1125,7 +1268,7 @@
         const App = () => {
             const [user, setUser] = useLocalStorage("arpege_user", null);
             const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
-            const [recipes, setRecipes] = useLocalStorage("arpege_recipes", []);
+            const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
             const [activeTab, setActiveTab] = useState("recettes");
 
             useEffect(() => {
