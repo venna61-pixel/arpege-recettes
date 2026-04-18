@@ -10,23 +10,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&display=swap');
         
         body { font-family: 'Inter', sans-serif; }
-        .font-serif { font-family: 'Cormorant Garamond', serif; }
-        
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
         .slide-in { animation: slideIn 0.3s ease-out; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        
         .procedure-text { white-space: pre-wrap; line-height: 1.6; }
         .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
-        
-        /* Couleurs exactes du logo */
-        .logo-bird { fill: #B87D4B; } /* Bronze/doré */
-        .logo-text { color: #1B3A4B; } /* Bleu marine foncé */
     </style>
 </head>
 <body class="bg-gray-50">
@@ -35,59 +26,35 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
         
-        // Logo L'Arpège SVG - Version exacte
+        // URL du logo (tu devras l'héberger sur GitHub aussi)
+        const LOGO_URL = "https://raw.githubusercontent.com/TON-USERNAME/TON-REPO/main/L'ARPÈGE_logo_complet_baseline_web.png";
+        
+        // Composant Logo avec l'image officielle
         const LogoArpege = ({ className = "", size = "large" }) => {
             const isSmall = size === "small";
-            const scale = isSmall ? 0.5 : 1;
             
             return (
                 <div className={`flex flex-col items-center ${className}`}>
-                    {/* Oiseau/Hirondelle - forme exacte stylisée et pointue */}
-                    <svg 
-                        width={120 * scale} 
-                        height={70 * scale} 
-                        viewBox="0 0 120 70" 
-                        className="mb-1"
-                    >
-                        {/* Forme principale de l'oiseau - très stylisée, ailes en pointe */}
-                        <path 
-                            className="logo-bird"
-                            d="M20 55 
-                               C 25 50, 35 45, 45 40 
-                               C 55 35, 65 30, 75 25 
-                               C 82 22, 88 20, 92 18
-                               C 95 17, 98 16, 100 15
-                               C 102 14, 104 13, 105 12
-                               C 106 11, 107 10, 108 9
-                               C 109 8, 110 7, 111 6
-                               C 112 5, 113 4, 114 3
-                               C 115 2, 116 1, 117 0
-                               C 118 0, 119 0, 120 0
-                               C 119 2, 118 4, 117 6
-                               C 116 8, 115 10, 114 12
-                               C 113 14, 112 16, 110 18
-                               C 108 20, 106 22, 103 24
-                               C 100 26, 96 28, 92 30
-                               C 88 32, 84 34, 80 36
-                               C 76 38, 72 40, 68 42
-                               C 64 44, 60 46, 56 48
-                               C 52 50, 48 52, 44 54
-                               C 40 56, 36 58, 32 60
-                               C 28 62, 24 64, 20 66
-                               C 16 68, 12 70, 8 72
-                               C 6 73, 4 74, 2 75
-                               C 0 76, 0 76, 0 76
-                               C 5 72, 10 68, 15 64
-                               C 18 62, 20 60, 20 55 Z"
-                        />
-                    </svg>
-                    
-                    {/* Texte L'ARPÈGE - bleu marine foncé */}
-                    <div 
-                        className={`font-serif font-normal tracking-widest logo-text ${isSmall ? 'text-base' : 'text-3xl'}`}
-                        style={{ letterSpacing: '0.25em' }}
-                    >
-                        L'ARPÈGE
+                    <img 
+                        src={LOGO_URL}
+                        alt="L'Arpège - Cuisine Libre & Inspirée"
+                        className={`object-contain ${isSmall ? 'h-12' : 'h-24'}`}
+                        onError={(e) => {
+                            // Fallback si l'image ne charge pas
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                        }}
+                    />
+                    {/* Fallback texte si l'image ne charge pas */}
+                    <div className="hidden flex-col items-center">
+                        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? 'text-lg' : 'text-3xl'}`}>
+                            L'ARPÈGE
+                        </span>
+                        {!isSmall && (
+                            <span className="text-xs tracking-[0.3em] text-gray-500 mt-1">
+                                CUISINE LIBRE & INSPIRÉE
+                            </span>
+                        )}
                     </div>
                 </div>
             );
@@ -172,7 +139,7 @@
                     <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
                         <div className="text-center mb-8">
                             <LogoArpege size="large" className="mb-6" />
-                            <p className="text-gray-500 mt-2 font-serif italic text-lg">Gestion des Recettes</p>
+                            <p className="text-gray-500 mt-2 italic text-lg">Gestion des Recettes</p>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-6">
@@ -182,7 +149,7 @@
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600 focus:border-transparent transition-all"
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent transition-all"
                                     placeholder="chef ou employe"
                                 />
                             </div>
@@ -192,7 +159,7 @@
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600 focus:border-transparent transition-all"
+                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent transition-all"
                                     placeholder="••••••••"
                                 />
                             </div>
@@ -203,7 +170,7 @@
                             )}
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-amber-700 to-amber-800 text-white py-3 rounded-lg font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
+                                className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
                             >
                                 Se connecter
                             </button>
@@ -241,7 +208,7 @@
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`px-6 py-2 rounded-full transition-all font-medium ${
                                             activeTab === tab.id
-                                                ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                                ? "bg-[#C8956C] text-white"
                                                 : "text-gray-600 hover:bg-gray-100"
                                         }`}
                                     >
@@ -254,7 +221,7 @@
                                 <div className="flex items-center space-x-2">
                                     <span className="text-sm font-medium text-gray-700">{user.name}</span>
                                     <span className={`text-xs px-3 py-1 rounded-full uppercase font-medium ${
-                                        user.role === "chef" ? "bg-amber-100 text-amber-900" : "bg-blue-100 text-blue-800"
+                                        user.role === "chef" ? "bg-[#C8956C] text-white" : "bg-blue-100 text-blue-800"
                                     }`}>
                                         {user.role}
                                     </span>
@@ -324,11 +291,11 @@
             return (
                 <div className="p-6 max-w-7xl mx-auto fade-in">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-800 font-serif">Gestion des Ingrédients</h2>
+                        <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Ingrédients</h2>
                         {isChef && (
                             <button
                                 onClick={() => setShowForm(!showForm)}
-                                className="flex items-center space-x-2 bg-amber-700 text-white px-4 py-2 rounded-lg hover:bg-amber-800 transition-colors"
+                                className="flex items-center space-x-2 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg hover:bg-[#2A4A5A] transition-colors"
                             >
                                 <span>+ Nouvel ingrédient</span>
                             </button>
@@ -341,13 +308,13 @@
                             placeholder="Rechercher un ingrédient..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600 focus:border-transparent"
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
                         />
                     </div>
 
                     {showForm && (
-                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-amber-100">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800 font-serif">
+                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
+                            <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">
                                 {editingId ? "Modifier" : "Nouvel ingrédient"}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -356,7 +323,7 @@
                                     <select
                                         value={formData.category}
                                         onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     >
                                         {CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
@@ -367,7 +334,7 @@
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     />
                                 </div>
@@ -378,7 +345,7 @@
                                         step="0.01"
                                         value={formData.price}
                                         onChange={(e) => setFormData({...formData, price: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     />
                                 </div>
@@ -387,7 +354,7 @@
                                     <select
                                         value={formData.unit}
                                         onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     >
                                         {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
                                     </select>
@@ -398,12 +365,12 @@
                                         type="text"
                                         value={formData.supplier}
                                         onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     />
                                 </div>
                             </div>
                             <div className="mt-4 flex space-x-3">
-                                <button type="submit" className="bg-amber-700 text-white px-6 py-2 rounded-lg hover:bg-amber-800">
+                                <button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg hover:bg-[#2A4A5A]">
                                     {editingId ? "Mettre à jour" : "Ajouter"}
                                 </button>
                                 <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300">
@@ -429,7 +396,7 @@
                                 {filteredIngredients.map(ing => (
                                     <tr key={ing.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4">
-                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900">
+                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
                                                 {ing.category}
                                             </span>
                                         </td>
@@ -439,7 +406,7 @@
                                         <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
                                         {isChef && (
                                             <td className="px-6 py-4 text-sm">
-                                                <button onClick={() => handleEdit(ing)} className="text-amber-700 hover:text-amber-900 mr-3">
+                                                <button onClick={() => handleEdit(ing)} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">
                                                     Modifier
                                                 </button>
                                                 <button onClick={() => handleDelete(ing.id)} className="text-red-600 hover:text-red-800">
@@ -498,7 +465,7 @@
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
-                            <h3 className="text-xl font-bold text-gray-800 font-serif">Nouvel ingrédient</h3>
+                            <h3 className="text-xl font-bold text-[#1A3A4A]">Nouvel ingrédient</h3>
                             <p className="text-sm text-gray-500 mt-1">Ajouté à la base et à la recette</p>
                         </div>
                         
@@ -509,7 +476,7 @@
                                     <select
                                         value={formData.category}
                                         onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     >
                                         {CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -521,7 +488,7 @@
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     />
                                 </div>
@@ -536,7 +503,7 @@
                                         min="0"
                                         value={formData.price}
                                         onChange={(e) => setFormData({...formData, price: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     />
                                 </div>
@@ -545,7 +512,7 @@
                                     <select
                                         value={formData.unit}
                                         onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     >
                                         {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
@@ -559,12 +526,12 @@
                                     type="text"
                                     value={formData.supplier}
                                     onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                 />
                             </div>
 
                             <div className="flex space-x-3 pt-4">
-                                <button type="submit" className="flex-1 bg-amber-700 text-white py-3 rounded-lg font-medium hover:bg-amber-800">
+                                <button type="submit" className="flex-1 bg-[#1A3A4A] text-white py-3 rounded-lg font-medium hover:bg-[#2A4A5A]">
                                     Ajouter et sélectionner
                                 </button>
                                 <button type="button" onClick={onClose} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
@@ -600,16 +567,16 @@
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 mb-2 inline-block">
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white mb-2 inline-block">
                                 {recipe.category}
                             </span>
-                            <h3 className="text-2xl font-bold text-gray-800 font-serif">{recipe.name}</h3>
+                            <h3 className="text-2xl font-bold text-[#1A3A4A]">{recipe.name}</h3>
                             <p className="text-sm text-gray-500 mt-1">{recipe.covers} couverts de base</p>
                         </div>
                         
                         <div className="p-6 space-y-6">
                             <div>
-                                <h4 className="text-lg font-semibold text-gray-800 mb-3 font-serif">Ingrédients ({recipe.ingredients.length})</h4>
+                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients ({recipe.ingredients.length})</h4>
                                 <div className="bg-gray-50 rounded-lg p-4">
                                     <table className="w-full">
                                         <thead>
@@ -625,7 +592,7 @@
                                                     <td className="py-3 font-medium">{ing.name}</td>
                                                     <td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>
                                                     {isChef && (
-                                                        <td className="py-3 text-right text-amber-700 font-medium">
+                                                        <td className="py-3 text-right text-[#C8956C] font-medium">
                                                             {(ing.quantity * ing.pricePerUnit * ing.wasteCoeff).toFixed(2)}€
                                                         </td>
                                                     )}
@@ -637,8 +604,8 @@
                             </div>
 
                             <div>
-                                <h4 className="text-lg font-semibold text-gray-800 mb-3 font-serif">Procédé / Préparation</h4>
-                                <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-amber-400">
+                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Procédé / Préparation</h4>
+                                <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">
                                     {recipe.procedure ? (
                                         <div className="procedure-text text-gray-800">
                                             {recipe.procedure.split('\n').map((step, idx) => (
@@ -652,12 +619,12 @@
                             </div>
 
                             {isChef && (
-                                <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                                <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 border border-[#C8956C] border-opacity-30">
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="font-semibold text-amber-900">Coût total:</span>
-                                        <span className="text-2xl font-bold text-amber-700">{recipe.totalCost?.toFixed(2)}€</span>
+                                        <span className="font-semibold text-[#1A3A4A]">Coût total:</span>
+                                        <span className="text-2xl font-bold text-[#C8956C]">{recipe.totalCost?.toFixed(2)}€</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm text-amber-800">
+                                    <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
                                         <span>Coût par couvert:</span>
                                         <span>{(recipe.totalCost / recipe.covers).toFixed(2)}€</span>
                                     </div>
@@ -729,7 +696,7 @@
                         </button>
 
                         <div className="p-6 border-b border-gray-200 pr-12">
-                            <h3 className="text-xl font-bold text-gray-800 font-serif">Adapter: {recipe.name}</h3>
+                            <h3 className="text-xl font-bold text-[#1A3A4A]">Adapter: {recipe.name}</h3>
                         </div>
 
                         <div className="p-6">
@@ -740,7 +707,7 @@
                                         type="number"
                                         value={adaptParams.covers}
                                         onChange={(e) => setAdaptParams({...adaptParams, covers: parseInt(e.target.value) || 1})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         min="1"
                                     />
                                 </div>
@@ -750,7 +717,7 @@
                                         type="number"
                                         value={adaptParams.quantity}
                                         onChange={(e) => setAdaptParams({...adaptParams, quantity: parseInt(e.target.value) || 1})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         min="1"
                                     />
                                 </div>
@@ -760,7 +727,7 @@
                                         type="number"
                                         value={adaptParams.budget || ""}
                                         onChange={(e) => setAdaptParams({...adaptParams, budget: e.target.value ? parseFloat(e.target.value) : null})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         placeholder="Optionnel"
                                     />
                                 </div>
@@ -781,12 +748,12 @@
                             </div>
 
                             {isChef && (
-                                <div className="bg-amber-50 rounded-lg p-4 mb-6 border border-amber-200">
+                                <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 mb-6 border border-[#C8956C] border-opacity-30">
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="font-semibold text-amber-900">Coût total estimé:</span>
-                                        <span className="text-2xl font-bold text-amber-700">{adaptedCost.toFixed(2)}€</span>
+                                        <span className="font-semibold text-[#1A3A4A]">Coût total estimé:</span>
+                                        <span className="text-2xl font-bold text-[#C8956C]">{adaptedCost.toFixed(2)}€</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm text-amber-800">
+                                    <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
                                         <span>Coût par couvert:</span>
                                         <span>{(adaptedCost / adaptParams.covers).toFixed(2)}€</span>
                                     </div>
@@ -800,7 +767,7 @@
                                 </div>
                             )}
 
-                            <button onClick={onClose} className="w-full bg-amber-700 text-white py-3 rounded-lg hover:bg-amber-800 font-medium">
+                            <button onClick={onClose} className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg hover:bg-[#2A4A5A] font-medium">
                                 Fermer
                             </button>
                         </div>
@@ -965,11 +932,11 @@
                     />
 
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-800 font-serif">Gestion des Recettes</h2>
+                        <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Recettes</h2>
                         {isChef && (
                             <button
                                 onClick={() => setShowForm(!showForm)}
-                                className="flex items-center space-x-2 bg-amber-700 text-white px-4 py-2 rounded-lg hover:bg-amber-800 transition-colors"
+                                className="flex items-center space-x-2 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg hover:bg-[#2A4A5A] transition-colors"
                             >
                                 <span>+ Nouvelle recette</span>
                             </button>
@@ -982,13 +949,13 @@
                             placeholder="Rechercher une recette..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600 focus:border-transparent"
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
                         />
                     </div>
 
                     {showForm && (
-                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-amber-100">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800 font-serif">
+                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
+                            <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">
                                 {editingId ? "Modifier la recette" : "Nouvelle recette"}
                             </h3>
                             
@@ -998,7 +965,7 @@
                                     <select
                                         value={formData.category}
                                         onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     >
                                         {CATEGORIES_REC.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
@@ -1009,7 +976,7 @@
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         required
                                     />
                                 </div>
@@ -1019,7 +986,7 @@
                                         type="number"
                                         value={formData.covers}
                                         onChange={(e) => setFormData({...formData, covers: parseInt(e.target.value)})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         min="1"
                                         required
                                     />
@@ -1036,7 +1003,7 @@
                                         value={currentIng.searchText}
                                         onChange={(e) => setCurrentIng({...currentIng, searchText: e.target.value})}
                                         placeholder="Tapez pour chercher..."
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                     />
                                     
                                     {currentIng.searchText && (
@@ -1059,7 +1026,7 @@
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowAddIngredientModal(true)}
-                                                        className="text-amber-700 font-medium text-sm"
+                                                        className="text-[#1A3A4A] font-medium text-sm"
                                                     >
                                                         Créer "{currentIng.searchText}"
                                                     </button>
@@ -1077,7 +1044,7 @@
                                             step="0.01"
                                             value={currentIng.quantity}
                                             onChange={(e) => setCurrentIng({...currentIng, quantity: e.target.value})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         />
                                     </div>
                                     <div>
@@ -1085,7 +1052,7 @@
                                         <select
                                             value={currentIng.unit}
                                             onChange={(e) => setCurrentIng({...currentIng, unit: e.target.value})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         >
                                             {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
                                         </select>
@@ -1097,7 +1064,7 @@
                                             step="0.01"
                                             value={currentIng.wasteCoeff}
                                             onChange={(e) => setCurrentIng({...currentIng, wasteCoeff: parseFloat(e.target.value)})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                         />
                                     </div>
                                     <div className="flex items-end">
@@ -1105,7 +1072,7 @@
                                             type="button"
                                             onClick={() => addIngredientToRecipe()}
                                             disabled={!currentIng.ingredientId || !currentIng.quantity}
-                                            className={`w-full py-2 rounded-lg font-medium ${currentIng.ingredientId && currentIng.quantity ? "bg-amber-700 text-white hover:bg-amber-800" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                                            className={`w-full py-2 rounded-lg font-medium ${currentIng.ingredientId && currentIng.quantity ? "bg-[#1A3A4A] text-white hover:bg-[#2A4A5A]" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                                         >
                                             Ajouter
                                         </button>
@@ -1115,19 +1082,19 @@
                                 <button
                                     type="button"
                                     onClick={() => setShowAddIngredientModal(true)}
-                                    className="mt-3 text-sm text-amber-700 hover:text-amber-900 font-medium"
+                                    className="mt-3 text-sm text-[#1A3A4A] hover:text-[#C8956C] font-medium"
                                 >
                                     + Créer un nouvel ingrédient
                                 </button>
                             </div>
 
-                            <div className="bg-amber-50 rounded-lg p-4 mb-4 border-l-4 border-amber-400">
-                                <h4 className="font-medium text-gray-700 mb-3 font-serif">Procédé / Préparation</h4>
+                            <div className="bg-amber-50 rounded-lg p-4 mb-4 border-l-4 border-[#C8956C]">
+                                <h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4>
                                 <textarea
                                     value={formData.procedure}
                                     onChange={(e) => setFormData({...formData, procedure: e.target.value})}
                                     placeholder="Décrivez les étapes de préparation..."
-                                    className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600 resize-none"
+                                    className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] resize-none"
                                 />
                             </div>
 
@@ -1158,12 +1125,12 @@
                                     step="0.01"
                                     value={formData.wasteCoeff}
                                     onChange={(e) => setFormData({...formData, wasteCoeff: parseFloat(e.target.value)})}
-                                    className="w-24 px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-600"
+                                    className="w-24 px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
                                 />
                             </div>
 
                             <div className="flex space-x-3">
-                                <button type="submit" className="bg-amber-700 text-white px-6 py-2 rounded-lg hover:bg-amber-800 font-medium">
+                                <button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg hover:bg-[#2A4A5A] font-medium">
                                     {editingId ? "Mettre à jour" : "Créer la recette"}
                                 </button>
                                 <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300">
@@ -1178,22 +1145,22 @@
                             <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                                 <div className="p-6">
                                     <div className="flex justify-between items-start mb-4">
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900">
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
                                             {recipe.category}
                                         </span>
                                         <span className="text-sm text-gray-500">{recipe.covers} couverts</span>
                                     </div>
                                     <h3 
-                                        className="text-lg font-bold text-gray-800 mb-2 cursor-pointer hover:text-amber-700 transition-colors font-serif"
+                                        className="text-lg font-bold text-[#1A3A4A] mb-2 cursor-pointer hover:text-[#C8956C] transition-colors"
                                         onClick={() => setDetailRecipe(recipe)}
                                     >
                                         {recipe.name}
                                     </h3>
                                     <div className="space-y-1 mb-4">
                                         <p className="text-sm text-gray-600">{recipe.ingredients.length} ingrédient(s)</p>
-                                        {recipe.procedure && <p className="text-xs text-amber-700">✓ Procédé renseigné</p>}
+                                        {recipe.procedure && <p className="text-xs text-[#C8956C]">✓ Procédé renseigné</p>}
                                         {isChef && (
-                                            <p className="text-lg font-bold text-amber-700">
+                                            <p className="text-lg font-bold text-[#C8956C]">
                                                 {recipe.totalCost?.toFixed(2)}€
                                                 <span className="text-sm font-normal text-gray-500 ml-2">
                                                     ({(recipe.totalCost / recipe.covers).toFixed(2)}€/couvert)
@@ -1210,13 +1177,13 @@
                                         </button>
                                         <button
                                             onClick={() => setAdaptRecipe(recipe)}
-                                            className="flex-1 bg-amber-50 text-amber-700 py-2 rounded-lg hover:bg-amber-100 text-sm font-medium"
+                                            className="flex-1 bg-[#C8956C] bg-opacity-10 text-[#C8956C] py-2 rounded-lg hover:bg-opacity-20 text-sm font-medium"
                                         >
                                             Adapter
                                         </button>
                                         {isChef && (
                                             <>
-                                                <button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 hover:text-amber-700 bg-gray-50 rounded-lg">
+                                                <button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 hover:text-[#1A3A4A] bg-gray-50 rounded-lg">
                                                     ✎
                                                 </button>
                                                 <button onClick={() => handleDelete(recipe.id)} className="p-2 text-gray-600 hover:text-red-600 bg-gray-50 rounded-lg">
@@ -1240,32 +1207,32 @@
 
             return (
                 <div className="p-6 max-w-7xl mx-auto fade-in">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-6 font-serif">Analyse des Coûts</h2>
+                    <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Analyse des Coûts</h2>
                     
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3>
-                            <p className="text-3xl font-bold text-gray-800">{avgCostPerRecipe.toFixed(2)}€</p>
+                            <p className="text-3xl font-bold text-[#1A3A4A]">{avgCostPerRecipe.toFixed(2)}€</p>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3>
-                            <p className="text-lg font-bold truncate">{mostExpensive?.name || "-"}</p>
+                            <p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExpensive?.name || "-"}</p>
                             <p className="text-2xl font-bold text-red-600">{mostExpensive?.totalCost?.toFixed(2) || "0"}€</p>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3>
-                            <p className="text-lg font-bold truncate">{cheapest?.name || "-"}</p>
+                            <p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "-"}</p>
                             <p className="text-2xl font-bold text-green-600">{cheapest?.totalCost?.toFixed(2) || "0"}€</p>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
                             <h3 className="text-sm font-medium text-gray-500 mb-4">Ingrédients</h3>
-                            <p className="text-3xl font-bold text-gray-800">{ingredients.length}</p>
+                            <p className="text-3xl font-bold text-[#1A3A4A]">{ingredients.length}</p>
                         </div>
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-800 font-serif">Détail des coûts</h3>
+                            <h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3>
                         </div>
                         <table className="w-full">
                             <thead className="bg-gray-50">
@@ -1279,9 +1246,9 @@
                             <tbody className="divide-y divide-gray-200">
                                 {recipes.map(recipe => (
                                     <tr key={recipe.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium">{recipe.name}</td>
+                                        <td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td>
                                         <td className="px-6 py-4 text-gray-600">{recipe.category}</td>
-                                        <td className="px-6 py-4 font-bold text-amber-700">{recipe.totalCost?.toFixed(2)}€</td>
+                                        <td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.totalCost?.toFixed(2)}€</td>
                                         <td className="px-6 py-4 text-gray-600">{(recipe.totalCost / recipe.covers).toFixed(2)}€</td>
                                     </tr>
                                 ))}
