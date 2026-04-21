@@ -439,8 +439,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
     .replaceAll("'", "&#39;");
 
   const handlePrintPdf = () => {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
-    if (!printWindow) return;
+    const popup = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
 
     const directRows = normalized.directIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
@@ -554,11 +553,39 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(content);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    const printFromWindow = (targetWindow) => {
+      targetWindow.document.open();
+      targetWindow.document.write(content);
+      targetWindow.document.close();
+      targetWindow.focus();
+      targetWindow.print();
+    };
+
+    if (popup) {
+      printFromWindow(popup);
+      return;
+    }
+
+    // Fallback when popups are blocked by the browser:
+    // use a hidden iframe and trigger the print dialog from it.
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const iframeWindow = iframe.contentWindow;
+    if (!iframeWindow) {
+      alert("Impossible d'ouvrir l'impression PDF. Vérifiez les paramètres de votre navigateur.");
+      iframe.remove();
+      return;
+    }
+
+    printFromWindow(iframeWindow);
+    setTimeout(() => iframe.remove(), 1000);
   };
 
   return (
