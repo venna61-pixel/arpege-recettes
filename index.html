@@ -10,1620 +10,922 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
         body { font-family: 'Inter', sans-serif; }
-        .fade-in { animation: fadeIn 0.3s ease-in; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .slide-in { animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
+        .fade-in { animation: fadeIn 0.25s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.25s ease-out; }
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .procedure-text { white-space: pre-wrap; line-height: 1.6; }
-        .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+        .modal-overlay { background: rgba(0,0,0,.6); backdrop-filter: blur(4px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-50">
-    <div id="root"></div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+const LOGO_URL = "https://raw.githubusercontent.com/venna61-pixel/arpege-recettes/main/logo.png";
+const SERVICE_CATEGORIES = ["Entrée", "Plat", "Dessert", "Amuse-bouche", "Soupe", "Salade", "Boisson"];
+const RECIPE_TYPE_OPTIONS = [
+  { value: "base", label: "Recette de base" },
+  { value: "final", label: "Recette finale" }
+];
 
-        const LOGO_URL = "https://raw.githubusercontent.com/venna61-pixel/arpege-recettes/main/logo.png";
+const UNITS = [
+  "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8",
+  "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe", "Botte", "Bouteille",
+  "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Kg", "Lot", "Litre", "Pack",
+  "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
+  "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
+];
 
-        const LogoArpege = ({ className = "", size = "large" }) => {
-            const isSmall = size === "small";
+const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
+const MASS_UNITS = { "Kg": 1000, "Gramme": 1 };
+const VOLUME_UNITS = { "Litre": 1000, "Ml": 1, "Cl": 10 };
+const COUNT_UNITS = [
+  "Pièce", "Unité", "Part", "Portion", "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte",
+  "Boîte 1/4", "Boîte 1/8", "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe",
+  "Botte", "Bouteille", "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Lot", "Pack",
+  "Pain", "Paire", "Paquet", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", "Seau",
+  "Tablette", "Terrine", "Tube", "Tubo", "Carton"
+];
 
-            return (
-                <div className={`flex flex-col items-center ${className}`}>
-                    <img
-                        src={LOGO_URL}
-                        alt="L'Arpège - Cuisine Libre & Inspirée"
-                        className={`object-contain ${isSmall ? "h-12" : "h-24"}`}
-                        onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.nextSibling.style.display = "flex";
-                        }}
-                    />
-                    <div className="hidden flex-col items-center">
-                        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? "text-lg" : "text-3xl"}`}>
-                            L'ARPÈGE
-                        </span>
-                        {!isSmall && (
-                            <span className="text-xs tracking-[0.3em] text-gray-500 mt-1">
-                                CUISINE LIBRE & INSPIRÉE
-                            </span>
-                        )}
-                    </div>
+const INITIAL_INGREDIENTS = [
+  { id: 1, category: "Laitage", name: "Crème fraîche", price: 2.50, unit: "Litre", supplier: "Laiterie du Nord" },
+  { id: 2, category: "Boucherie", name: "Filet de bœuf", price: 28.00, unit: "Kg", supplier: "Boucherie Martin" },
+  { id: 3, category: "Légumes", name: "Carottes", price: 1.20, unit: "Kg", supplier: "Maraîcher Local" },
+  { id: 4, category: "Épicerie", name: "Huile d'olive", price: 8.50, unit: "Litre", supplier: "Oliviers du Sud" },
+  { id: 5, category: "Boulangerie", name: "Pain de campagne", price: 3.20, unit: "Pièce", supplier: "Boulangerie Dupont" }
+];
+
+const INITIAL_RECIPES = [
+  {
+    id: 1,
+    recipeType: "base",
+    categories: ["Entrée"],
+    name: "Velouté de potiron",
+    covers: 4,
+    outputQuantity: 2,
+    outputUnit: "Litre",
+    directIngredients: [
+      { ingredientId: 3, name: "Carottes", quantity: 0.5, unit: "Kg", wasteCoeff: 1.0, pricePerUnit: 1.20, unitPrice: "Kg" },
+      { ingredientId: 1, name: "Crème fraîche", quantity: 0.2, unit: "Litre", wasteCoeff: 1.05, pricePerUnit: 2.50, unitPrice: "Litre" }
+    ],
+    baseComponents: [],
+    procedure: "1. Éplucher et couper le potiron en dés\n2. Faire revenir les oignons dans du beurre\n3. Ajouter le potiron et couvrir d'eau\n4. Laisser mijoter 25 minutes\n5. Mixer et ajouter la crème\n6. Assaisonner et servir chaud",
+    wasteCoeff: 1.05
+  }
+];
+
+const LogoArpege = ({ className = "", size = "large" }) => {
+  const isSmall = size === "small";
+  return (
+    <div className={`flex flex-col items-center ${className}`}>
+      <img
+        src={LOGO_URL}
+        alt="L'Arpège - Cuisine Libre & Inspirée"
+        className={`object-contain ${isSmall ? "h-12" : "h-24"}`}
+        onError={(e) => {
+          e.target.style.display = "none";
+          e.target.nextSibling.style.display = "flex";
+        }}
+      />
+      <div className="hidden flex-col items-center">
+        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? "text-lg" : "text-3xl"}`}>L'ARPÈGE</span>
+        {!isSmall && <span className="text-xs tracking-[0.3em] text-gray-500 mt-1">CUISINE LIBRE & INSPIRÉE</span>}
+      </div>
+    </div>
+  );
+};
+
+const roundTo = (value, decimals = 2) => Number((value || 0).toFixed(decimals));
+const getUnitGroup = (unit) => MASS_UNITS[unit] ? "mass" : VOLUME_UNITS[unit] ? "volume" : COUNT_UNITS.includes(unit) ? "count" : "unknown";
+const convertQuantity = (quantity, fromUnit, toUnit) => {
+  if (quantity == null || !fromUnit || !toUnit || fromUnit === toUnit) return quantity;
+  const fromGroup = getUnitGroup(fromUnit);
+  const toGroup = getUnitGroup(toUnit);
+  if (fromGroup !== toGroup) return null;
+  if (fromGroup === "mass") return quantity * MASS_UNITS[fromUnit] / MASS_UNITS[toUnit];
+  if (fromGroup === "volume") return quantity * VOLUME_UNITS[fromUnit] / VOLUME_UNITS[toUnit];
+  if (fromGroup === "count") return quantity;
+  return null;
+};
+
+const calculateIngredientCost = (ingredientLine) => {
+  const recipeQty = Number(ingredientLine.quantity || 0);
+  const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, ingredientLine.unitPrice);
+  if (convertedQty == null) return null;
+  return convertedQty * Number(ingredientLine.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
+};
+
+const normalizeRecipe = (recipe) => {
+  const categories = Array.isArray(recipe.categories)
+    ? recipe.categories
+    : recipe.category
+      ? [recipe.category]
+      : [];
+
+  return {
+    ...recipe,
+    recipeType: recipe.recipeType || "base",
+    categories,
+    directIngredients: recipe.directIngredients || recipe.ingredients || [],
+    baseComponents: recipe.baseComponents || [],
+    outputQuantity: Number(recipe.outputQuantity || recipe.covers || 1),
+    outputUnit: recipe.outputUnit || (recipe.recipeType === "final" ? "Portion" : "Kg"),
+    covers: Number(recipe.covers || 1),
+    wasteCoeff: Number(recipe.wasteCoeff || 1),
+  };
+};
+
+const getRecipeById = (recipes, id) => recipes.find(r => Number(r.id) === Number(id));
+
+const calculateRecipeTotalCost = (recipe, allRecipes, visited = new Set()) => {
+  const current = normalizeRecipe(recipe);
+  if (visited.has(current.id)) return null;
+  const nextVisited = new Set(visited);
+  nextVisited.add(current.id);
+
+  let total = 0;
+  for (const ing of current.directIngredients) {
+    const lineCost = calculateIngredientCost(ing);
+    if (lineCost == null) return null;
+    total += lineCost;
+  }
+
+  for (const component of current.baseComponents || []) {
+    const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
+    if (!baseRecipe) return null;
+    const normalizedBase = normalizeRecipe(baseRecipe);
+    const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited);
+    if (baseCost == null) return null;
+    const converted = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
+    if (converted == null || Number(normalizedBase.outputQuantity || 0) <= 0) return null;
+    total += baseCost * (converted / Number(normalizedBase.outputQuantity));
+  }
+
+  return total * Number(current.wasteCoeff || 1);
+};
+
+const getCostStatus = (recipe, allRecipes) => {
+  const current = normalizeRecipe(recipe);
+  for (const ing of current.directIngredients) {
+    const convertedQty = convertQuantity(Number(ing.quantity || 0), ing.unit, ing.unitPrice);
+    if (convertedQty == null) {
+      return { valid: false, message: `Conversion impossible entre ${ing.unit} et ${ing.unitPrice} pour ${ing.name}` };
+    }
+  }
+
+  for (const component of current.baseComponents || []) {
+    const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
+    if (!baseRecipe) {
+      return { valid: false, message: `Recette de base introuvable : ${component.name}` };
+    }
+    const normalizedBase = normalizeRecipe(baseRecipe);
+    const convertedQty = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
+    if (convertedQty == null) {
+      return { valid: false, message: `Conversion impossible entre ${component.unit} et ${normalizedBase.outputUnit} pour ${component.name}` };
+    }
+  }
+
+  const totalCost = calculateRecipeTotalCost(current, allRecipes);
+  if (totalCost == null) return { valid: false, message: "Calcul du coût impossible" };
+  return { valid: true, message: "" };
+};
+
+const useLocalStorage = (key, initialValue) => {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue];
+};
+
+const Login = ({ onLogin }) => {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (username === "chef" && password === "chef123") onLogin({ role: "chef", name: "Chef" });
+    else if (username === "employe" && password === "employe123") onLogin({ role: "employe", name: "Employé" });
+    else setError("Identifiants incorrects. Essayez chef/chef123 ou employe/employe123");
+  };
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
+        <div className="text-center mb-8">
+          <LogoArpege size="large" className="mb-6" />
+          <p className="text-gray-500 mt-2 italic text-lg">Gestion des Recettes</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Identifiant</label>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent" placeholder="chef ou employe" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent" placeholder="••••••••" />
+          </div>
+          {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
+          <button type="submit" className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all">Se connecter</button>
+        </form>
+        <div className="mt-6 text-center text-sm text-gray-500">
+          <p>Comptes de démo :</p><p className="mt-1">Chef: chef / chef123</p><p>Employé: employe / employe123</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Header = ({ user, onLogout, activeTab, setActiveTab }) => {
+  const tabs = [
+    { id: "ingredients", label: "Ingrédients", roles: ["chef", "employe"] },
+    { id: "baseRecipes", label: "Recettes de base", roles: ["chef", "employe"] },
+    { id: "finalRecipes", label: "Recettes finales", roles: ["chef", "employe"] },
+    { id: "producers", label: "Producteurs", roles: ["chef", "employe"] },
+    { id: "couts", label: "Coûts", roles: ["chef"] },
+  ];
+
+  const visibleTabs = tabs.filter(tab => tab.roles.includes(user.role));
+
+  return (
+    <header className="bg-white shadow-md border-b border-slate-100 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-20">
+          <LogoArpege size="small" />
+          <nav className="hidden md:flex flex-wrap gap-2 justify-center px-4">
+            {visibleTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-full transition-all font-medium ${activeTab === tab.id ? "bg-[#C8956C] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center space-x-3">
+            <div className="hidden sm:flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">{user.name}</span>
+              <span className={`text-xs px-3 py-1 rounded-full uppercase font-medium ${user.role === "chef" ? "bg-[#C8956C] text-white" : "bg-blue-100 text-blue-800"}`}>{user.role}</span>
+            </div>
+            <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Déconnexion">⎋</button>
+          </div>
+        </div>
+
+        <div className="md:hidden pb-3">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {visibleTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`shrink-0 px-4 py-2 rounded-full transition-all text-sm font-medium border ${activeTab === tab.id ? "bg-[#C8956C] text-white border-[#C8956C]" : "bg-white text-gray-600 border-gray-200"}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
+
+  const filteredIngredients = ingredients.filter(ing => ing.name.toLowerCase().includes(searchTerm.toLowerCase()) || ing.category.toLowerCase().includes(searchTerm.toLowerCase()));
+  const resetForm = () => {
+    setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
+    setEditingId(null); setShowForm(false);
+  };
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const normalized = { ...formData, price: parseFloat(formData.price) };
+    if (editingId) setIngredients(ingredients.map(ing => ing.id === editingId ? { ...normalized, id: editingId } : ing));
+    else setIngredients([...ingredients, { ...normalized, id: Math.max(...ingredients.map(i => i.id), 0) + 1 }]);
+    resetForm();
+  };
+  return (
+    <div className="p-6 max-w-7xl mx-auto fade-in">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Ingrédients</h2>
+        {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">+ Nouvel ingrédient</button>}
+      </div>
+      <div className="mb-6"><input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" /></div>
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
+          <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">{editingId ? "Modifier" : "Nouvel ingrédient"}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label><select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+          </div>
+          <div className="mt-4 flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Ajouter"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
+        </form>
+      )}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>{isChef && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}</tr></thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredIngredients.map(ing => (
+              <tr key={ing.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{ing.category}</span></td>
+                <td className="px-6 py-4 font-medium">{ing.name}</td>
+                <td className="px-6 py-4 text-gray-600">{Number(ing.price).toFixed(2)} €</td>
+                <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
+                <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
+                {isChef && <td className="px-6 py-4 text-sm"><button onClick={() => { setFormData(ing); setEditingId(ing.id); setShowForm(true); }} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => window.confirm("Supprimer cet ingrédient ?") && setIngredients(ingredients.filter(i => i.id !== ing.id))} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
+  const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
+  useEffect(() => { if (isOpen) setFormData(prev => ({ ...prev, name: suggestedName || prev.name })); }, [isOpen, suggestedName]);
+  useEffect(() => {
+    const handleEsc = (e) => e.key === "Escape" && onClose();
+    if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
+  }, [isOpen, onClose]);
+  if (!isOpen) return null;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onAdd({ ...formData, id: Date.now(), price: parseFloat(formData.price) });
+    setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
+    onClose();
+  };
+  return (
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full slide-in relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2">✕</button>
+        <div className="p-6 border-b border-gray-200 pr-12"><h3 className="text-xl font-bold text-[#1A3A4A]">Nouvel ingrédient</h3><p className="text-sm text-gray-500 mt-1">Ajouté à la base et sélectionnable dans la recette</p></div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Catégorie *</label><select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label><input type="number" step="0.01" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+          <div className="flex space-x-3 pt-4"><button type="submit" className="flex-1 bg-[#1A3A4A] text-white py-3 rounded-lg font-medium">Ajouter</button><button type="button" onClick={onClose} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg">Annuler</button></div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
+  useEffect(() => {
+    const handleEsc = (e) => e.key === "Escape" && onClose();
+    if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
+  }, [isOpen, onClose]);
+  if (!isOpen || !recipe) return null;
+  const normalized = normalizeRecipe(recipe);
+  const costStatus = getCostStatus(normalized, allRecipes);
+  const totalCost = calculateRecipeTotalCost(normalized, allRecipes);
+  return (
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 z-10">✕</button>
+        <div className="p-6 border-b border-gray-200 pr-12">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${normalized.recipeType === "base" ? "bg-slate-700 text-white" : "bg-[#1A3A4A] text-white"}`}>{normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</span>
+            {normalized.categories.map(cat => <span key={cat} className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
+          </div>
+          <h3 className="text-2xl font-bold text-[#1A3A4A]">{normalized.name}</h3>
+          <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts • Rendement : {normalized.outputQuantity} {normalized.outputUnit}</p>
+        </div>
+        <div className="p-6 space-y-6">
+          <div>
+            <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients directs ({normalized.directIngredients.length})</h4>
+            <div className="bg-gray-50 rounded-lg p-4">
+              {normalized.directIngredients.length === 0 ? <p className="text-sm text-gray-500 italic">Aucun ingrédient direct</p> : (
+                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+              )}
+            </div>
+          </div>
+
+          {normalized.recipeType === "final" && (
+            <div>
+              <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Recettes de base utilisées ({normalized.baseComponents.length})</h4>
+              <div className="bg-gray-50 rounded-lg p-4">
+                {normalized.baseComponents.length === 0 ? <p className="text-sm text-gray-500 italic">Aucune recette de base liée</p> : (
+                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null; const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null; const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0) ? baseCost * (converted / Number(baseRecipe.outputQuantity)) : null; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{component.quantity} {component.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Procédé / Préparation</h4>
+            <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">{normalized.procedure ? normalized.procedure.split("\n").map((step, idx) => <p key={idx} className="mb-2 last:mb-0">{step}</p>) : <p className="text-gray-500 italic">Aucun procédé renseigné</p>}</div>
+          </div>
+
+          {isChef && (
+            <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 border border-[#C8956C] border-opacity-30">
+              {!costStatus.valid ? <div className="text-sm text-red-700 font-medium">{costStatus.message}</div> : <><div className="flex justify-between items-center mb-2"><span className="font-semibold text-[#1A3A4A]">Coût total :</span><span className="text-2xl font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€</span></div><div className="flex justify-between items-center text-sm text-[#1A3A4A]"><span>Coût par couvert :</span><span>{normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}€</span></div></>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
+  const normalized = recipe ? normalizeRecipe(recipe) : null;
+  const [pivotType, setPivotType] = useState("covers");
+  const [pivotValue, setPivotValue] = useState("");
+  const [selectedIngredientIndex, setSelectedIngredientIndex] = useState(0);
+  useEffect(() => {
+    if (normalized && isOpen) {
+      setPivotType("covers");
+      setPivotValue(String(normalized.covers || 1));
+      setSelectedIngredientIndex(0);
+    }
+  }, [recipe, isOpen]);
+  useEffect(() => {
+    const handleEsc = (e) => e.key === "Escape" && onClose();
+    if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
+  }, [isOpen, onClose]);
+  if (!isOpen || !normalized) return null;
+
+  const baseCost = calculateRecipeTotalCost(normalized, recipes);
+  const ingredientPivotSource = normalized.directIngredients[selectedIngredientIndex] || normalized.baseComponents[selectedIngredientIndex] || null;
+  const totalDirectQty = normalized.directIngredients.reduce((sum, ing) => sum + Number(ing.quantity || 0), 0) + normalized.baseComponents.reduce((sum, c) => sum + Number(c.quantity || 0), 0);
+  const numericPivot = parseFloat(pivotValue);
+  let multiplier = 1;
+  if (numericPivot > 0) {
+    if (pivotType === "covers") multiplier = numericPivot / (normalized.covers || 1);
+    if (pivotType === "globalQuantity") multiplier = numericPivot / (totalDirectQty || 1);
+    if (pivotType === "budget") multiplier = numericPivot / (baseCost || 1);
+    if (pivotType === "ingredientQuantity") multiplier = numericPivot / Number(ingredientPivotSource?.quantity || 1);
+  }
+  const adaptedDirectIngredients = normalized.directIngredients.map(ing => ({ ...ing, adaptedQuantity: Number(ing.quantity || 0) * multiplier }));
+  const adaptedBaseComponents = normalized.baseComponents.map(c => ({ ...c, adaptedQuantity: Number(c.quantity || 0) * multiplier }));
+  const adaptedRecipe = { ...normalized, covers: normalized.covers * multiplier, directIngredients: adaptedDirectIngredients.map(i => ({ ...i, quantity: i.adaptedQuantity })), baseComponents: adaptedBaseComponents.map(c => ({ ...c, quantity: c.adaptedQuantity })) };
+  const adaptedCost = calculateRecipeTotalCost(adaptedRecipe, recipes);
+  return (
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 z-10">✕</button>
+        <div className="p-6 border-b border-gray-200 pr-12"><h3 className="text-xl font-bold text-[#1A3A4A]">Adapter : {normalized.name}</h3><p className="text-sm text-gray-500 mt-1">La recette entière se recalculera proportionnellement.</p></div>
+        <div className="p-6 space-y-6">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type de pivot</label>
+                <select value={pivotType} onChange={(e) => { const t = e.target.value; setPivotType(t); setPivotValue(String(t === "covers" ? normalized.covers || 1 : t === "globalQuantity" ? totalDirectQty || 1 : t === "budget" ? baseCost || 1 : ingredientPivotSource?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                  <option value="covers">Nombre de couverts</option>
+                  <option value="globalQuantity">Quantité globale</option>
+                  <option value="budget">Budget cible</option>
+                  <option value="ingredientQuantity">Quantité d'une ligne</option>
+                </select>
+              </div>
+              {pivotType === "ingredientQuantity" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ligne pivot</label>
+                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = normalized.directIngredients[idx] || normalized.baseComponents[idx]; setPivotValue(String(source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                    {[...normalized.directIngredients, ...normalized.baseComponents].map((line, idx) => <option key={idx} value={idx}>{line.name} ({line.quantity} {line.unit})</option>)}
+                  </select>
                 </div>
-            );
-        };
+              )}
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Valeur cible</label><input type="number" step="0.01" min="0.01" value={pivotValue} onChange={(e) => setPivotValue(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+          </div>
+          <div className="bg-[#C8956C] bg-opacity-10 rounded-xl p-4 border border-[#C8956C] border-opacity-30">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coefficient :</span><span>{multiplier.toFixed(4)}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span><span>{(normalized.covers * multiplier).toFixed(2)}</span></div>
+              {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}</span></div>}
+            </div>
+          </div>
+          <div>
+            <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Lignes adaptées</h4>
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2 max-h-72 overflow-y-auto">
+              {adaptedDirectIngredients.map((ing, idx) => <div key={`i-${idx}`} className="flex justify-between items-center py-3 border-b border-gray-200"><div><div className="font-medium text-[#1A3A4A]">{ing.name}</div><div className="text-xs text-gray-500">Base : {ing.quantity} {ing.unit}</div></div><div className="text-right text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">{ing.adaptedQuantity.toFixed(2)} {ing.unit}</div></div>)}
+              {adaptedBaseComponents.map((c, idx) => <div key={`c-${idx}`} className="flex justify-between items-center py-3 border-b border-gray-200"><div><div className="font-medium text-[#1A3A4A]">{c.name} <span className="text-xs text-gray-500">(recette de base)</span></div><div className="text-xs text-gray-500">Base : {c.quantity} {c.unit}</div></div><div className="text-right text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">{c.adaptedQuantity.toFixed(2)} {c.unit}</div></div>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-        const INITIAL_INGREDIENTS = [
-            { id: 1, category: "Laitage", name: "Crème fraîche", price: 2.50, unit: "Litre", supplier: "Laiterie du Nord" },
-            { id: 2, category: "Boucherie", name: "Filet de bœuf", price: 28.00, unit: "Kg", supplier: "Boucherie Martin" },
-            { id: 3, category: "Légumes", name: "Carottes", price: 1.20, unit: "Kg", supplier: "Maraîcher Local" },
-            { id: 4, category: "Épicerie", name: "Huile d'olive", price: 8.50, unit: "Litre", supplier: "Oliviers du Sud" },
-            { id: 5, category: "Boulangerie", name: "Pain de campagne", price: 3.20, unit: "Pièce", supplier: "Boulangerie Dupont" }
-        ];
+const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base" }) => {
+  const normalizedRecipes = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("Tous");
+  const [detailRecipe, setDetailRecipe] = useState(null);
+  const [adaptRecipe, setAdaptRecipe] = useState(null);
+  const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
 
-        const INITIAL_RECIPES = [
-            {
-                id: 1,
-                category: "Entrée",
-                name: "Velouté de potiron",
-                covers: 4,
-                ingredients: [
-                    { ingredientId: 3, name: "Carottes", quantity: 0.5, unit: "Kg", wasteCoeff: 1.0, pricePerUnit: 1.20, unitPrice: "Kg" },
-                    { ingredientId: 1, name: "Crème fraîche", quantity: 0.2, unit: "Litre", wasteCoeff: 1.05, pricePerUnit: 2.50, unitPrice: "Litre" }
-                ],
-                procedure: "1. Éplucher et couper le potiron en dés\n2. Faire revenir les oignons dans du beurre\n3. Ajouter le potiron et couvrir d'eau\n4. Laisser mijoter 25 minutes\n5. Mixer et ajouter la crème\n6. Assaisonner et servir chaud",
-                wasteCoeff: 1.05,
-                totalCost: 2.12
-            }
-        ];
+  const emptyForm = {
+    recipeType: sectionType,
+    categories: ["Entrée"],
+    name: "",
+    covers: 4,
+    outputQuantity: 1,
+    outputUnit: "Kg",
+    directIngredients: [],
+    baseComponents: [],
+    procedure: "",
+    wasteCoeff: 1.05,
+  };
 
-        const UNITS = [
-            "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8",
-            "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe", "Botte", "Bouteille",
-            "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Kg", "Lot", "Litre", "Pack",
-            "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
-            "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
-        ];
+  const [formData, setFormData] = useState(emptyForm);
+  const [currentIng, setCurrentIng] = useState({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
+  const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
 
-        const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
-        const CATEGORIES_REC = ["Entrée", "Plat", "Dessert", "Amuse-bouche", "Soupe", "Salade", "Boisson"];
+  const filteredBaseRecipesForPicker = normalizedRecipes.filter(recipe => {
+    if (recipe.recipeType !== "base") return false;
+    if (currentBase.categoryFilter !== "Tous" && !recipe.categories.includes(currentBase.categoryFilter)) return false;
+    return recipe.name.toLowerCase().includes(currentBase.searchText.toLowerCase());
+  });
 
-        const MASS_UNITS = {
-            "Kg": 1000,
-            "Gramme": 1
-        };
+  const filteredIngredientsForSearch = ingredients.filter(ing => ing.name.toLowerCase().includes(currentIng.searchText.toLowerCase()));
 
-        const VOLUME_UNITS = {
-            "Litre": 1000,
-            "Ml": 1,
-            "Cl": 10
-        };
+  const filteredRecipes = normalizedRecipes.filter(recipe => {
+    const matchSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) || recipe.categories.join(" ").toLowerCase().includes(searchTerm.toLowerCase());
+    const matchType = recipe.recipeType === sectionType;
+    const matchCategory = categoryFilter === "Tous" || recipe.categories.includes(categoryFilter);
+    return matchSearch && matchType && matchCategory;
+  });
 
-        const COUNT_UNITS = [
-            "Pièce", "Unité", "Part", "Portion", "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte",
-            "Boîte 1/4", "Boîte 1/8", "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe",
-            "Botte", "Bouteille", "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Lot", "Pack",
-            "Pain", "Paire", "Paquet", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", "Seau",
-            "Tablette", "Terrine", "Tube", "Tubo", "Carton"
-        ];
+  const resetForm = () => {
+    setFormData({ ...emptyForm, recipeType: sectionType });
+    setEditingId(null);
+    setShowForm(false);
+    setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
+  };
 
-        const roundTo = (value, decimals = 2) => {
-            return Number((value || 0).toFixed(decimals));
-        };
+  const toggleRecipeCategory = (category) => {
+    const alreadySelected = formData.categories.includes(category);
+    const nextCategories = alreadySelected ? formData.categories.filter(c => c !== category) : [...formData.categories, category];
+    setFormData({ ...formData, categories: nextCategories.length ? nextCategories : [category] });
+  };
 
-        const getUnitGroup = (unit) => {
-            if (MASS_UNITS[unit]) return "mass";
-            if (VOLUME_UNITS[unit]) return "volume";
-            if (COUNT_UNITS.includes(unit)) return "count";
-            return "unknown";
-        };
+  const addIngredientToRecipe = (ingredientId = null) => {
+    const finalIngredientId = ingredientId || currentIng.ingredientId;
+    if (!finalIngredientId || !currentIng.quantity) return;
+    const ing = ingredients.find(i => Number(i.id) === Number(finalIngredientId));
+    if (!ing) return;
+    setFormData({
+      ...formData,
+      directIngredients: [...formData.directIngredients, {
+        ingredientId: Number(finalIngredientId),
+        name: ing.name,
+        quantity: parseFloat(currentIng.quantity),
+        unit: currentIng.unit,
+        wasteCoeff: parseFloat(currentIng.wasteCoeff || 1),
+        pricePerUnit: ing.price,
+        unitPrice: ing.unit
+      }]
+    });
+    setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
+  };
 
-        const convertQuantity = (quantity, fromUnit, toUnit) => {
-            if (quantity == null || fromUnit === toUnit) return quantity;
+  const addBaseComponentToRecipe = (baseRecipeId = null) => {
+    const finalBaseRecipeId = baseRecipeId || currentBase.baseRecipeId;
+    if (!finalBaseRecipeId || !currentBase.quantity) return;
+    const baseRecipe = normalizedRecipes.find(r => Number(r.id) === Number(finalBaseRecipeId) && r.recipeType === "base");
+    if (!baseRecipe) return;
+    setFormData({
+      ...formData,
+      baseComponents: [...formData.baseComponents, {
+        baseRecipeId: Number(finalBaseRecipeId),
+        name: baseRecipe.name,
+        quantity: parseFloat(currentBase.quantity),
+        unit: currentBase.unit,
+      }]
+    });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: currentBase.categoryFilter });
+  };
 
-            const fromGroup = getUnitGroup(fromUnit);
-            const toGroup = getUnitGroup(toUnit);
+  const handleAddNewIngredient = (newIngredient) => {
+    setIngredients([...ingredients, newIngredient]);
+    if (currentIng.quantity) {
+      setFormData({
+        ...formData,
+        directIngredients: [...formData.directIngredients, {
+          ingredientId: newIngredient.id,
+          name: newIngredient.name,
+          quantity: parseFloat(currentIng.quantity) || 0,
+          unit: currentIng.unit || "Gramme",
+          wasteCoeff: parseFloat(currentIng.wasteCoeff) || 1.0,
+          pricePerUnit: newIngredient.price,
+          unitPrice: newIngredient.unit
+        }]
+      });
+    }
+    setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
+  };
 
-            if (fromGroup !== toGroup) return null;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (formData.directIngredients.length === 0 && (formData.recipeType !== "final" || formData.baseComponents.length === 0)) {
+      alert("Ajoute au moins un ingrédient ou une recette de base.");
+      return;
+    }
+    const payload = normalizeRecipe({ ...formData });
+    if (editingId) {
+      setRecipes(recipes.map(r => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r));
+    } else {
+      setRecipes([...recipes, { ...payload, id: Math.max(...recipes.map(r => Number(r.id)), 0) + 1 }]);
+    }
+    resetForm();
+  };
 
-            if (fromGroup === "mass") {
-                return quantity * MASS_UNITS[fromUnit] / MASS_UNITS[toUnit];
-            }
+  const handleEdit = (recipe) => {
+    const normalized = normalizeRecipe(recipe);
+    setFormData(normalized);
+    setEditingId(normalized.id);
+    setShowForm(true);
+    setDetailRecipe(null);
+  };
 
-            if (fromGroup === "volume") {
-                return quantity * VOLUME_UNITS[fromUnit] / VOLUME_UNITS[toUnit];
-            }
+  return (
+    <div className="p-6 max-w-7xl mx-auto fade-in">
+      <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} />
+      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
+      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
 
-            if (fromGroup === "count") {
-                return quantity;
-            }
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-[#1A3A4A]">{sectionType === "base" ? "Recettes de base" : "Recettes finales"}</h2>
+          <p className="text-sm text-gray-500 mt-1">{sectionType === "base" ? "Création et gestion des préparations techniques." : "Création et gestion des plats finaux assemblés."}</p>
+        </div>
+        {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">{sectionType === "base" ? "+ Nouvelle recette de base" : "+ Nouvelle recette finale"}</button>}
+      </div>
 
-            return null;
-        };
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-4">
+        <input type="text" placeholder={`Rechercher ${sectionType === "base" ? "une recette de base" : "une recette finale"}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300" />
+        <div className="flex flex-wrap gap-2">
+          {["Tous", ...SERVICE_CATEGORIES].map(cat => (
+            <button key={cat} onClick={() => setCategoryFilter(cat)} className={`px-3 py-2 rounded-full text-sm ${categoryFilter === cat ? "bg-[#C8956C] text-white" : "bg-amber-50 text-[#7b5a42]"}`}>{cat}</button>
+          ))}
+        </div>
+      </div>
 
-        const calculateIngredientCost = (ingredientLine) => {
-            const recipeQty = Number(ingredientLine.quantity || 0);
-            const recipeUnit = ingredientLine.unit;
-            const purchaseUnit = ingredientLine.unitPrice;
-            const unitPrice = Number(ingredientLine.pricePerUnit || 0);
-            const wasteCoeff = Number(ingredientLine.wasteCoeff || 1);
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100 space-y-6">
+          <h3 className="text-lg font-semibold text-[#1A3A4A]">{editingId ? (sectionType === "base" ? "Modifier la recette de base" : "Modifier la recette finale") : (sectionType === "base" ? "Nouvelle recette de base" : "Nouvelle recette finale")}</h3>
+          <p className="text-sm text-gray-500">{sectionType === "base" ? "Ce formulaire est dédié aux recettes de base." : "Ce formulaire est dédié aux recettes finales et permet d'ajouter des recettes de base."}</p>
 
-            const convertedQty = convertQuantity(recipeQty, recipeUnit, purchaseUnit);
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select value={formData.recipeType} onChange={(e) => setFormData({ ...formData, recipeType: e.target.value, baseComponents: e.target.value === "base" ? [] : formData.baseComponents, outputUnit: e.target.value === "final" ? "Portion" : formData.outputUnit })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                {RECIPE_TYPE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            </div>
+            <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts</label><input type="number" min="1" step="0.01" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+          </div>
 
-            if (convertedQty == null) {
-                return null;
-            }
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+          </div>
 
-            return convertedQty * unitPrice * wasteCoeff;
-        };
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sous-catégories d'affichage</label>
+            <div className="flex flex-wrap gap-3">
+              {SERVICE_CATEGORIES.map(cat => (
+                <label key={cat} className={`px-3 py-2 rounded-lg border cursor-pointer ${formData.categories.includes(cat) ? "bg-[#C8956C] text-white border-[#C8956C]" : "bg-white text-gray-700 border-gray-300"}`}>
+                  <input type="checkbox" className="hidden" checked={formData.categories.includes(cat)} onChange={() => toggleRecipeCategory(cat)} />
+                  {cat}
+                </label>
+              ))}
+            </div>
+          </div>
 
-        const calculateRecipeCost = (recipe) => {
-            let total = 0;
-
-            for (const ing of recipe.ingredients || []) {
-                const cost = calculateIngredientCost(ing);
-                if (cost == null) return null;
-                total += cost;
-            }
-
-            return total * Number(recipe.wasteCoeff || 1);
-        };
-
-        const getCostStatus = (recipe) => {
-            for (const ing of recipe.ingredients || []) {
-                const convertedQty = convertQuantity(
-                    Number(ing.quantity || 0),
-                    ing.unit,
-                    ing.unitPrice
-                );
-
-                if (convertedQty == null) {
-                    return {
-                        valid: false,
-                        message: `Conversion impossible entre ${ing.unit} et ${ing.unitPrice} pour ${ing.name}`
-                    };
-                }
-            }
-
-            return { valid: true, message: "" };
-        };
-
-        const useLocalStorage = (key, initialValue) => {
-            const [storedValue, setStoredValue] = useState(() => {
-                try {
-                    const item = window.localStorage.getItem(key);
-                    return item ? JSON.parse(item) : initialValue;
-                } catch (error) {
-                    return initialValue;
-                }
-            });
-
-            const setValue = (value) => {
-                try {
-                    const valueToStore = value instanceof Function ? value(storedValue) : value;
-                    setStoredValue(valueToStore);
-                    window.localStorage.setItem(key, JSON.stringify(valueToStore));
-                } catch (error) {
-                    console.error(error);
-                }
-            };
-
-            return [storedValue, setValue];
-        };
-
-        const Login = ({ onLogin }) => {
-            const [username, setUsername] = useState("");
-            const [password, setPassword] = useState("");
-            const [error, setError] = useState("");
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                if (username === "chef" && password === "chef123") {
-                    onLogin({ role: "chef", name: "Chef" });
-                } else if (username === "employe" && password === "employe123") {
-                    onLogin({ role: "employe", name: "Employé" });
-                } else {
-                    setError("Identifiants incorrects. Essayez chef/chef123 ou employe/employe123");
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
-                        <div className="text-center mb-8">
-                            <LogoArpege size="large" className="mb-6" />
-                            <p className="text-gray-500 mt-2 italic text-lg">Gestion des Recettes</p>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Identifiant</label>
-                                <input
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent transition-all"
-                                    placeholder="chef ou employe"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent transition-all"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                            {error && (
-                                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
-                                    {error}
-                                </div>
-                            )}
-                            <button
-                                type="submit"
-                                className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
-                            >
-                                Se connecter
-                            </button>
-                        </form>
-
-                        <div className="mt-6 text-center text-sm text-gray-500">
-                            <p>Comptes de démo :</p>
-                            <p className="mt-1">Chef: chef / chef123</p>
-                            <p>Employé: employe / employe123</p>
-                        </div>
-                    </div>
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h4 className="font-medium text-gray-700 mb-3">Ingrédients directs</h4>
+            <div className="relative mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher un ingrédient</label>
+              <input type="text" value={currentIng.searchText} onChange={(e) => setCurrentIng({ ...currentIng, searchText: e.target.value, ingredientId: "" })} placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
+              {currentIng.searchText && !currentIng.ingredientId && (
+                <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+                  {filteredIngredientsForSearch.length > 0 ? filteredIngredientsForSearch.map(ing => (
+                    <button key={ing.id} type="button" onClick={() => setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name })} className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"><span>{ing.name}</span><span className="text-sm text-gray-500">{Number(ing.price).toFixed(2)}€/{ing.unit}</span></button>
+                  )) : <div className="p-4 text-center"><p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p><button type="button" onClick={() => setShowAddIngredientModal(true)} className="text-[#1A3A4A] font-medium text-sm">Créer "{currentIng.searchText}"</button></div>}
                 </div>
-            );
-        };
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label><input type="number" step="0.01" value={currentIng.quantity} onChange={(e) => setCurrentIng({ ...currentIng, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label><select value={currentIng.unit} onChange={(e) => setCurrentIng({ ...currentIng, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label><input type="number" step="0.01" value={currentIng.wasteCoeff} onChange={(e) => setCurrentIng({ ...currentIng, wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+              <div className="flex items-end"><button type="button" onClick={() => addIngredientToRecipe()} disabled={!currentIng.ingredientId || !currentIng.quantity} className={`w-full py-2 rounded-lg font-medium ${currentIng.ingredientId && currentIng.quantity ? "bg-[#1A3A4A] text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter</button></div>
+            </div>
+          </div>
 
-        const Header = ({ user, onLogout, activeTab, setActiveTab }) => {
-            const tabs = [
-                { id: "recettes", label: "Recettes", roles: ["chef", "employe"] },
-                { id: "ingredients", label: "Ingrédients", roles: ["chef"] },
-                { id: "couts", label: "Coûts", roles: ["chef"] },
-            ];
-
-            return (
-                <header className="bg-white shadow-md border-b border-slate-100 sticky top-0 z-50">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center h-20">
-                            <div className="flex items-center">
-                                <LogoArpege size="small" />
-                            </div>
-
-                            <nav className="hidden md:flex space-x-2">
-                                {tabs.filter(tab => tab.roles.includes(user.role)).map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`px-6 py-2 rounded-full transition-all font-medium ${
-                                            activeTab === tab.id
-                                                ? "bg-[#C8956C] text-white"
-                                                : "text-gray-600 hover:bg-gray-100"
-                                        }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
-                            </nav>
-
-                            <div className="flex items-center space-x-4">
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-sm font-medium text-gray-700">{user.name}</span>
-                                    <span className={`text-xs px-3 py-1 rounded-full uppercase font-medium ${
-                                        user.role === "chef" ? "bg-[#C8956C] text-white" : "bg-blue-100 text-blue-800"
-                                    }`}>
-                                        {user.role}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={onLogout}
-                                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                    title="Déconnexion"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                                        <polyline points="16 17 21 12 16 7"/>
-                                        <line x1="21" x2="9" y1="12" y2="12"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </header>
-            );
-        };
-
-        const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
-            const [showForm, setShowForm] = useState(false);
-            const [editingId, setEditingId] = useState(null);
-            const [searchTerm, setSearchTerm] = useState("");
-            const [formData, setFormData] = useState({
-                category: CATEGORIES_ING[0],
-                name: "",
-                price: "",
-                unit: "Kg",
-                supplier: ""
-            });
-
-            const filteredIngredients = ingredients.filter(ing =>
-                ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                ing.category.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-
-                const normalized = {
-                    ...formData,
-                    price: parseFloat(formData.price)
-                };
-
-                if (editingId) {
-                    setIngredients(ingredients.map(ing =>
-                        ing.id === editingId ? { ...normalized, id: editingId } : ing
-                    ));
-                } else {
-                    const newId = Math.max(...ingredients.map(i => i.id), 0) + 1;
-                    setIngredients([...ingredients, { ...normalized, id: newId }]);
-                }
-
-                resetForm();
-            };
-
-            const resetForm = () => {
-                setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
-                setEditingId(null);
-                setShowForm(false);
-            };
-
-            const handleEdit = (ing) => {
-                setFormData(ing);
-                setEditingId(ing.id);
-                setShowForm(true);
-            };
-
-            const handleDelete = (id) => {
-                if (window.confirm("Êtes-vous sûr de vouloir supprimer cet ingrédient ?")) {
-                    setIngredients(ingredients.filter(ing => ing.id !== id));
-                }
-            };
-
-            return (
-                <div className="p-6 max-w-7xl mx-auto fade-in">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Ingrédients</h2>
-                        {isChef && (
-                            <button
-                                onClick={() => setShowForm(!showForm)}
-                                className="flex items-center space-x-2 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg hover:bg-[#2A4A5A] transition-colors"
-                            >
-                                <span>+ Nouvel ingrédient</span>
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="mb-6">
-                        <input
-                            type="text"
-                            placeholder="Rechercher un ingrédient..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
-                        />
-                    </div>
-
-                    {showForm && (
-                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
-                            <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">
-                                {editingId ? "Modifier" : "Nouvel ingrédient"}
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                                    <select
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    >
-                                        {CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={formData.price}
-                                        onChange={(e) => setFormData({...formData, price: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label>
-                                    <select
-                                        value={formData.unit}
-                                        onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    >
-                                        {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label>
-                                    <input
-                                        type="text"
-                                        value={formData.supplier}
-                                        onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-4 flex space-x-3">
-                                <button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg hover:bg-[#2A4A5A]">
-                                    {editingId ? "Mettre à jour" : "Ajouter"}
-                                </button>
-                                <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300">
-                                    Annuler
-                                </button>
-                            </div>
-                        </form>
+          {formData.recipeType === "final" && (
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 className="font-medium text-gray-700 mb-3">Ajouter une recette de base</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Filtrer les recettes de base par sous-catégorie</label>
+                  <select value={currentBase.categoryFilter} onChange={(e) => setCurrentBase({ ...currentBase, categoryFilter: e.target.value, baseRecipeId: "", searchText: "" })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                    <option value="Tous">Toutes</option>
+                    {SERVICE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher une recette de base</label>
+                  <div className="relative">
+                    <input type="text" value={currentBase.searchText} onChange={(e) => setCurrentBase({ ...currentBase, searchText: e.target.value, baseRecipeId: "" })} placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
+                    {currentBase.searchText && !currentBase.baseRecipeId && (
+                      <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+                        {filteredBaseRecipesForPicker.length > 0 ? filteredBaseRecipesForPicker.map(rec => (
+                          <button key={rec.id} type="button" onClick={() => setCurrentBase({ ...currentBase, baseRecipeId: rec.id, searchText: rec.name, unit: rec.outputUnit || currentBase.unit })} className="w-full text-left px-4 py-2 hover:bg-slate-50 flex justify-between"><span>{rec.name}</span><span className="text-sm text-gray-500">{rec.categories.join(", ")}</span></button>
+                        )) : <div className="p-4 text-sm text-gray-500">Aucune recette de base trouvée</div>}
+                      </div>
                     )}
-
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>
-                                    {isChef && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {filteredIngredients.map(ing => (
-                                    <tr key={ing.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4">
-                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
-                                                {ing.category}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 font-medium">{ing.name}</td>
-                                        <td className="px-6 py-4 text-gray-600">{Number(ing.price).toFixed(2)} €</td>
-                                        <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
-                                        <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
-                                        {isChef && (
-                                            <td className="px-6 py-4 text-sm">
-                                                <button onClick={() => handleEdit(ing)} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">
-                                                    Modifier
-                                                </button>
-                                                <button onClick={() => handleDelete(ing.id)} className="text-red-600 hover:text-red-800">
-                                                    Supprimer
-                                                </button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                  </div>
                 </div>
-            );
-        };
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="0.01" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                <div className="flex items-end"><button type="button" onClick={() => addBaseComponentToRecipe()} disabled={!currentBase.baseRecipeId || !currentBase.quantity} className={`w-full py-2 rounded-lg font-medium ${currentBase.baseRecipeId && currentBase.quantity ? "bg-slate-700 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter la base</button></div>
+              </div>
+            </div>
+          )}
 
-        const AddIngredientModal = ({ isOpen, onClose, onAdd }) => {
-            const [formData, setFormData] = useState({
-                category: CATEGORIES_ING[0],
-                name: "",
-                price: "",
-                unit: "Kg",
-                supplier: ""
-            });
-
-            useEffect(() => {
-                const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
-                if (isOpen) {
-                    window.addEventListener("keydown", handleEsc);
-                    return () => window.removeEventListener("keydown", handleEsc);
-                }
-            }, [isOpen, onClose]);
-
-            if (!isOpen) return null;
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                const newIngredient = {
-                    ...formData,
-                    id: Date.now(),
-                    price: parseFloat(formData.price)
-                };
-                onAdd(newIngredient);
-                setFormData({
-                    category: CATEGORIES_ING[0],
-                    name: "",
-                    price: "",
-                    unit: "Kg",
-                    supplier: ""
-                });
-                onClose();
-            };
-
-            const handleOverlayClick = (e) => {
-                if (e.target === e.currentTarget) onClose();
-            };
-
-            return (
-                <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={handleOverlayClick}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full slide-in relative">
-                        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="18" x2="6" y1="6" y2="18"/>
-                                <line x1="6" x2="18" y1="6" y2="18"/>
-                            </svg>
-                        </button>
-
-                        <div className="p-6 border-b border-gray-200 pr-12">
-                            <h3 className="text-xl font-bold text-[#1A3A4A]">Nouvel ingrédient</h3>
-                            <p className="text-sm text-gray-500 mt-1">Ajouté à la base et à la recette</p>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie *</label>
-                                    <select
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    >
-                                        {CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={formData.price}
-                                        onChange={(e) => setFormData({...formData, price: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label>
-                                    <select
-                                        value={formData.unit}
-                                        onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    >
-                                        {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label>
-                                <input
-                                    type="text"
-                                    value={formData.supplier}
-                                    onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                />
-                            </div>
-
-                            <div className="flex space-x-3 pt-4">
-                                <button type="submit" className="flex-1 bg-[#1A3A4A] text-white py-3 rounded-lg font-medium hover:bg-[#2A4A5A]">
-                                    Ajouter et sélectionner
-                                </button>
-                                <button type="button" onClick={onClose} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                                    Annuler
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+          {(formData.directIngredients.length > 0 || formData.baseComponents.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
+                <div className="space-y-2">
+                  {formData.directIngredients.map((ing, idx) => <div key={idx} className="flex items-center justify-between bg-amber-50 px-4 py-2 rounded-lg"><span className="font-medium">{ing.name} - {ing.quantity} {ing.unit}</span><button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
                 </div>
-            );
-        };
-
-        const RecipeDetailModal = ({ recipe, isOpen, onClose, isChef }) => {
-            useEffect(() => {
-                const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
-                if (isOpen) {
-                    window.addEventListener("keydown", handleEsc);
-                    return () => window.removeEventListener("keydown", handleEsc);
-                }
-            }, [isOpen, onClose]);
-
-            if (!isOpen || !recipe) return null;
-
-            const handleOverlayClick = (e) => {
-                if (e.target === e.currentTarget) onClose();
-            };
-
-            const costStatus = getCostStatus(recipe);
-
-            return (
-                <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={handleOverlayClick}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
-                        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full z-10">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="18" x2="6" y1="6" y2="18"/>
-                                <line x1="6" x2="18" y1="6" y2="18"/>
-                            </svg>
-                        </button>
-
-                        <div className="p-6 border-b border-gray-200 pr-12">
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white mb-2 inline-block">
-                                {recipe.category}
-                            </span>
-                            <h3 className="text-2xl font-bold text-[#1A3A4A]">{recipe.name}</h3>
-                            <p className="text-sm text-gray-500 mt-1">{recipe.covers} couverts de base</p>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            <div>
-                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients ({recipe.ingredients.length})</h4>
-                                <div className="bg-gray-50 rounded-lg p-4">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200">
-                                                <th className="pb-2">Ingrédient</th>
-                                                <th className="pb-2">Quantité</th>
-                                                {isChef && <th className="pb-2 text-right">Coût</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {recipe.ingredients.map((ing, idx) => {
-                                                const ingredientCost = calculateIngredientCost(ing);
-                                                return (
-                                                    <tr key={idx} className="border-b border-gray-100 last:border-0">
-                                                        <td className="py-3 font-medium">{ing.name}</td>
-                                                        <td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>
-                                                        {isChef && (
-                                                            <td className="py-3 text-right text-[#C8956C] font-medium">
-                                                                {ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}
-                                                            </td>
-                                                        )}
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div>
-                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Procédé / Préparation</h4>
-                                <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">
-                                    {recipe.procedure ? (
-                                        <div className="procedure-text text-gray-800">
-                                            {recipe.procedure.split("\n").map((step, idx) => (
-                                                <p key={idx} className="mb-2 last:mb-0">{step}</p>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-gray-500 italic">Aucun procédé renseigné</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {isChef && (
-                                <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 border border-[#C8956C] border-opacity-30">
-                                    {!costStatus.valid ? (
-                                        <div className="text-sm text-red-700 font-medium">
-                                            {costStatus.message}
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="font-semibold text-[#1A3A4A]">Coût total:</span>
-                                                <span className="text-2xl font-bold text-[#C8956C]">
-                                                    {Number(recipe.totalCost || 0).toFixed(2)}€
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-sm text-[#1A3A4A]">
-                                                <span>Coût par couvert:</span>
-                                                <span>
-                                                    {recipe.covers > 0 ? (Number(recipe.totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="flex justify-end pt-4 border-t border-gray-200">
-                                <button onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-                                    Fermer
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+              </div>
+              {formData.recipeType === "final" && (
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">Recettes de base liées ({formData.baseComponents.length})</h4>
+                  <div className="space-y-2">
+                    {formData.baseComponents.map((component, idx) => <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-lg border border-slate-200"><span className="font-medium">{component.name} - {component.quantity} {component.unit}</span><button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                  </div>
                 </div>
-            );
-        };
+              )}
+            </div>
+          )}
 
-        const AdaptModal = ({ recipe, isOpen, onClose, isChef }) => {
-            const [pivotType, setPivotType] = useState("covers");
-            const [pivotValue, setPivotValue] = useState("");
-            const [selectedIngredientIndex, setSelectedIngredientIndex] = useState(0);
+          <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]"><h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4><textarea value={formData.procedure} onChange={(e) => setFormData({ ...formData, procedure: e.target.value })} placeholder="Décrivez les étapes de préparation..." className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 resize-none" /></div>
+          <div className="flex items-center space-x-4"><label className="text-sm font-medium text-gray-700">Coeff. perte global :</label><input type="number" step="0.01" value={formData.wasteCoeff} onChange={(e) => setFormData({ ...formData, wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-24 px-3 py-2 rounded-lg border border-gray-300" /></div>
+          <div className="flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg font-medium">{editingId ? "Mettre à jour" : "Créer la recette"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
+        </form>
+      )}
 
-            useEffect(() => {
-                if (recipe && isOpen) {
-                    setPivotType("covers");
-                    setPivotValue(String(recipe.covers || 1));
-                    setSelectedIngredientIndex(0);
-                }
-            }, [recipe, isOpen]);
-
-            useEffect(() => {
-                const handleEsc = (e) => {
-                    if (e.key === "Escape") onClose();
-                };
-                if (isOpen) {
-                    window.addEventListener("keydown", handleEsc);
-                    return () => window.removeEventListener("keydown", handleEsc);
-                }
-            }, [isOpen, onClose]);
-
-            if (!isOpen || !recipe) return null;
-
-            const baseRecipeCost = calculateRecipeCost(recipe);
-            const costStatus = getCostStatus(recipe);
-
-            const baseTotalIngredientQuantity = (recipe.ingredients || []).reduce(
-                (sum, ing) => sum + Number(ing.quantity || 0),
-                0
-            );
-
-            const getDefaultPivotValue = (type, ingredientIndex = selectedIngredientIndex) => {
-                if (type === "covers") return recipe.covers || 1;
-                if (type === "globalQuantity") return baseTotalIngredientQuantity || 1;
-                if (type === "budget") return baseRecipeCost || "";
-                if (type === "ingredientQuantity") {
-                    return recipe.ingredients?.[ingredientIndex]?.quantity || 1;
-                }
-                return 1;
-            };
-
-            const handlePivotTypeChange = (newType) => {
-                setPivotType(newType);
-                setPivotValue(String(getDefaultPivotValue(newType)));
-            };
-
-            const handleIngredientPivotChange = (newIndex) => {
-                setSelectedIngredientIndex(newIndex);
-                if (pivotType === "ingredientQuantity") {
-                    setPivotValue(String(getDefaultPivotValue("ingredientQuantity", newIndex)));
-                }
-            };
-
-            const getMultiplier = () => {
-                const numericPivot = parseFloat(pivotValue);
-
-                if (!numericPivot || numericPivot <= 0) return 1;
-
-                if (pivotType === "covers") {
-                    return numericPivot / (recipe.covers || 1);
-                }
-
-                if (pivotType === "globalQuantity") {
-                    return numericPivot / (baseTotalIngredientQuantity || 1);
-                }
-
-                if (pivotType === "budget") {
-                    if (!baseRecipeCost || baseRecipeCost <= 0) return 1;
-                    return numericPivot / baseRecipeCost;
-                }
-
-                if (pivotType === "ingredientQuantity") {
-                    const baseIngQty = Number(recipe.ingredients?.[selectedIngredientIndex]?.quantity || 1);
-                    return numericPivot / baseIngQty;
-                }
-
-                return 1;
-            };
-
-            const multiplier = getMultiplier();
-
-            const adaptedIngredients = (recipe.ingredients || []).map((ing) => ({
-                ...ing,
-                adaptedQuantity: Number(ing.quantity || 0) * multiplier
-            }));
-
-            const adaptedCovers = (recipe.covers || 0) * multiplier;
-            const adaptedTotalIngredientQuantity = baseTotalIngredientQuantity * multiplier;
-
-            const adaptedRecipe = {
-                ...recipe,
-                covers: adaptedCovers,
-                ingredients: adaptedIngredients.map(ing => ({
-                    ...ing,
-                    quantity: ing.adaptedQuantity
-                }))
-            };
-
-            const adaptedCost = calculateRecipeCost(adaptedRecipe);
-
-            const pivotLabel = (() => {
-                if (pivotType === "covers") return "Couverts";
-                if (pivotType === "globalQuantity") return "Quantité globale";
-                if (pivotType === "budget") return "Budget";
-                if (pivotType === "ingredientQuantity") return "Quantité ingrédient";
-                return "Pivot";
-            })();
-
-            const handleOverlayClick = (e) => {
-                if (e.target === e.currentTarget) onClose();
-            };
-
-            return (
-                <div
-                    className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50"
-                    onClick={handleOverlayClick}
-                >
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
-                        <button
-                            onClick={onClose}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full z-10"
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <line x1="18" x2="6" y1="6" y2="18" />
-                                <line x1="6" x2="18" y1="6" y2="18" />
-                            </svg>
-                        </button>
-
-                        <div className="p-6 border-b border-gray-200 pr-12">
-                            <h3 className="text-xl font-bold text-[#1A3A4A]">Adapter : {recipe.name}</h3>
-                            <p className="text-sm text-gray-500 mt-1">Choisis un pivot. Tout le reste se recalculera proportionnellement.</p>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Type de pivot</label>
-                                        <select
-                                            value={pivotType}
-                                            onChange={(e) => handlePivotTypeChange(e.target.value)}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        >
-                                            <option value="covers">Nombre de couverts</option>
-                                            <option value="globalQuantity">Quantité globale de recette</option>
-                                            <option value="budget">Budget cible</option>
-                                            <option value="ingredientQuantity">Quantité d’un ingrédient</option>
-                                        </select>
-                                    </div>
-
-                                    {pivotType === "ingredientQuantity" && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Ingrédient pivot</label>
-                                            <select
-                                                value={selectedIngredientIndex}
-                                                onChange={(e) => handleIngredientPivotChange(parseInt(e.target.value))}
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                            >
-                                                {(recipe.ingredients || []).map((ing, idx) => (
-                                                    <option key={idx} value={idx}>
-                                                        {ing.name} ({ing.quantity} {ing.unit})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Valeur cible — {pivotLabel}
-                                        {pivotType === "budget" ? " (€)" : ""}
-                                        {pivotType === "ingredientQuantity" ? ` (${recipe.ingredients?.[selectedIngredientIndex]?.unit || ""})` : ""}
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0.01"
-                                        value={pivotValue}
-                                        onChange={(e) => setPivotValue(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-[#C8956C] bg-opacity-10 rounded-xl p-4 border border-[#C8956C] border-opacity-30">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="font-medium text-[#1A3A4A]">Coefficient :</span>
-                                        <span>{multiplier.toFixed(4)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span>
-                                        <span>{adaptedCovers.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="font-medium text-[#1A3A4A]">Quantité globale recalculée :</span>
-                                        <span>{adaptedTotalIngredientQuantity.toFixed(2)}</span>
-                                    </div>
-                                    {isChef && (
-                                        <div className="flex justify-between">
-                                            <span className="font-medium text-[#1A3A4A]">Coût recalculé :</span>
-                                            <span>
-                                                {!costStatus.valid || adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {!costStatus.valid && isChef && (
-                                    <div className="mt-3 text-sm text-red-700 font-medium">
-                                        {costStatus.message}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div>
-                                <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients adaptés</h4>
-                                <div className="bg-gray-50 rounded-lg p-4">
-                                    <div className="space-y-2 max-h-72 overflow-y-auto">
-                                        {adaptedIngredients.map((ing, idx) => {
-                                            const lineForCost = { ...ing, quantity: ing.adaptedQuantity };
-                                            const lineCost = calculateIngredientCost(lineForCost);
-
-                                            return (
-                                                <div
-                                                    key={idx}
-                                                    className="flex justify-between items-center py-3 border-b border-gray-200 last:border-0"
-                                                >
-                                                    <div>
-                                                        <div className="font-medium text-[#1A3A4A]">{ing.name}</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            Base : {Number(ing.quantity).toFixed(2)} {ing.unit}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="text-right">
-                                                        <div className="text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
-                                                            {ing.adaptedQuantity.toFixed(2)} {ing.unit}
-                                                        </div>
-                                                        {isChef && (
-                                                            <div className="text-xs text-[#C8956C] mt-1">
-                                                                {lineCost == null ? "Coût N/A" : `${lineCost.toFixed(2)}€`}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={onClose}
-                                className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg hover:bg-[#2A4A5A] font-medium"
-                            >
-                                Fermer
-                            </button>
-                        </div>
-                    </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredRecipes.map(recipe => {
+          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes);
+          const costStatus = getCostStatus(recipe, normalizedRecipes);
+          return (
+            <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4 gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${recipe.recipeType === "base" ? "bg-slate-700 text-white" : "bg-[#1A3A4A] text-white"}`}>{recipe.recipeType === "base" ? "Base" : "Finale"}</span>
+                    {recipe.categories.map(cat => <span key={cat} className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
+                  </div>
+                  <span className="text-sm text-gray-500">{recipe.covers} couverts</span>
                 </div>
-            );
-        };
-
-        const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef }) => {
-            const [showForm, setShowForm] = useState(false);
-            const [editingId, setEditingId] = useState(null);
-            const [searchTerm, setSearchTerm] = useState("");
-            const [detailRecipe, setDetailRecipe] = useState(null);
-            const [adaptRecipe, setAdaptRecipe] = useState(null);
-            const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
-
-            const [formData, setFormData] = useState({
-                category: CATEGORIES_REC[0],
-                name: "",
-                covers: 4,
-                ingredients: [],
-                procedure: "",
-                wasteCoeff: 1.05
-            });
-
-            const [currentIng, setCurrentIng] = useState({
-                ingredientId: "",
-                quantity: "",
-                unit: "Gramme",
-                wasteCoeff: 1.0,
-                searchText: ""
-            });
-
-            const filteredRecipes = recipes.filter(recipe =>
-                recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                recipe.category.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            const filteredIngredientsForSearch = ingredients.filter(ing =>
-                ing.name.toLowerCase().includes(currentIng.searchText.toLowerCase())
-            );
-
-            const addIngredientToRecipe = (ingredientId = null) => {
-                const finalIngredientId = ingredientId || currentIng.ingredientId;
-                if (!finalIngredientId || !currentIng.quantity) return;
-
-                const ing = ingredients.find(i => i.id === parseInt(finalIngredientId));
-                if (!ing) return;
-
-                setFormData({
-                    ...formData,
-                    ingredients: [...formData.ingredients, {
-                        ingredientId: parseInt(finalIngredientId),
-                        name: ing.name,
-                        quantity: parseFloat(currentIng.quantity),
-                        unit: currentIng.unit,
-                        wasteCoeff: parseFloat(currentIng.wasteCoeff),
-                        pricePerUnit: ing.price,
-                        unitPrice: ing.unit
-                    }]
-                });
-
-                setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-            };
-
-            const handleAddNewIngredient = (newIngredient) => {
-                setIngredients([...ingredients, newIngredient]);
-
-                setFormData({
-                    ...formData,
-                    ingredients: [...formData.ingredients, {
-                        ingredientId: newIngredient.id,
-                        name: newIngredient.name,
-                        quantity: parseFloat(currentIng.quantity) || 0,
-                        unit: currentIng.unit || "Gramme",
-                        wasteCoeff: parseFloat(currentIng.wasteCoeff) || 1.0,
-                        pricePerUnit: newIngredient.price,
-                        unitPrice: newIngredient.unit
-                    }]
-                });
-
-                setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-            };
-
-            const removeIngredientFromRecipe = (index) => {
-                setFormData({
-                    ...formData,
-                    ingredients: formData.ingredients.filter((_, i) => i !== index)
-                });
-            };
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-
-                if (formData.ingredients.length === 0) {
-                    alert("Ajoutez au moins un ingrédient");
-                    return;
-                }
-
-                const recipeDraft = { ...formData, ingredients: formData.ingredients };
-                const computedCost = calculateRecipeCost(recipeDraft);
-                const totalCost = computedCost == null ? 0 : computedCost;
-
-                if (editingId) {
-                    setRecipes(recipes.map(r =>
-                        r.id === editingId ? { ...recipeDraft, id: editingId, totalCost } : r
-                    ));
-                } else {
-                    const newId = Math.max(...recipes.map(r => r.id), 0) + 1;
-                    setRecipes([...recipes, { ...recipeDraft, id: newId, totalCost }]);
-                }
-
-                resetForm();
-            };
-
-            const resetForm = () => {
-                setFormData({ category: CATEGORIES_REC[0], name: "", covers: 4, ingredients: [], procedure: "", wasteCoeff: 1.05 });
-                setEditingId(null);
-                setShowForm(false);
-                setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-            };
-
-            const handleEdit = (recipe) => {
-                setFormData(recipe);
-                setEditingId(recipe.id);
-                setShowForm(true);
-                setDetailRecipe(null);
-            };
-
-            const handleDelete = (id) => {
-                if (window.confirm("Êtes-vous sûr de vouloir supprimer cette recette ?")) {
-                    setRecipes(recipes.filter(r => r.id !== id));
-                }
-            };
-
-            return (
-                <div className="p-6 max-w-7xl mx-auto fade-in">
-                    <AddIngredientModal
-                        isOpen={showAddIngredientModal}
-                        onClose={() => setShowAddIngredientModal(false)}
-                        onAdd={handleAddNewIngredient}
-                    />
-
-                    <RecipeDetailModal
-                        recipe={detailRecipe}
-                        isOpen={!!detailRecipe}
-                        onClose={() => setDetailRecipe(null)}
-                        isChef={isChef}
-                    />
-
-                    <AdaptModal
-                        recipe={adaptRecipe}
-                        isOpen={!!adaptRecipe}
-                        onClose={() => setAdaptRecipe(null)}
-                        isChef={isChef}
-                    />
-
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Recettes</h2>
-                        {isChef && (
-                            <button
-                                onClick={() => setShowForm(!showForm)}
-                                className="flex items-center space-x-2 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg hover:bg-[#2A4A5A] transition-colors"
-                            >
-                                <span>+ Nouvelle recette</span>
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="mb-6">
-                        <input
-                            type="text"
-                            placeholder="Rechercher une recette..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
-                        />
-                    </div>
-
-                    {showForm && (
-                        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
-                            <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">
-                                {editingId ? "Modifier la recette" : "Nouvelle recette"}
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                                    <select
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({...formData, category: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    >
-                                        {CATEGORIES_REC.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                    </select>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Couverts</label>
-                                    <input
-                                        type="number"
-                                        value={formData.covers}
-                                        onChange={(e) => setFormData({...formData, covers: parseFloat(e.target.value) || 1})}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        min="1"
-                                        step="0.01"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                                <h4 className="font-medium text-gray-700 mb-3">Ingrédients</h4>
-
-                                <div className="relative mb-3">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
-                                    <input
-                                        type="text"
-                                        value={currentIng.searchText}
-                                        onChange={(e) => setCurrentIng({...currentIng, searchText: e.target.value})}
-                                        placeholder="Tapez pour chercher..."
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                    />
-
-                                    {currentIng.searchText && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
-                                            {filteredIngredientsForSearch.length > 0 ? (
-                                                filteredIngredientsForSearch.map(ing => (
-                                                    <button
-                                                        key={ing.id}
-                                                        type="button"
-                                                        onClick={() => setCurrentIng({...currentIng, ingredientId: ing.id, searchText: ing.name})}
-                                                        className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"
-                                                    >
-                                                        <span>{ing.name}</span>
-                                                        <span className="text-sm text-gray-500">{Number(ing.price).toFixed(2)}€/{ing.unit}</span>
-                                                    </button>
-                                                ))
-                                            ) : (
-                                                <div className="p-4 text-center">
-                                                    <p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowAddIngredientModal(true)}
-                                                        className="text-[#1A3A4A] font-medium text-sm"
-                                                    >
-                                                        Créer "{currentIng.searchText}"
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={currentIng.quantity}
-                                            onChange={(e) => setCurrentIng({...currentIng, quantity: e.target.value})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label>
-                                        <select
-                                            value={currentIng.unit}
-                                            onChange={(e) => setCurrentIng({...currentIng, unit: e.target.value})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        >
-                                            {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={currentIng.wasteCoeff}
-                                            onChange={(e) => setCurrentIng({...currentIng, wasteCoeff: parseFloat(e.target.value) || 1})}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                        />
-                                    </div>
-                                    <div className="flex items-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => addIngredientToRecipe()}
-                                            disabled={!currentIng.ingredientId || !currentIng.quantity}
-                                            className={`w-full py-2 rounded-lg font-medium ${
-                                                currentIng.ingredientId && currentIng.quantity
-                                                    ? "bg-[#1A3A4A] text-white hover:bg-[#2A4A5A]"
-                                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                            }`}
-                                        >
-                                            Ajouter
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddIngredientModal(true)}
-                                    className="mt-3 text-sm text-[#1A3A4A] hover:text-[#C8956C] font-medium"
-                                >
-                                    + Créer un nouvel ingrédient
-                                </button>
-                            </div>
-
-                            <div className="bg-amber-50 rounded-lg p-4 mb-4 border-l-4 border-[#C8956C]">
-                                <h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4>
-                                <textarea
-                                    value={formData.procedure}
-                                    onChange={(e) => setFormData({...formData, procedure: e.target.value})}
-                                    placeholder="Décrivez les étapes de préparation..."
-                                    className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] resize-none"
-                                />
-                            </div>
-
-                            {formData.ingredients.length > 0 && (
-                                <div className="mb-4">
-                                    <h4 className="font-medium text-gray-700 mb-2">Ingrédients ajoutés ({formData.ingredients.length})</h4>
-                                    <div className="space-y-2">
-                                        {formData.ingredients.map((ing, idx) => (
-                                            <div key={idx} className="flex items-center justify-between bg-amber-50 px-4 py-2 rounded-lg">
-                                                <span className="font-medium">
-                                                    {ing.name} - {ing.quantity} {ing.unit}
-                                                    <span className="text-xs text-gray-500 ml-2">
-                                                        (achat : {ing.unitPrice})
-                                                    </span>
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeIngredientFromRecipe(idx)}
-                                                    className="text-red-500 hover:text-red-700"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex items-center space-x-4 mb-4">
-                                <label className="text-sm font-medium text-gray-700">Coeff. perte global :</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={formData.wasteCoeff}
-                                    onChange={(e) => setFormData({...formData, wasteCoeff: parseFloat(e.target.value) || 1})}
-                                    className="w-24 px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
-                                />
-                            </div>
-
-                            <div className="flex space-x-3">
-                                <button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg hover:bg-[#2A4A5A] font-medium">
-                                    {editingId ? "Mettre à jour" : "Créer la recette"}
-                                </button>
-                                <button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300">
-                                    Annuler
-                                </button>
-                            </div>
-                        </form>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredRecipes.map(recipe => {
-                            const costStatus = getCostStatus(recipe);
-                            return (
-                                <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                                    <div className="p-6">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">
-                                                {recipe.category}
-                                            </span>
-                                            <span className="text-sm text-gray-500">{recipe.covers} couverts</span>
-                                        </div>
-                                        <h3
-                                            className="text-lg font-bold text-[#1A3A4A] mb-2 cursor-pointer hover:text-[#C8956C] transition-colors"
-                                            onClick={() => setDetailRecipe(recipe)}
-                                        >
-                                            {recipe.name}
-                                        </h3>
-                                        <div className="space-y-1 mb-4">
-                                            <p className="text-sm text-gray-600">{recipe.ingredients.length} ingrédient(s)</p>
-                                            {recipe.procedure && <p className="text-xs text-[#C8956C]">✓ Procédé renseigné</p>}
-                                            {isChef && (
-                                                <>
-                                                    {costStatus.valid ? (
-                                                        <p className="text-lg font-bold text-[#C8956C]">
-                                                            {Number(recipe.totalCost || 0).toFixed(2)}€
-                                                            <span className="text-sm font-normal text-gray-500 ml-2">
-                                                                ({recipe.covers > 0 ? (Number(recipe.totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)
-                                                            </span>
-                                                        </p>
-                                                    ) : (
-                                                        <p className="text-sm text-red-600 font-medium">Coût indisponible</p>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                        <div className="flex space-x-2">
-                                            <button
-                                                onClick={() => setDetailRecipe(recipe)}
-                                                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium"
-                                            >
-                                                Voir détail
-                                            </button>
-                                            <button
-                                                onClick={() => setAdaptRecipe(recipe)}
-                                                className="flex-1 bg-[#C8956C] bg-opacity-10 text-[#C8956C] py-2 rounded-lg hover:bg-opacity-20 text-sm font-medium"
-                                            >
-                                                Adapter
-                                            </button>
-                                            {isChef && (
-                                                <>
-                                                    <button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 hover:text-[#1A3A4A] bg-gray-50 rounded-lg">
-                                                        ✎
-                                                    </button>
-                                                    <button onClick={() => handleDelete(recipe.id)} className="p-2 text-gray-600 hover:text-red-600 bg-gray-50 rounded-lg">
-                                                        🗑
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                <h3 className="text-lg font-bold text-[#1A3A4A] mb-2 cursor-pointer hover:text-[#C8956C]" onClick={() => setDetailRecipe(recipe)}>{recipe.name}</h3>
+                <div className="space-y-1 mb-4 text-sm text-gray-600">
+                  <p>{recipe.directIngredients.length} ingrédient(s) direct(s)</p>
+                  {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
+                  <p>Rendement : {recipe.outputQuantity} {recipe.outputUnit}</p>
+                  {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                 </div>
-            );
-        };
-
-        const CostsView = ({ recipes, ingredients }) => {
-            const validRecipes = recipes.filter(r => getCostStatus(r).valid);
-            const avgCostPerRecipe = validRecipes.length
-                ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length
-                : 0;
-
-            const mostExpensive = validRecipes.length
-                ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0])
-                : null;
-
-            const cheapest = validRecipes.length
-                ? validRecipes.reduce((min, r) => Number(r.totalCost || 0) < Number(min.totalCost || 0) ? r : min, validRecipes[0])
-                : null;
-
-            return (
-                <div className="p-6 max-w-7xl mx-auto fade-in">
-                    <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Analyse des Coûts</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3>
-                            <p className="text-3xl font-bold text-[#1A3A4A]">{avgCostPerRecipe.toFixed(2)}€</p>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3>
-                            <p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExpensive?.name || "-"}</p>
-                            <p className="text-2xl font-bold text-red-600">{mostExpensive ? Number(mostExpensive.totalCost || 0).toFixed(2) : "0.00"}€</p>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3>
-                            <p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "-"}</p>
-                            <p className="text-2xl font-bold text-green-600">{cheapest ? Number(cheapest.totalCost || 0).toFixed(2) : "0.00"}€</p>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-500 mb-4">Ingrédients</h3>
-                            <p className="text-3xl font-bold text-[#1A3A4A]">{ingredients.length}</p>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3>
-                        </div>
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût total</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût/couvert</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {recipes.map(recipe => {
-                                    const status = getCostStatus(recipe);
-                                    return (
-                                        <tr key={recipe.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td>
-                                            <td className="px-6 py-4 text-gray-600">{recipe.category}</td>
-                                            <td className="px-6 py-4 font-bold text-[#C8956C]">
-                                                {status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600">
-                                                {status.valid && recipe.covers > 0
-                                                    ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€`
-                                                    : "N/A"}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                <div className="flex space-x-2">
+                  <button onClick={() => setDetailRecipe(recipe)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium">Voir détail</button>
+                  <button onClick={() => setAdaptRecipe(recipe)} className="flex-1 bg-[#C8956C] bg-opacity-10 text-[#C8956C] py-2 rounded-lg text-sm font-medium">Adapter</button>
+                  {isChef && <><button onClick={() => handleEdit(recipe)} className="p-2 text-gray-600 bg-gray-50 rounded-lg">✎</button><button onClick={() => window.confirm("Supprimer cette recette ?") && setRecipes(recipes.filter(r => Number(r.id) !== Number(recipe.id)))} className="p-2 text-gray-600 bg-gray-50 rounded-lg">🗑</button></>}
                 </div>
-            );
-        };
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
-        const App = () => {
-            const [user, setUser] = useLocalStorage("arpege_user", null);
-            const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
-            const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
-            const [activeTab, setActiveTab] = useState("recettes");
 
-            const handleLogin = (userData) => {
-                setUser(userData);
-            };
+const ProducersView = ({ ingredients }) => {
+  const producers = Array.from(new Set((ingredients || []).map(ing => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
+  return (
+    <div className="p-6 max-w-7xl mx-auto fade-in">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-[#1A3A4A]">Producteurs</h2>
+        <p className="text-sm text-gray-500 mt-1">Liste alimentée automatiquement depuis les fournisseurs renseignés dans les ingrédients.</p>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {producers.length === 0 ? (
+          <div className="p-6 text-gray-500">Aucun producteur renseigné pour le moment.</div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producteur</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {producers.map((producer, idx) => (
+                <tr key={idx} className="hover:bg-gray-50"><td className="px-6 py-4 text-[#1A3A4A] font-medium">{producer}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
 
-            const handleLogout = () => {
-                setUser(null);
-            };
+const CostsView = ({ recipes, ingredients }) => {
+  const normalizedRecipes = recipes.map(normalizeRecipe);
+  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes), status: getCostStatus(recipe, normalizedRecipes) }));
+  const validRecipes = enriched.filter(r => r.status.valid && r.totalCost != null);
+  const avgCostPerRecipe = validRecipes.length ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length : 0;
+  const mostExpensive = validRecipes.length ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0]) : null;
+  const cheapest = validRecipes.length ? validRecipes.reduce((min, r) => Number(r.totalCost || 0) < Number(min.totalCost || 0) ? r : min, validRecipes[0]) : null;
+  return (
+    <div className="p-6 max-w-7xl mx-auto fade-in">
+      <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Analyse des Coûts</h2>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3><p className="text-3xl font-bold text-[#1A3A4A]">{avgCostPerRecipe.toFixed(2)}€</p></div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExpensive?.name || "-"}</p><p className="text-2xl font-bold text-red-600">{mostExpensive ? Number(mostExpensive.totalCost || 0).toFixed(2) : "0.00"}€</p></div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "-"}</p><p className="text-2xl font-bold text-green-600">{cheapest ? Number(cheapest.totalCost || 0).toFixed(2) : "0.00"}€</p></div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Ingrédients</h3><p className="text-3xl font-bold text-[#1A3A4A]">{ingredients.length}</p></div>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200"><h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3></div>
+        <table className="w-full">
+          <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sous-catégories</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût total</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût/couvert</th></tr></thead>
+          <tbody className="divide-y divide-gray-200">{enriched.map(recipe => <tr key={recipe.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td><td className="px-6 py-4 text-gray-600">{recipe.recipeType === "base" ? "Base" : "Finale"}</td><td className="px-6 py-4 text-gray-600">{recipe.categories.join(", ")}</td><td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</td><td className="px-6 py-4 text-gray-600">{recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
 
-            if (!user) {
-                return <Login onLogin={handleLogin} />;
-            }
+const App = () => {
+  const [user, setUser] = useLocalStorage("arpege_user", null);
+  const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
+  const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
+  const [activeTab, setActiveTab] = useState("ingredients");
+  if (!user) return <Login onLogin={setUser} />;
+  const isChef = user.role === "chef";
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} />
+      <main className="pb-12">
+        {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} isChef={isChef} />}
+        {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
+        {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
+        {activeTab === "producers" && <ProducersView ingredients={ingredients} />}
+        {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
+      </main>
+    </div>
+  );
+};
 
-            const isChef = user.role === "chef";
-
-            return (
-                <div className="min-h-screen bg-gray-50">
-                    <Header
-                        user={user}
-                        onLogout={handleLogout}
-                        activeTab={activeTab}
-                        setActiveTab={setActiveTab}
-                    />
-
-                    <main className="pb-12">
-                        {activeTab === "ingredients" && isChef && (
-                            <IngredientsManager
-                                ingredients={ingredients}
-                                setIngredients={setIngredients}
-                                isChef={isChef}
-                            />
-                        )}
-
-                        {activeTab === "recettes" && (
-                            <RecipesManager
-                                ingredients={ingredients}
-                                setIngredients={setIngredients}
-                                recipes={recipes}
-                                setRecipes={setRecipes}
-                                isChef={isChef}
-                            />
-                        )}
-
-                        {activeTab === "couts" && isChef && (
-                            <CostsView recipes={recipes} ingredients={ingredients} />
-                        )}
-                    </main>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(<App />);
-    </script>
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
 </body>
 </html>
