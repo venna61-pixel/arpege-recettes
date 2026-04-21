@@ -19,6 +19,19 @@
         .modal-overlay { background: rgba(0,0,0,.6); backdrop-filter: blur(4px); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body * { visibility: hidden !important; }
+            #printable-recipe, #printable-recipe * { visibility: visible !important; }
+            #printable-recipe {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                max-width: 100%;
+                background: white;
+                padding: 24px;
+            }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -422,10 +435,13 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
   const normalized = normalizeRecipe(recipe);
   const costStatus = getCostStatus(normalized, allRecipes);
   const totalCost = calculateRecipeTotalCost(normalized, allRecipes);
+
+  const handlePrintPdf = () => window.print();
+
   return (
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 z-10">✕</button>
+      <div id="printable-recipe" className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 z-10 no-print">✕</button>
         <div className="p-6 border-b border-gray-200 pr-12">
           <div className="flex flex-wrap gap-2 mb-3">
             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${normalized.recipeType === "base" ? "bg-slate-700 text-white" : "bg-[#1A3A4A] text-white"}`}>{normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</span>
@@ -433,6 +449,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
           </div>
           <h3 className="text-2xl font-bold text-[#1A3A4A]">{normalized.name}</h3>
           <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts • Rendement : {normalized.outputQuantity} {normalized.outputUnit}</p>
+          <button onClick={handlePrintPdf} className="mt-4 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A] no-print">Imprimer la fiche (PDF)</button>
         </div>
         <div className="p-6 space-y-6">
           <div>
