@@ -422,6 +422,145 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
   const normalized = normalizeRecipe(recipe);
   const costStatus = getCostStatus(normalized, allRecipes);
   const totalCost = calculateRecipeTotalCost(normalized, allRecipes);
+
+  const buildProcedureHtml = (procedure) => {
+    if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
+    return procedure
+      .split("\n")
+      .map(step => `<p style="margin:0 0 8px 0;">${step}</p>`)
+      .join("");
+  };
+
+  const escapeHtml = (value) => String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+  const handlePrintPdf = () => {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
+    if (!printWindow) return;
+
+    const directRows = normalized.directIngredients.length === 0
+      ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
+      : normalized.directIngredients.map((ing) => {
+          const ingredientCost = calculateIngredientCost(ing);
+          return `
+            <tr>
+              <td>${escapeHtml(ing.name)}</td>
+              <td>${escapeHtml(ing.quantity)} ${escapeHtml(ing.unit)}</td>
+              ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>` : ""}
+            </tr>
+          `;
+        }).join("");
+
+    const baseRows = normalized.baseComponents.length === 0
+      ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucune recette de base liée</td></tr>`
+      : normalized.baseComponents.map((component) => {
+          const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {});
+          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null;
+          const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null;
+          const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
+            ? baseCost * (converted / Number(baseRecipe.outputQuantity))
+            : null;
+          return `
+            <tr>
+              <td>${escapeHtml(component.name)}</td>
+              <td>${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}</td>
+              ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
+            </tr>
+          `;
+        }).join("");
+
+    const baseSection = normalized.recipeType === "final" ? `
+      <section>
+        <h2>Recettes de base utilisées (${normalized.baseComponents.length})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Recette de base</th>
+              <th>Quantité utilisée</th>
+              ${isChef ? "<th style='text-align:right;'>Coût proratisé</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>${baseRows}</tbody>
+        </table>
+      </section>
+    ` : "";
+
+    const costSection = isChef ? `
+      <section>
+        <h2>Synthèse des coûts</h2>
+        ${
+          !costStatus.valid
+            ? `<p style="color:#991b1b;font-weight:600;">${escapeHtml(costStatus.message)}</p>`
+            : `
+              <p><strong>Coût total :</strong> ${Number(totalCost || 0).toFixed(2)}€</p>
+              <p><strong>Coût par couvert :</strong> ${normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}€</p>
+            `
+        }
+      </section>
+    ` : "";
+
+    const content = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Fiche recette - ${escapeHtml(normalized.name)}</title>
+          <style>
+            body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 28px; }
+            h1 { margin: 0 0 8px 0; color: #1A3A4A; }
+            h2 { margin: 22px 0 10px 0; color: #1A3A4A; font-size: 18px; }
+            .meta { color: #4b5563; margin-bottom: 6px; }
+            .badges { margin: 10px 0 14px 0; }
+            .badge { display: inline-block; background: #f3f4f6; border-radius: 999px; padding: 4px 10px; margin-right: 8px; margin-bottom: 6px; font-size: 12px; font-weight: 600; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 14px; }
+            th { text-align: left; background: #f9fafb; font-weight: 600; }
+            .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(normalized.name)}</h1>
+          <p class="meta"><strong>Type :</strong> ${normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</p>
+          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)} • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}</p>
+          <div class="badges">${normalized.categories.map(cat => `<span class="badge">${escapeHtml(cat)}</span>`).join("")}</div>
+
+          <section>
+            <h2>Ingrédients directs (${normalized.directIngredients.length})</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ingrédient</th>
+                  <th>Quantité</th>
+                  ${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}
+                </tr>
+              </thead>
+              <tbody>${directRows}</tbody>
+            </table>
+          </section>
+
+          ${baseSection}
+
+          <section>
+            <h2>Procédé / Préparation</h2>
+            <div class="procedure">${buildProcedureHtml(escapeHtml(normalized.procedure))}</div>
+          </section>
+
+          ${costSection}
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   return (
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
@@ -433,6 +572,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
           </div>
           <h3 className="text-2xl font-bold text-[#1A3A4A]">{normalized.name}</h3>
           <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts • Rendement : {normalized.outputQuantity} {normalized.outputUnit}</p>
+          <button onClick={handlePrintPdf} className="mt-4 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
         </div>
         <div className="p-6 space-y-6">
           <div>
