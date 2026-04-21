@@ -439,8 +439,6 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
     .replaceAll("'", "&#39;");
 
   const handlePrintPdf = () => {
-    const popup = window.open("", "_blank", "noopener,noreferrer,width=1024,height=768");
-
     const directRows = normalized.directIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : normalized.directIngredients.map((ing) => {
@@ -561,13 +559,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       targetWindow.print();
     };
 
-    if (popup) {
-      printFromWindow(popup);
-      return;
-    }
-
-    // Fallback when popups are blocked by the browser:
-    // use a hidden iframe and trigger the print dialog from it.
+    // Trigger printing from a hidden iframe to avoid opening an extra tab/window.
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
     iframe.style.right = "0";
