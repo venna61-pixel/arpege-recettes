@@ -333,7 +333,9 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
         <h2 className="text-2xl font-bold text-[#1A3A4A]">Gestion des Ingrédients</h2>
         {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">+ Nouvel ingrédient</button>}
       </div>
-      <div className="mb-6"><input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" /></div>
+      {!showForm && (
+        <div className="mb-6"><input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" /></div>
+      )}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
           <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">{editingId ? "Modifier" : "Nouvel ingrédient"}</h3>
@@ -347,8 +349,9 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
           <div className="mt-4 flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Ajouter"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
         </form>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full">
+      {!showForm && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>{isChef && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}</tr></thead>
           <tbody className="divide-y divide-gray-200">
             {filteredIngredients.map(ing => (
@@ -362,8 +365,9 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
@@ -692,14 +696,16 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">{sectionType === "base" ? "+ Nouvelle recette de base" : "+ Nouvelle recette finale"}</button>}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-4">
-        <input type="text" placeholder={`Rechercher ${sectionType === "base" ? "une recette de base" : "une recette finale"}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300" />
-        <div className="flex flex-wrap gap-2">
+      {!showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-4">
+          <input type="text" placeholder={`Rechercher ${sectionType === "base" ? "une recette de base" : "une recette finale"}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300" />
+          <div className="flex flex-wrap gap-2">
           {["Tous", ...SERVICE_CATEGORIES].map(cat => (
             <button key={cat} onClick={() => setCategoryFilter(cat)} className={`px-3 py-2 rounded-full text-sm ${categoryFilter === cat ? "bg-[#C8956C] text-white" : "bg-amber-50 text-[#7b5a42]"}`}>{cat}</button>
           ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100 space-y-6">
@@ -813,8 +819,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredRecipes.map(recipe => {
+      {!showForm && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes);
           const costStatus = getCostStatus(recipe, normalizedRecipes);
           return (
@@ -842,8 +849,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 };
