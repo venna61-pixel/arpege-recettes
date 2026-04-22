@@ -8,6 +8,11 @@
     "Pain", "Paire", "Paquet", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", "Seau",
     "Tablette", "Terrine", "Tube", "Tubo", "Carton"
   ];
+  const LOGIC_UNITS = Array.from(new Set([
+    ...Object.keys(MASS_UNITS),
+    ...Object.keys(VOLUME_UNITS),
+    ...COUNT_UNITS,
+  ]));
 
   const getUnitGroup = (unit) => MASS_UNITS[unit] ? "mass" : VOLUME_UNITS[unit] ? "volume" : COUNT_UNITS.includes(unit) ? "count" : "unknown";
 
@@ -24,9 +29,32 @@
 
   const calculateIngredientCost = (ingredientLine) => {
     const recipeQty = Number(ingredientLine.quantity || 0);
-    const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, ingredientLine.unitPrice);
+    const pricingUnit = resolvePricingUnit(ingredientLine);
+    if (!pricingUnit) return null;
+    const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, pricingUnit);
     if (convertedQty == null) return null;
     return convertedQty * Number(ingredientLine.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
+  };
+
+  const resolvePricingUnit = (ingredientLine) => {
+    const explicitPricingUnit = String(ingredientLine?.unitPrice || "").trim();
+    if (explicitPricingUnit) return explicitPricingUnit;
+    const recipeUnit = String(ingredientLine?.unit || "").trim();
+    return recipeUnit || null;
+  };
+
+  const checkUnitCatalogConsistency = (uiUnits = []) => {
+    const uiSet = new Set((uiUnits || []).map((u) => String(u || "").trim()).filter(Boolean));
+    const logicSet = new Set(LOGIC_UNITS);
+
+    const missingInUI = LOGIC_UNITS.filter((u) => !uiSet.has(u));
+    const extraInUI = Array.from(uiSet).filter((u) => !logicSet.has(u));
+
+    return {
+      isConsistent: missingInUI.length === 0 && extraInUI.length === 0,
+      missingInUI,
+      extraInUI,
+    };
   };
 
   const normalizeRecipe = (recipe) => {
@@ -81,9 +109,13 @@
   const getCostStatus = (recipe, allRecipes) => {
     const current = normalizeRecipe(recipe);
     for (const ing of current.directIngredients) {
-      const convertedQty = convertQuantity(Number(ing.quantity || 0), ing.unit, ing.unitPrice);
+      const pricingUnit = resolvePricingUnit(ing);
+      if (!pricingUnit) {
+        return { valid: false, message: `Unité de prix manquante pour ${ing.name}` };
+      }
+      const convertedQty = convertQuantity(Number(ing.quantity || 0), ing.unit, pricingUnit);
       if (convertedQty == null) {
-        return { valid: false, message: `Conversion impossible entre ${ing.unit} et ${ing.unitPrice} pour ${ing.name}` };
+        return { valid: false, message: `Conversion impossible entre ${ing.unit} et ${pricingUnit} pour ${ing.name}` };
       }
     }
 
@@ -108,12 +140,15 @@
     MASS_UNITS,
     VOLUME_UNITS,
     COUNT_UNITS,
+    LOGIC_UNITS,
     getUnitGroup,
     convertQuantity,
+    resolvePricingUnit,
     calculateIngredientCost,
     normalizeRecipe,
     getRecipeById,
     calculateRecipeTotalCost,
     getCostStatus,
+    checkUnitCatalogConsistency,
   };
 })(window);

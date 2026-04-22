@@ -47,6 +47,13 @@ const UNITS = [
   "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
   "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
 ];
+if (!window.ArpegeCostsAndUnits) {
+  throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
+}
+const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
+if (!unitCatalogCheck.isConsistent) {
+  console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
+}
 
 const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
 
@@ -111,7 +118,7 @@ const {
   getRecipeById,
   calculateRecipeTotalCost,
   getCostStatus
-} = window.ArpegeCostsAndUnits || {};
+} = window.ArpegeCostsAndUnits;
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {

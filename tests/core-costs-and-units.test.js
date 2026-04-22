@@ -11,9 +11,11 @@ loadScript('logic/core/costs-and-units.js');
 
 const {
   convertQuantity,
+  resolvePricingUnit,
   calculateIngredientCost,
   calculateRecipeTotalCost,
   getCostStatus,
+  checkUnitCatalogConsistency,
 } = window.ArpegeCostsAndUnits;
 
 function testConversionCompatible() {
@@ -29,6 +31,17 @@ function testConversionIncompatible() {
 function testCoutIngredient() {
   const cost = calculateIngredientCost({ quantity: 0.5, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1.1 });
   assert.strictEqual(cost, 5.5);
+}
+
+function testResolvePricingUnitFallback() {
+  const resolved = resolvePricingUnit({ unit: 'Kg' });
+  assert.strictEqual(resolved, 'Kg');
+}
+
+function testUnitCatalogConsistencySignal() {
+  const result = checkUnitCatalogConsistency(['Kg', 'Gramme', 'Litre']);
+  assert.strictEqual(result.isConsistent, false);
+  assert.ok(result.missingInUI.length > 0);
 }
 
 function testCoutTotalRecette() {
@@ -81,6 +94,8 @@ function runAll() {
     testConversionCompatible,
     testConversionIncompatible,
     testCoutIngredient,
+    testResolvePricingUnitFallback,
+    testUnitCatalogConsistencySignal,
     testCoutTotalRecette,
     testRecetteInvalideStatutInvalide,
   ];
