@@ -8,6 +8,9 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./models/schema.js"></script>
+    <script src="./logic/migration/legacy-to-v1.js"></script>
+    <script src="./logic/migration/report.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -1240,6 +1243,19 @@ const App = () => {
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [activeTab, setActiveTab] = useState("ingredients");
+
+  useEffect(() => {
+    if (!window.ArpegeLegacyMigration || !window.ArpegeMigrationReport) return;
+    try {
+      const result = window.ArpegeLegacyMigration.migrateLegacyData({ ingredients, recipes });
+      const shadowReport = window.ArpegeMigrationReport.buildMigrationReport(result);
+      window.ArpegeMigrationReport.printMigrationReport(shadowReport);
+      window.__ARPEGE_SHADOW_MIGRATION__ = { result, shadowReport };
+    } catch (error) {
+      console.error("[Shadow Migration] Échec de la migration en mémoire", error);
+    }
+  }, [ingredients, recipes]);
+
   if (!user) return <Login onLogin={setUser} />;
   const isChef = user.role === "chef";
   return (
