@@ -15,6 +15,7 @@
     <script src="./logic/migration/parallel-read.js"></script>
     <script src="./logic/runtime/data-source.js"></script>
     <script src="./logic/core/costs-and-units.js"></script>
+    <script src="./logic/core/recipe-scaling.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -49,6 +50,9 @@ const UNITS = [
 ];
 if (!window.ArpegeCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeScaling) {
+  throw new Error("Module requis manquant: logic/core/recipe-scaling.js n'est pas chargé.");
 }
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
@@ -569,21 +573,26 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
   if (!isOpen || !normalized) return null;
 
   const baseCost = calculateRecipeTotalCost(normalized, recipes);
-  const ingredientPivotSource = normalized.directIngredients[selectedIngredientIndex] || normalized.baseComponents[selectedIngredientIndex] || null;
-  const totalDirectQty = normalized.directIngredients.reduce((sum, ing) => sum + Number(ing.quantity || 0), 0) + normalized.baseComponents.reduce((sum, c) => sum + Number(c.quantity || 0), 0);
-  const numericPivot = parseFloat(pivotValue);
-  let multiplier = 1;
-  if (numericPivot > 0) {
-    if (pivotType === "covers") multiplier = numericPivot / (normalized.covers || 1);
-    if (pivotType === "globalQuantity") multiplier = numericPivot / (totalDirectQty || 1);
-    if (pivotType === "budget") multiplier = numericPivot / (baseCost || 1);
-    if (pivotType === "ingredientQuantity") multiplier = numericPivot / Number(ingredientPivotSource?.quantity || 1);
-  }
-  const adaptedDirectIngredients = normalized.directIngredients.map(ing => ({ ...ing, adaptedQuantity: Number(ing.quantity || 0) * multiplier }));
-  const adaptedBaseComponents = normalized.baseComponents.map(c => ({ ...c, adaptedQuantity: Number(c.quantity || 0) * multiplier }));
-  const adaptedRecipe = { ...normalized, covers: normalized.covers * multiplier, directIngredients: adaptedDirectIngredients.map(i => ({ ...i, quantity: i.adaptedQuantity })), baseComponents: adaptedBaseComponents.map(c => ({ ...c, quantity: c.adaptedQuantity })) };
-  const adaptedCost = calculateRecipeTotalCost(adaptedRecipe, recipes);
-  const adaptedCostStatus = getCostStatus(adaptedRecipe, recipes);
+  const scaling = window.ArpegeRecipeScaling.computePivotMultiplier({
+    pivotType,
+    pivotValue,
+    normalizedRecipe: normalized,
+    baseCost,
+    selectedIngredientIndex,
+  });
+  const multiplier = scaling.multiplier;
+  const ingredientPivotSource = scaling.ingredientPivotSource;
+  const totalDirectQty = scaling.totalDirectQty;
+  const { adaptedDirectIngredients, adaptedBaseComponents, adaptedRecipe } = window.ArpegeRecipeScaling.buildAdaptedRecipe({
+    normalizedRecipe: normalized,
+    multiplier,
+  });
+  const { adaptedCost, adaptedCostStatus } = window.ArpegeRecipeScaling.computeAdaptedMetrics({
+    adaptedRecipe,
+    recipes,
+    calculateRecipeTotalCost,
+    getCostStatus,
+  });
 
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -757,7 +766,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
               {pivotType === "ingredientQuantity" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ligne pivot</label>
-                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = normalized.directIngredients[idx] || normalized.baseComponents[idx]; setPivotValue(String(source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = window.ArpegeRecipeScaling.getPivotSourceLine(normalized, idx); setPivotValue(String(source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
                     {[...normalized.directIngredients, ...normalized.baseComponents].map((line, idx) => <option key={idx} value={idx}>{line.name} ({line.quantity} {line.unit})</option>)}
                   </select>
                 </div>
