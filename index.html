@@ -15,6 +15,7 @@
     <script src="./logic/migration/parallel-read.js"></script>
     <script src="./logic/runtime/data-source.js"></script>
     <script src="./logic/core/costs-and-units.js"></script>
+    <script src="./logic/core/recipe-builder.js"></script>
     <script src="./logic/core/recipe-scaling.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -53,6 +54,9 @@ if (!window.ArpegeCostsAndUnits) {
 }
 if (!window.ArpegeRecipeScaling) {
   throw new Error("Module requis manquant: logic/core/recipe-scaling.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeBuilder) {
+  throw new Error("Module requis manquant: logic/core/recipe-builder.js n'est pas chargé.");
 }
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
@@ -123,6 +127,10 @@ const {
   calculateRecipeTotalCost,
   getCostStatus
 } = window.ArpegeCostsAndUnits;
+const {
+  buildDirectIngredientLine,
+  buildBaseComponentLine
+} = window.ArpegeRecipeBuilder;
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
@@ -860,17 +868,17 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     if (!finalIngredientId || !currentIng.quantity) return;
     const ing = ingredients.find(i => Number(i.id) === Number(finalIngredientId));
     if (!ing) return;
+    const line = buildDirectIngredientLine({
+      ingredient: ing,
+      ingredientId: finalIngredientId,
+      quantity: currentIng.quantity,
+      unit: currentIng.unit,
+      wasteCoeff: currentIng.wasteCoeff,
+    });
+    if (!line) return;
     setFormData({
       ...formData,
-      directIngredients: [...formData.directIngredients, {
-        ingredientId: Number(finalIngredientId),
-        name: ing.name,
-        quantity: parseFloat(currentIng.quantity),
-        unit: currentIng.unit,
-        wasteCoeff: parseFloat(currentIng.wasteCoeff || 1),
-        pricePerUnit: ing.price,
-        unitPrice: ing.unit
-      }]
+      directIngredients: [...formData.directIngredients, line]
     });
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
   };
@@ -880,14 +888,16 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     if (!finalBaseRecipeId || !currentBase.quantity) return;
     const baseRecipe = normalizedRecipes.find(r => Number(r.id) === Number(finalBaseRecipeId) && r.recipeType === "base");
     if (!baseRecipe) return;
+    const line = buildBaseComponentLine({
+      baseRecipe,
+      baseRecipeId: finalBaseRecipeId,
+      quantity: currentBase.quantity,
+      unit: currentBase.unit,
+    });
+    if (!line) return;
     setFormData({
       ...formData,
-      baseComponents: [...formData.baseComponents, {
-        baseRecipeId: Number(finalBaseRecipeId),
-        name: baseRecipe.name,
-        quantity: parseFloat(currentBase.quantity),
-        unit: currentBase.unit,
-      }]
+      baseComponents: [...formData.baseComponents, line]
     });
     setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: currentBase.categoryFilter });
   };
@@ -895,17 +905,17 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const handleAddNewIngredient = (newIngredient) => {
     setIngredients([...ingredients, newIngredient]);
     if (currentIng.quantity) {
+      const line = buildDirectIngredientLine({
+        ingredient: newIngredient,
+        ingredientId: newIngredient.id,
+        quantity: currentIng.quantity,
+        unit: currentIng.unit || "Gramme",
+        wasteCoeff: currentIng.wasteCoeff,
+      });
+      if (!line) return;
       setFormData({
         ...formData,
-        directIngredients: [...formData.directIngredients, {
-          ingredientId: newIngredient.id,
-          name: newIngredient.name,
-          quantity: parseFloat(currentIng.quantity) || 0,
-          unit: currentIng.unit || "Gramme",
-          wasteCoeff: parseFloat(currentIng.wasteCoeff) || 1.0,
-          pricePerUnit: newIngredient.price,
-          unitPrice: newIngredient.unit
-        }]
+        directIngredients: [...formData.directIngredients, line]
       });
     }
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
