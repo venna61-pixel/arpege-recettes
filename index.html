@@ -16,6 +16,7 @@
     <script src="./logic/runtime/data-source.js"></script>
     <script src="./logic/core/costs-and-units.js"></script>
     <script src="./logic/core/recipe-builder.js"></script>
+    <script src="./logic/core/recipe-filters.js"></script>
     <script src="./logic/core/recipe-submission.js"></script>
     <script src="./logic/core/recipe-scaling.js"></script>
     <style>
@@ -58,6 +59,9 @@ if (!window.ArpegeRecipeScaling) {
 }
 if (!window.ArpegeRecipeBuilder) {
   throw new Error("Module requis manquant: logic/core/recipe-builder.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeFilters) {
+  throw new Error("Module requis manquant: logic/core/recipe-filters.js n'est pas chargé.");
 }
 if (!window.ArpegeRecipeSubmission) {
   throw new Error("Module requis manquant: logic/core/recipe-submission.js n'est pas chargé.");
@@ -135,6 +139,11 @@ const {
   buildDirectIngredientLine,
   buildBaseComponentLine
 } = window.ArpegeRecipeBuilder;
+const {
+  filterRecipesForList,
+  filterIngredientsForPicker,
+  filterBaseRecipesForPicker
+} = window.ArpegeRecipeFilters;
 const {
   validateRecipeDraft,
   buildRecipePayload,
@@ -843,19 +852,22 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [currentIng, setCurrentIng] = useState({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
   const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
 
-  const filteredBaseRecipesForPicker = normalizedRecipes.filter(recipe => {
-    if (recipe.recipeType !== "base") return false;
-    if (currentBase.categoryFilter !== "Tous" && !recipe.categories.includes(currentBase.categoryFilter)) return false;
-    return recipe.name.toLowerCase().includes(currentBase.searchText.toLowerCase());
+  const filteredBaseRecipesForPicker = filterBaseRecipesForPicker({
+    recipes: normalizedRecipes,
+    searchText: currentBase.searchText,
+    categoryFilter: currentBase.categoryFilter,
   });
 
-  const filteredIngredientsForSearch = ingredients.filter(ing => ing.name.toLowerCase().includes(currentIng.searchText.toLowerCase()));
+  const filteredIngredientsForSearch = filterIngredientsForPicker({
+    ingredients,
+    searchText: currentIng.searchText,
+  });
 
-  const filteredRecipes = normalizedRecipes.filter(recipe => {
-    const matchSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) || recipe.categories.join(" ").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchType = recipe.recipeType === sectionType;
-    const matchCategory = categoryFilter === "Tous" || recipe.categories.includes(categoryFilter);
-    return matchSearch && matchType && matchCategory;
+  const filteredRecipes = filterRecipesForList({
+    recipes: normalizedRecipes,
+    searchTerm,
+    sectionType,
+    categoryFilter,
   });
 
   const resetForm = () => {
