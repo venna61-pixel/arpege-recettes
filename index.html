@@ -16,6 +16,7 @@
     <script src="./logic/runtime/data-source.js"></script>
     <script src="./logic/core/costs-and-units.js"></script>
     <script src="./logic/core/recipe-builder.js"></script>
+    <script src="./logic/core/recipe-submission.js"></script>
     <script src="./logic/core/recipe-scaling.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -57,6 +58,9 @@ if (!window.ArpegeRecipeScaling) {
 }
 if (!window.ArpegeRecipeBuilder) {
   throw new Error("Module requis manquant: logic/core/recipe-builder.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeSubmission) {
+  throw new Error("Module requis manquant: logic/core/recipe-submission.js n'est pas chargé.");
 }
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
@@ -131,6 +135,11 @@ const {
   buildDirectIngredientLine,
   buildBaseComponentLine
 } = window.ArpegeRecipeBuilder;
+const {
+  validateRecipeDraft,
+  buildRecipePayload,
+  upsertRecipe
+} = window.ArpegeRecipeSubmission;
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
@@ -923,16 +932,13 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.directIngredients.length === 0 && (formData.recipeType !== "final" || formData.baseComponents.length === 0)) {
-      alert("Ajoute au moins un ingrédient ou une recette de base.");
+    const validation = validateRecipeDraft(formData);
+    if (!validation.valid) {
+      alert(validation.message);
       return;
     }
-    const payload = normalizeRecipe({ ...formData });
-    if (editingId) {
-      setRecipes(recipes.map(r => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r));
-    } else {
-      setRecipes([...recipes, { ...payload, id: Math.max(...recipes.map(r => Number(r.id)), 0) + 1 }]);
-    }
+    const payload = buildRecipePayload(formData, normalizeRecipe);
+    setRecipes(upsertRecipe(recipes, payload, editingId));
     resetForm();
   };
 
