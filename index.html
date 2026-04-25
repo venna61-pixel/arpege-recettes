@@ -363,15 +363,15 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
   );
 };
 
-const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
+const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, isChef }) => {
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
   }, [isOpen, onClose]);
   if (!isOpen || !recipe) return null;
   const normalized = normalizeRecipe(recipe);
-  const costStatus = getCostStatus(normalized, allRecipes);
-  const totalCost = calculateRecipeTotalCost(normalized, allRecipes);
+  const costStatus = getCostStatus(normalized, allRecipes, ingredients);
+  const totalCost = calculateRecipeTotalCost(normalized, allRecipes, new Set(), ingredients);
 
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
@@ -392,7 +392,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
     const directRows = normalized.directIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : normalized.directIngredients.map((ing) => {
-          const ingredientCost = calculateIngredientCost(ing);
+          const ingredientCost = calculateIngredientCost(ing, ingredients);
           return `
             <tr>
               <td>${escapeHtml(ing.name)}</td>
@@ -406,7 +406,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucune recette de base liée</td></tr>`
       : normalized.baseComponents.map((component) => {
           const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {});
-          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null;
+          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null;
           const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null;
           const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
             ? baseCost * (converted / Number(baseRecipe.outputQuantity))
@@ -548,7 +548,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients directs ({normalized.directIngredients.length})</h4>
             <div className="bg-gray-50 rounded-lg p-4">
               {normalized.directIngredients.length === 0 ? <p className="text-sm text-gray-500 italic">Aucun ingrédient direct</p> : (
-                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing, ingredients); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
               )}
             </div>
           </div>
@@ -558,7 +558,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
               <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Recettes de base utilisées ({normalized.baseComponents.length})</h4>
               <div className="bg-gray-50 rounded-lg p-4">
                 {normalized.baseComponents.length === 0 ? <p className="text-sm text-gray-500 italic">Aucune recette de base liée</p> : (
-                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null; const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null; const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0) ? baseCost * (converted / Number(baseRecipe.outputQuantity)) : null; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{component.quantity} {component.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null; const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null; const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0) ? baseCost * (converted / Number(baseRecipe.outputQuantity)) : null; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{component.quantity} {component.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
                 )}
               </div>
             </div>
@@ -580,7 +580,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
   );
 };
 
-const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
+const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) => {
   const normalized = recipe ? normalizeRecipe(recipe) : null;
   const [pivotType, setPivotType] = useState("covers");
   const [pivotValue, setPivotValue] = useState("");
@@ -598,7 +598,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
   }, [isOpen, onClose]);
   if (!isOpen || !normalized) return null;
 
-  const baseCost = calculateRecipeTotalCost(normalized, recipes);
+  const baseCost = calculateRecipeTotalCost(normalized, recipes, new Set(), ingredients);
   const scaling = window.ArpegeRecipeScaling.computePivotMultiplier({
     pivotType,
     pivotValue,
@@ -616,8 +616,8 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
   const { adaptedCost, adaptedCostStatus } = window.ArpegeRecipeScaling.computeAdaptedMetrics({
     adaptedRecipe,
     recipes,
-    calculateRecipeTotalCost,
-    getCostStatus,
+    calculateRecipeTotalCost: (recipeInput, recipesInput) => calculateRecipeTotalCost(recipeInput, recipesInput, new Set(), ingredients),
+    getCostStatus: (recipeInput, recipesInput) => getCostStatus(recipeInput, recipesInput, ingredients),
   });
 
   const escapeHtml = (value) => String(value ?? "")
@@ -639,7 +639,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
     const directRows = adaptedDirectIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : adaptedDirectIngredients.map((ing) => {
-          const ingredientCost = calculateIngredientCost({ ...ing, quantity: ing.adaptedQuantity });
+          const ingredientCost = calculateIngredientCost({ ...ing, quantity: ing.adaptedQuantity }, ingredients);
           return `
             <tr>
               <td>${escapeHtml(ing.name)}</td>
@@ -653,7 +653,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucune recette de base liée</td></tr>`
       : adaptedBaseComponents.map((component) => {
           const baseRecipe = normalizeRecipe(getRecipeById(recipes, component.baseRecipeId) || {});
-          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, recipes) : null;
+          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, recipes, new Set(), ingredients) : null;
           const converted = baseRecipe.id ? convertQuantity(Number(component.adaptedQuantity || 0), component.unit, baseRecipe.outputUnit) : null;
           const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
             ? baseCost * (converted / Number(baseRecipe.outputQuantity))
@@ -965,8 +965,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} />
-      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
-      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
+      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
+      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
 
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
         <div>
@@ -1102,8 +1102,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       {!showForm && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredRecipes.map(recipe => {
-          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes);
-          const costStatus = getCostStatus(recipe, normalizedRecipes);
+          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
+          const costStatus = getCostStatus(recipe, normalizedRecipes, ingredients);
           return (
             <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
               <div className="p-6">
@@ -1168,7 +1168,7 @@ const ProducersView = ({ ingredients, suppliersRuntime }) => {
 
 const CostsView = ({ recipes, ingredients }) => {
   const normalizedRecipes = recipes.map(normalizeRecipe);
-  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes), status: getCostStatus(recipe, normalizedRecipes) }));
+  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients), status: getCostStatus(recipe, normalizedRecipes, ingredients) }));
   const validRecipes = enriched.filter(r => r.status.valid && r.totalCost != null);
   const avgCostPerRecipe = validRecipes.length ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length : 0;
   const mostExpensive = validRecipes.length ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0]) : null;

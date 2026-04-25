@@ -27,13 +27,36 @@
     return null;
   };
 
-  const calculateIngredientCost = (ingredientLine) => {
+  const getIngredientById = (ingredientsCatalog, ingredientId) => {
+    if (!Array.isArray(ingredientsCatalog)) return null;
+    return ingredientsCatalog.find((ing) => Number(ing.id) === Number(ingredientId)) || null;
+  };
+
+  const resolveIngredientPricing = (ingredientLine, ingredientsCatalog) => {
+    const sourceIngredient = getIngredientById(ingredientsCatalog, ingredientLine?.ingredientId);
+    if (sourceIngredient) {
+      return {
+        pricePerUnit: Number(sourceIngredient.price || 0),
+        pricingUnit: String(sourceIngredient.unit || "").trim() || null,
+      };
+    }
+    const legacyPrice = ingredientLine?.pricePerUnit;
+    const hasLegacyPrice = legacyPrice !== undefined && legacyPrice !== null && String(legacyPrice).trim() !== "";
+    return {
+      pricePerUnit: hasLegacyPrice ? Number(legacyPrice) : null,
+      pricingUnit: resolvePricingUnit(ingredientLine),
+    };
+  };
+
+  const calculateIngredientCost = (ingredientLine, ingredientsCatalog = null) => {
     const recipeQty = Number(ingredientLine.quantity || 0);
-    const pricingUnit = resolvePricingUnit(ingredientLine);
+    const pricing = resolveIngredientPricing(ingredientLine, ingredientsCatalog);
+    const pricingUnit = pricing.pricingUnit;
+    if (!Number.isFinite(pricing.pricePerUnit)) return null;
     if (!pricingUnit) return null;
     const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, pricingUnit);
     if (convertedQty == null) return null;
-    return convertedQty * Number(ingredientLine.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
+    return convertedQty * Number(pricing.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
   };
 
   const resolvePricingUnit = (ingredientLine) => {
@@ -79,7 +102,7 @@
 
   const getRecipeById = (recipes, id) => recipes.find(r => Number(r.id) === Number(id));
 
-  const calculateRecipeTotalCost = (recipe, allRecipes, visited = new Set()) => {
+  const calculateRecipeTotalCost = (recipe, allRecipes, visited = new Set(), ingredientsCatalog = null) => {
     const current = normalizeRecipe(recipe);
     if (visited.has(current.id)) return null;
     const nextVisited = new Set(visited);
@@ -87,7 +110,7 @@
 
     let total = 0;
     for (const ing of current.directIngredients) {
-      const lineCost = calculateIngredientCost(ing);
+      const lineCost = calculateIngredientCost(ing, ingredientsCatalog);
       if (lineCost == null) return null;
       total += lineCost;
     }
@@ -96,7 +119,7 @@
       const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
       if (!baseRecipe) return null;
       const normalizedBase = normalizeRecipe(baseRecipe);
-      const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited);
+      const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited, ingredientsCatalog);
       if (baseCost == null) return null;
       const converted = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
       if (converted == null || Number(normalizedBase.outputQuantity || 0) <= 0) return null;
@@ -106,10 +129,11 @@
     return total * Number(current.wasteCoeff || 1);
   };
 
-  const getCostStatus = (recipe, allRecipes) => {
+  const getCostStatus = (recipe, allRecipes, ingredientsCatalog = null) => {
     const current = normalizeRecipe(recipe);
     for (const ing of current.directIngredients) {
-      const pricingUnit = resolvePricingUnit(ing);
+      const pricing = resolveIngredientPricing(ing, ingredientsCatalog);
+      const pricingUnit = pricing.pricingUnit;
       if (!pricingUnit) {
         return { valid: false, message: `Unité de prix manquante pour ${ing.name}` };
       }
@@ -131,7 +155,7 @@
       }
     }
 
-    const totalCost = calculateRecipeTotalCost(current, allRecipes);
+    const totalCost = calculateRecipeTotalCost(current, allRecipes, new Set(), ingredientsCatalog);
     if (totalCost == null) return { valid: false, message: "Calcul du coût impossible" };
     return { valid: true, message: "" };
   };
@@ -143,6 +167,8 @@
     LOGIC_UNITS,
     getUnitGroup,
     convertQuantity,
+    getIngredientById,
+    resolveIngredientPricing,
     resolvePricingUnit,
     calculateIngredientCost,
     normalizeRecipe,
