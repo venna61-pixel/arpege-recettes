@@ -15,6 +15,8 @@ const {
   calculateIngredientCost,
   calculateRecipeTotalCost,
   getCostStatus,
+  computeTheoreticalYieldFromDirectIngredients,
+  resolveEffectiveYield,
   checkUnitCatalogConsistency,
 } = window.ArpegeCostsAndUnits;
 
@@ -147,6 +149,191 @@ function testIdMismatchAvecFallbackLegacy() {
   assert.strictEqual(cost, 2);
 }
 
+function testRendementTheoriqueCalculable() {
+  const recipe = {
+    id: 101,
+    recipeType: 'base',
+    directIngredients: [
+      { quantity: 1, unit: 'Kg' },
+      { quantity: 500, unit: 'Gramme' },
+    ],
+    baseComponents: [],
+  };
+  const theoretical = computeTheoreticalYieldFromDirectIngredients(recipe);
+  assert.strictEqual(theoretical.quantity, 1.5);
+  assert.strictEqual(theoretical.unit, 'Kg');
+}
+
+function testRendementTheoriqueNonCalculable() {
+  const recipe = {
+    id: 102,
+    recipeType: 'base',
+    directIngredients: [
+      { quantity: 1, unit: 'Kg' },
+      { quantity: 1, unit: 'Litre' },
+    ],
+    baseComponents: [],
+  };
+  const theoretical = computeTheoreticalYieldFromDirectIngredients(recipe);
+  assert.strictEqual(theoretical, null);
+}
+
+function testRendementReelPrioritaire() {
+  const recipe = {
+    id: 103,
+    recipeType: 'base',
+    outputQuantity: 3,
+    outputUnit: 'Kg',
+    actualOutputQuantity: 2,
+    actualOutputUnit: 'Kg',
+    directIngredients: [{ quantity: 1, unit: 'Kg' }],
+  };
+  const effective = resolveEffectiveYield(recipe);
+  assert.strictEqual(effective.source, 'actual');
+  assert.strictEqual(effective.quantity, 2);
+}
+
+function testFallbackLegacyRendement() {
+  const recipe = {
+    id: 104,
+    recipeType: 'base',
+    outputQuantity: 4,
+    outputUnit: 'Portion',
+    directIngredients: [{ quantity: 1, unit: 'Kg' }, { quantity: 1, unit: 'Litre' }],
+  };
+  const effective = resolveEffectiveYield(recipe);
+  assert.strictEqual(effective.source, 'legacy');
+  assert.strictEqual(effective.quantity, 4);
+  assert.strictEqual(effective.unit, 'Portion');
+}
+
+function testLegacyPrioritaireSurTheoriqueCalculable() {
+  const recipe = {
+    id: 105,
+    recipeType: 'base',
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    directIngredients: [{ quantity: 1, unit: 'Kg' }],
+  };
+  const effective = resolveEffectiveYield(recipe);
+  assert.strictEqual(effective.source, 'legacy');
+  assert.strictEqual(effective.quantity, 2);
+  assert.strictEqual(effective.unit, 'Kg');
+}
+
+function testTheoriqueUtiliseSeulementSansLegacyValide() {
+  const recipe = {
+    id: 106,
+    recipeType: 'base',
+    outputQuantity: 'abc',
+    outputUnit: 'Kg',
+    directIngredients: [{ quantity: 1, unit: 'Kg' }, { quantity: 500, unit: 'Gramme' }],
+  };
+  const effective = resolveEffectiveYield(recipe);
+  assert.strictEqual(effective.source, 'theoretical');
+  assert.strictEqual(effective.quantity, 1.5);
+}
+
+function testUsageSousRecetteModeQuantite() {
+  const baseRecipe = {
+    id: 201,
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    baseComponents: [],
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    covers: 2,
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 202,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 201, name: 'Base', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(cost, 5);
+}
+
+function testUsageSousRecetteModePortion() {
+  const baseRecipe = {
+    id: 211,
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    baseComponents: [],
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    covers: 2,
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 212,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 211, name: 'Base', usageMode: 'portion', portionCount: 1, portionRef: 'covers' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(cost, 5);
+}
+
+function testCasInvalideModePortion() {
+  const baseRecipe = {
+    id: 221,
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    baseComponents: [],
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    covers: 0,
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 222,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 221, name: 'Base', usageMode: 'portion', portionCount: 0, portionRef: 'covers' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const status = getCostStatus(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(status.valid, false);
+}
+
+function testCompatAncienneRecetteSansUsageMode() {
+  const baseRecipe = {
+    id: 231,
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 8, wasteCoeff: 1 }],
+    baseComponents: [],
+    outputQuantity: 4,
+    outputUnit: 'Kg',
+    covers: 4,
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 232,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 231, name: 'Base', quantity: 2, unit: 'Kg' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(cost, 4);
+}
+
 function runAll() {
   const tests = [
     testConversionCompatible,
@@ -163,6 +350,16 @@ function runAll() {
     testCompatibiliteAppelsSansCatalogue,
     testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue,
     testIdMismatchAvecFallbackLegacy,
+    testRendementTheoriqueCalculable,
+    testRendementTheoriqueNonCalculable,
+    testRendementReelPrioritaire,
+    testFallbackLegacyRendement,
+    testLegacyPrioritaireSurTheoriqueCalculable,
+    testTheoriqueUtiliseSeulementSansLegacyValide,
+    testUsageSousRecetteModeQuantite,
+    testUsageSousRecetteModePortion,
+    testCasInvalideModePortion,
+    testCompatAncienneRecetteSansUsageMode,
   ];
 
   for (const testFn of tests) {

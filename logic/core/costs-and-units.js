@@ -100,6 +100,84 @@
     return recipeUnit || null;
   };
 
+  const computeTheoreticalYieldFromDirectIngredients = (recipe) => {
+    const current = normalizeRecipe(recipe);
+    const lines = current.directIngredients || [];
+    if (lines.length === 0) return null;
+
+    const firstLine = lines.find((line) => Number.isFinite(Number(line?.quantity)) && Number(line?.quantity) >= 0);
+    if (!firstLine || !firstLine.unit) return null;
+    const referenceUnit = firstLine.unit;
+    const referenceGroup = getUnitGroup(referenceUnit);
+    if (referenceGroup === "unknown") return null;
+
+    let total = 0;
+    for (const line of lines) {
+      const qty = Number(line?.quantity);
+      if (!Number.isFinite(qty) || qty < 0) return null;
+      const group = getUnitGroup(line?.unit);
+      if (group !== referenceGroup) return null;
+      const converted = convertQuantity(qty, line.unit, referenceUnit);
+      if (converted == null) return null;
+      total += Number(converted || 0);
+    }
+
+    return { quantity: total, unit: referenceUnit, source: "theoretical" };
+  };
+
+  const isValidYield = (yieldValue) => {
+    if (!yieldValue) return false;
+    return Number.isFinite(Number(yieldValue.quantity)) && Number(yieldValue.quantity) > 0 && !!String(yieldValue.unit || "").trim();
+  };
+
+  const resolveEffectiveYield = (recipe) => {
+    const current = normalizeRecipe(recipe);
+    const actualYield = {
+      quantity: Number(current.actualOutputQuantity),
+      unit: current.actualOutputUnit,
+      source: "actual",
+    };
+    if (isValidYield(actualYield)) return actualYield;
+
+    const legacyYield = {
+      quantity: Number(current.outputQuantity),
+      unit: current.outputUnit,
+      source: "legacy",
+    };
+    if (isValidYield(legacyYield)) return legacyYield;
+
+    const theoreticalYield = computeTheoreticalYieldFromDirectIngredients(current);
+    if (isValidYield(theoreticalYield)) return theoreticalYield;
+    return null;
+  };
+
+  const resolveUsageMode = (component) => (component?.usageMode === "portion" ? "portion" : "quantity");
+
+  const resolveBasePortionReference = (baseRecipe, component, effectiveYield) => {
+    const reference = component?.portionRef || "covers";
+    if (reference === "covers") return Number(baseRecipe?.covers || 0);
+    if (reference === "portions") return Number(baseRecipe?.portionCount || baseRecipe?.portions || 0);
+    if (reference === "output") return Number(effectiveYield?.quantity || 0);
+    return Number(baseRecipe?.covers || 0);
+  };
+
+  const computeBaseComponentCost = ({ component, baseRecipe, baseCost }) => {
+    const effectiveYield = resolveEffectiveYield(baseRecipe);
+    if (!effectiveYield) return null;
+
+    const usageMode = resolveUsageMode(component);
+    if (usageMode === "portion") {
+      const portionCount = Number(component?.portionCount ?? component?.quantity ?? 0);
+      const basePortions = resolveBasePortionReference(baseRecipe, component, effectiveYield);
+      if (!Number.isFinite(portionCount) || portionCount <= 0 || !Number.isFinite(basePortions) || basePortions <= 0) return null;
+      return baseCost * (portionCount / basePortions);
+    }
+
+    const converted = convertQuantity(Number(component?.quantity || 0), component?.unit, effectiveYield.unit);
+    if (converted == null || Number(effectiveYield.quantity || 0) <= 0) return null;
+    return baseCost * (converted / Number(effectiveYield.quantity));
+  };
+
   const checkUnitCatalogConsistency = (uiUnits = []) => {
     const uiSet = new Set((uiUnits || []).map((u) => String(u || "").trim()).filter(Boolean));
     const logicSet = new Set(LOGIC_UNITS);
@@ -155,9 +233,9 @@
       const normalizedBase = normalizeRecipe(baseRecipe);
       const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited, ingredientsCatalog);
       if (baseCost == null) return null;
-      const converted = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
-      if (converted == null || Number(normalizedBase.outputQuantity || 0) <= 0) return null;
-      total += baseCost * (converted / Number(normalizedBase.outputQuantity));
+      const componentCost = computeBaseComponentCost({ component, baseRecipe: normalizedBase, baseCost });
+      if (componentCost == null) return null;
+      total += componentCost;
     }
 
     return total * Number(current.wasteCoeff || 1);
@@ -183,9 +261,22 @@
         return { valid: false, message: `Recette de base introuvable : ${component.name}` };
       }
       const normalizedBase = normalizeRecipe(baseRecipe);
-      const convertedQty = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
-      if (convertedQty == null) {
-        return { valid: false, message: `Conversion impossible entre ${component.unit} et ${normalizedBase.outputUnit} pour ${component.name}` };
+      const effectiveYield = resolveEffectiveYield(normalizedBase);
+      if (!effectiveYield) {
+        return { valid: false, message: `Rendement invalide pour ${normalizedBase.name || component.name}` };
+      }
+      const usageMode = resolveUsageMode(component);
+      if (usageMode === "portion") {
+        const portionCount = Number(component?.portionCount ?? component?.quantity ?? 0);
+        const basePortions = resolveBasePortionReference(normalizedBase, component, effectiveYield);
+        if (!Number.isFinite(portionCount) || portionCount <= 0 || !Number.isFinite(basePortions) || basePortions <= 0) {
+          return { valid: false, message: `Référence de portions invalide pour ${component.name}` };
+        }
+      } else {
+        const convertedQty = convertQuantity(Number(component.quantity || 0), component.unit, effectiveYield.unit);
+        if (convertedQty == null) {
+          return { valid: false, message: `Conversion impossible entre ${component.unit} et ${effectiveYield.unit} pour ${component.name}` };
+        }
       }
     }
 
@@ -204,6 +295,10 @@
     getIngredientById,
     resolveIngredientPricing,
     resolvePricingUnit,
+    computeTheoreticalYieldFromDirectIngredients,
+    resolveEffectiveYield,
+    resolveUsageMode,
+    computeBaseComponentCost,
     calculateIngredientCost,
     normalizeRecipe,
     getRecipeById,
