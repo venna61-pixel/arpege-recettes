@@ -133,6 +133,20 @@ function testCompatibiliteAppelsSansCatalogue() {
   assert.strictEqual(cost, 5);
 }
 
+function testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue() {
+  const line = { name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
+  const cost = calculateIngredientCost(line, catalog);
+  assert.strictEqual(cost, 9);
+}
+
+function testIdMismatchAvecFallbackLegacy() {
+  const line = { ingredientId: 999, name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
+  const cost = calculateIngredientCost(line, catalog);
+  assert.strictEqual(cost, 2);
+}
+
 function runAll() {
   const tests = [
     testConversionCompatible,
@@ -147,6 +161,8 @@ function runAll() {
     testFallbackLegacySiIngredientIntrouvable,
     testCoutInvalideSiIngredientIntrouvableSansFallback,
     testCompatibiliteAppelsSansCatalogue,
+    testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue,
+    testIdMismatchAvecFallbackLegacy,
   ];
 
   for (const testFn of tests) {

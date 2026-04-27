@@ -13,6 +13,7 @@
     ...Object.keys(VOLUME_UNITS),
     ...COUNT_UNITS,
   ]));
+  const COST_DEBUG_FLAG = "__ARPEGE_COST_DEBUG__";
 
   const getUnitGroup = (unit) => MASS_UNITS[unit] ? "mass" : VOLUME_UNITS[unit] ? "volume" : COUNT_UNITS.includes(unit) ? "count" : "unknown";
 
@@ -32,19 +33,52 @@
     return ingredientsCatalog.find((ing) => Number(ing.id) === Number(ingredientId)) || null;
   };
 
+  const getIngredientByName = (ingredientsCatalog, ingredientName) => {
+    if (!Array.isArray(ingredientsCatalog)) return null;
+    const expected = String(ingredientName || "").trim().toLowerCase();
+    if (!expected) return null;
+    return ingredientsCatalog.find((ing) => String(ing?.name || "").trim().toLowerCase() === expected) || null;
+  };
+
+  const logPricingPath = (reason, payload = {}) => {
+    if (!global?.[COST_DEBUG_FLAG]) return;
+    console.debug(`[Costs] Pricing path=${reason}`, payload);
+  };
+
   const resolveIngredientPricing = (ingredientLine, ingredientsCatalog) => {
-    const sourceIngredient = getIngredientById(ingredientsCatalog, ingredientLine?.ingredientId);
+    const ingredientId = ingredientLine?.ingredientId;
+    const sourceIngredient = getIngredientById(ingredientsCatalog, ingredientId);
     if (sourceIngredient) {
+      logPricingPath("catalog", { ingredientId, name: ingredientLine?.name, sourceIngredientId: sourceIngredient.id });
       return {
         pricePerUnit: Number(sourceIngredient.price || 0),
         pricingUnit: String(sourceIngredient.unit || "").trim() || null,
+        source: "catalog",
       };
     }
+
+    if (ingredientId != null && ingredientId !== "") {
+      logPricingPath("id mismatch", { ingredientId, name: ingredientLine?.name });
+    } else {
+      logPricingPath("missing ingredientId", { name: ingredientLine?.name });
+      const sourceByName = getIngredientByName(ingredientsCatalog, ingredientLine?.name);
+      if (sourceByName) {
+        logPricingPath("catalog", { ingredientId: sourceByName.id, name: ingredientLine?.name, via: "name" });
+        return {
+          pricePerUnit: Number(sourceByName.price || 0),
+          pricingUnit: String(sourceByName.unit || "").trim() || null,
+          source: "catalog",
+        };
+      }
+    }
+
     const legacyPrice = ingredientLine?.pricePerUnit;
     const hasLegacyPrice = legacyPrice !== undefined && legacyPrice !== null && String(legacyPrice).trim() !== "";
+    logPricingPath("fallback legacy", { ingredientId, name: ingredientLine?.name, hasLegacyPrice });
     return {
       pricePerUnit: hasLegacyPrice ? Number(legacyPrice) : null,
       pricingUnit: resolvePricingUnit(ingredientLine),
+      source: "legacy",
     };
   };
 
