@@ -153,14 +153,6 @@
 
   const resolveUsageMode = (component) => (component?.usageMode === "portion" ? "portion" : "quantity");
 
-  const resolveBasePortionReference = (baseRecipe, component, effectiveYield) => {
-    const reference = component?.portionRef || "covers";
-    if (reference === "covers") return Number(baseRecipe?.covers || 0);
-    if (reference === "portions") return Number(baseRecipe?.portionCount || baseRecipe?.portions || 0);
-    if (reference === "output") return Number(effectiveYield?.quantity || 0);
-    return Number(baseRecipe?.covers || 0);
-  };
-
   const computeBaseComponentCost = ({ component, baseRecipe, baseCost }) => {
     const effectiveYield = resolveEffectiveYield(baseRecipe);
     if (!effectiveYield) return null;
@@ -168,7 +160,7 @@
     const usageMode = resolveUsageMode(component);
     if (usageMode === "portion") {
       const portionCount = Number(component?.portionCount ?? component?.quantity ?? 0);
-      const basePortions = resolveBasePortionReference(baseRecipe, component, effectiveYield);
+      const basePortions = Number(baseRecipe?.covers);
       if (!Number.isFinite(portionCount) || portionCount <= 0 || !Number.isFinite(basePortions) || basePortions <= 0) return null;
       return baseCost * (portionCount / basePortions);
     }
@@ -268,9 +260,9 @@
       const usageMode = resolveUsageMode(component);
       if (usageMode === "portion") {
         const portionCount = Number(component?.portionCount ?? component?.quantity ?? 0);
-        const basePortions = resolveBasePortionReference(normalizedBase, component, effectiveYield);
+        const basePortions = Number(normalizedBase?.covers);
         if (!Number.isFinite(portionCount) || portionCount <= 0 || !Number.isFinite(basePortions) || basePortions <= 0) {
-          return { valid: false, message: `Référence de portions invalide pour ${component.name}` };
+          return { valid: false, message: `Couverts de référence invalides pour ${component.name}` };
         }
       } else {
         const convertedQty = convertQuantity(Number(component.quantity || 0), component.unit, effectiveYield.unit);

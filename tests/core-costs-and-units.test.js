@@ -284,6 +284,31 @@ function testUsageSousRecetteModePortion() {
   assert.strictEqual(cost, 5);
 }
 
+function testModePortionIgnoreOutputQuantityUnit() {
+  const baseRecipe = {
+    id: 241,
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    baseComponents: [],
+    outputQuantity: 999,
+    outputUnit: 'Kg',
+    covers: 10,
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 242,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 241, name: 'Base', usageMode: 'portion', portionCount: 2 }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(cost, 20);
+}
+
 function testCasInvalideModePortion() {
   const baseRecipe = {
     id: 221,
@@ -358,6 +383,7 @@ function runAll() {
     testTheoriqueUtiliseSeulementSansLegacyValide,
     testUsageSousRecetteModeQuantite,
     testUsageSousRecetteModePortion,
+    testModePortionIgnoreOutputQuantityUnit,
     testCasInvalideModePortion,
     testCompatAncienneRecetteSansUsageMode,
   ];
