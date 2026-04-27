@@ -52,6 +52,8 @@ const UNITS = [
   "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
 ];
 const YIELD_UNITS = ["Gramme", "Kg", "Ml", "Cl", "Litre"];
+const BASE_QUANTITY_UNITS_MASS = ["Gramme", "Kg"];
+const BASE_QUANTITY_UNITS_VOLUME = ["Ml", "Cl", "Litre"];
 if (!window.ArpegeCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
 }
@@ -132,6 +134,8 @@ const {
   convertQuantity,
   calculateIngredientCost,
   computeTheoreticalYieldFromDirectIngredients,
+  getUnitGroup,
+  resolveEffectiveYield,
   normalizeRecipe,
   getRecipeById,
   calculateRecipeTotalCost,
@@ -852,7 +856,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const [formData, setFormData] = useState(emptyForm);
   const [currentIng, setCurrentIng] = useState({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-  const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
+  const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: "quantity", portionCount: "", searchText: "", categoryFilter: "Tous" });
 
   const filteredBaseRecipesForPicker = filterBaseRecipesForPicker({
     recipes: normalizedRecipes,
@@ -875,13 +879,33 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
     [formData.directIngredients]
   );
+  const selectedBaseRecipeForUsage = useMemo(
+    () => normalizedRecipes.find((r) => Number(r.id) === Number(currentBase.baseRecipeId) && r.recipeType === "base") || null,
+    [normalizedRecipes, currentBase.baseRecipeId]
+  );
+  const baseYieldReferenceUnit = useMemo(() => {
+    if (!selectedBaseRecipeForUsage) return null;
+    const effectiveYield = resolveEffectiveYield(selectedBaseRecipeForUsage);
+    return effectiveYield?.unit || selectedBaseRecipeForUsage.outputUnit || null;
+  }, [selectedBaseRecipeForUsage]);
+  const baseYieldGroup = baseYieldReferenceUnit ? getUnitGroup(baseYieldReferenceUnit) : "unknown";
+  const compatibleBaseUnits = useMemo(() => {
+    if (baseYieldGroup === "mass") return BASE_QUANTITY_UNITS_MASS;
+    if (baseYieldGroup === "volume") return BASE_QUANTITY_UNITS_VOLUME;
+    return [...BASE_QUANTITY_UNITS_MASS, ...BASE_QUANTITY_UNITS_VOLUME];
+  }, [baseYieldGroup]);
+  const baseUnitOptions = Array.from(new Set([...compatibleBaseUnits, currentBase.unit].filter(Boolean)));
+  const canAddBase = Boolean(
+    currentBase.baseRecipeId &&
+    (currentBase.usageMode === "portion" ? currentBase.portionCount : currentBase.quantity)
+  );
 
   const resetForm = () => {
     setFormData({ ...emptyForm, recipeType: sectionType });
     setEditingId(null);
     setShowForm(false);
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: "quantity", portionCount: "", searchText: "", categoryFilter: "Tous" });
   };
 
   const toggleRecipeCategory = (category) => {
@@ -912,21 +936,25 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const addBaseComponentToRecipe = (baseRecipeId = null) => {
     const finalBaseRecipeId = baseRecipeId || currentBase.baseRecipeId;
-    if (!finalBaseRecipeId || !currentBase.quantity) return;
+    if (!finalBaseRecipeId) return;
+    if (currentBase.usageMode === "portion" && !currentBase.portionCount) return;
+    if (currentBase.usageMode !== "portion" && !currentBase.quantity) return;
     const baseRecipe = normalizedRecipes.find(r => Number(r.id) === Number(finalBaseRecipeId) && r.recipeType === "base");
     if (!baseRecipe) return;
     const line = buildBaseComponentLine({
       baseRecipe,
       baseRecipeId: finalBaseRecipeId,
-      quantity: currentBase.quantity,
+      quantity: currentBase.usageMode === "portion" ? 0 : currentBase.quantity,
       unit: currentBase.unit,
+      usageMode: currentBase.usageMode,
+      portionCount: currentBase.usageMode === "portion" ? currentBase.portionCount : undefined,
     });
     if (!line) return;
     setFormData({
       ...formData,
       baseComponents: [...formData.baseComponents, line]
     });
-    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: currentBase.categoryFilter });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: currentBase.usageMode, portionCount: "", searchText: "", categoryFilter: currentBase.categoryFilter });
   };
 
   const handleAddNewIngredient = (newIngredient) => {
@@ -1096,10 +1124,35 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   </div>
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mode d'utilisation</label>
+                  <select value={currentBase.usageMode || "quantity"} onChange={(e) => setCurrentBase({ ...currentBase, usageMode: e.target.value === "portion" ? "portion" : "quantity" })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                    <option value="quantity">Quantité</option>
+                    <option value="portion">Portions / couverts</option>
+                  </select>
+                </div>
+                {currentBase.usageMode === "quantity" && (
+                  <div className="text-xs text-gray-600 flex items-end">
+                    {selectedBaseRecipeForUsage
+                      ? `Unités compatibles avec le rendement de la base (${baseYieldReferenceUnit || "inconnu"})`
+                      : "Sélectionnez une recette de base pour filtrer les unités compatibles"}
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="any" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-                <div className="flex items-end"><button type="button" onClick={() => addBaseComponentToRecipe()} disabled={!currentBase.baseRecipeId || !currentBase.quantity} className={`w-full py-2 rounded-lg font-medium ${currentBase.baseRecipeId && currentBase.quantity ? "bg-slate-700 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter la base</button></div>
+                {currentBase.usageMode === "portion" ? (
+                  <>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Portions / couverts utilisés</label><input type="number" step="any" value={currentBase.portionCount} onChange={(e) => setCurrentBase({ ...currentBase, portionCount: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div className="text-xs text-gray-600 flex items-end">Référence : couverts ({selectedBaseRecipeForUsage ? (selectedBaseRecipeForUsage.covers || 0) : "?"}) de la recette de base.</div>
+                  </>
+                ) : (
+                  <>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="any" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{baseUnitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                  </>
+                )}
+                <div className="flex items-end"><button type="button" onClick={() => addBaseComponentToRecipe()} disabled={!canAddBase} className={`w-full py-2 rounded-lg font-medium ${canAddBase ? "bg-slate-700 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter la base</button></div>
               </div>
             </div>
           )}
@@ -1116,7 +1169,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 <div>
                   <h4 className="font-medium text-gray-700 mb-2">Recettes de base liées ({formData.baseComponents.length})</h4>
                   <div className="space-y-2">
-                    {formData.baseComponents.map((component, idx) => <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-lg border border-slate-200"><span className="font-medium">{component.name} - {component.quantity} {component.unit}</span><button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                    {formData.baseComponents.map((component, idx) => <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-lg border border-slate-200"><span className="font-medium">{component.name} - {component.usageMode === "portion" ? `${component.portionCount} portions/couverts` : `${component.quantity} ${component.unit}`}</span><button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
                   </div>
                 </div>
               )}

@@ -28,14 +28,22 @@
     baseRecipeId,
     quantity,
     unit,
+    usageMode,
+    portionCount,
   }) {
     if (!baseRecipe) return null;
-    return {
+    const mode = usageMode === "portion" ? "portion" : "quantity";
+    const line = {
       baseRecipeId: Number(baseRecipeId ?? baseRecipe.id),
       name: baseRecipe.name,
       quantity: toNumberOrDefault(quantity, 0),
       unit: unit || baseRecipe.outputUnit || "Gramme",
     };
+    if (mode === "portion") {
+      line.usageMode = "portion";
+      line.portionCount = toNumberOrDefault(portionCount, 0);
+    }
+    return line;
   }
 
   global.ArpegeRecipeBuilder = {

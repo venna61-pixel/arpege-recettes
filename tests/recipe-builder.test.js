@@ -52,6 +52,24 @@ function testSourceIntrouvable() {
   assert.strictEqual(buildBaseComponentLine({ baseRecipe: null, quantity: 1 }), null);
 }
 
+function testMappingBaseComponentModePortion() {
+  const baseRecipe = { id: 44, name: 'Bouillon', outputUnit: 'Litre' };
+  const line = buildBaseComponentLine({
+    baseRecipe,
+    baseRecipeId: 44,
+    usageMode: 'portion',
+    portionCount: '3',
+  });
+  assert.deepStrictEqual(line, {
+    baseRecipeId: 44,
+    name: 'Bouillon',
+    quantity: 0,
+    unit: 'Litre',
+    usageMode: 'portion',
+    portionCount: 3,
+  });
+}
+
 function testValeursParDefaut() {
   const ingredient = { id: 9, name: 'Sel', price: 1.2, unit: 'Kg' };
   const directLine = buildDirectIngredientLine({
@@ -78,6 +96,7 @@ function runAll() {
   const tests = [
     testMappingIngredientComplet,
     testMappingBaseComponent,
+    testMappingBaseComponentModePortion,
     testSourceIntrouvable,
     testValeursParDefaut,
   ];
