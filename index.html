@@ -424,14 +424,16 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
       : normalized.baseComponents.map((component) => {
           const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {});
           const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null;
-          const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null;
-          const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
-            ? baseCost * (converted / Number(baseRecipe.outputQuantity))
+          const prorated = (baseCost != null && baseRecipe.id)
+            ? computeBaseComponentCost({ component, baseRecipe, baseCost })
             : null;
+          const usageLabel = component.usageMode === "portion"
+            ? `${Number(component.portionCount || 0).toFixed(2)} portions/couverts`
+            : `${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}`;
           return `
             <tr>
               <td>${escapeHtml(component.name)}</td>
-              <td>${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}</td>
+              <td>${usageLabel}</td>
               ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
             </tr>
           `;
