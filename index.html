@@ -404,8 +404,16 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const sanitizePrintTitle = (value, suffix) => {
+    const cleanedName = String(value || "Recette")
+      .replace(/[\/\\:*?"<>|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return `${cleanedName || "Recette"} - ${suffix}`;
+  };
 
   const handlePrintPdf = () => {
+    const printTitle = sanitizePrintTitle(normalized.name, "Fiche");
     const directRows = normalized.directIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : normalized.directIngredients.map((ing) => {
@@ -474,7 +482,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <title>Fiche recette - ${escapeHtml(normalized.name)}</title>
+          <title>${escapeHtml(printTitle)}</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 28px; }
             h1 { margin: 0 0 8px 0; color: #1A3A4A; }
@@ -524,6 +532,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
       targetWindow.document.open();
       targetWindow.document.write(content);
       targetWindow.document.close();
+      targetWindow.document.title = printTitle;
       targetWindow.focus();
       targetWindow.print();
     };
@@ -551,6 +560,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
 
   const handlePrintProductionSheet = () => {
     if (normalized.recipeType === "base") return;
+    const printTitle = sanitizePrintTitle(normalized.name, "Fiche complète");
 
     const baseBlocks = normalized.baseComponents.length === 0
       ? `<p style="color:#6b7280;font-style:italic;">Aucune sous-recette liée.</p>`
@@ -648,7 +658,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <title>Fiche complète de production - ${escapeHtml(normalized.name)}</title>
+          <title>${escapeHtml(printTitle)}</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 24px; }
             h1 { margin: 0 0 8px 0; color: #1A3A4A; }
@@ -694,6 +704,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
     iframeWindow.document.open();
     iframeWindow.document.write(content);
     iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
     iframeWindow.focus();
     iframeWindow.print();
     setTimeout(() => iframe.remove(), 1000);
@@ -800,6 +811,13 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const sanitizePrintTitle = (value, suffix) => {
+    const cleanedName = String(value || "Recette")
+      .replace(/[\/\\:*?"<>|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return `${cleanedName || "Recette"} - ${suffix}`;
+  };
 
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
@@ -810,6 +828,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
   };
 
   const handlePrintAdaptedSheet = () => {
+    const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche adaptée");
     const directRows = adaptedDirectIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : adaptedDirectIngredients.map((ing) => {
@@ -882,7 +901,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <title>Fiche adaptée - ${escapeHtml(adaptedRecipe.name)}</title>
+          <title>${escapeHtml(printTitle)}</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 28px; }
             h1 { margin: 0 0 8px 0; color: #1A3A4A; }
@@ -948,6 +967,161 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     iframeWindow.document.open();
     iframeWindow.document.write(content);
     iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
+    iframeWindow.focus();
+    iframeWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+
+  const handlePrintAdaptedProductionSheet = () => {
+    if (adaptedRecipe.recipeType === "base") return;
+    const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche complète adaptée");
+
+    const baseBlocks = adaptedBaseComponents.length === 0
+      ? `<p style="color:#6b7280;font-style:italic;">Aucune sous-recette liée.</p>`
+      : adaptedBaseComponents.map((component, idx) => {
+          const baseRecipeRaw = getRecipeById(recipes, component.baseRecipeId);
+          if (!baseRecipeRaw) {
+            return `
+              <section class="subrecipe-block">
+                <h2>${idx + 1}. ${escapeHtml(component.name || "Sous-recette introuvable")}</h2>
+                <p style="color:#991b1b;font-weight:600;">Sous-recette introuvable.</p>
+              </section>
+            `;
+          }
+
+          const baseRecipe = normalizeRecipe(baseRecipeRaw);
+          const effectiveYield = resolveEffectiveYield(baseRecipe);
+          const usageMode = component.usageMode || "quantity";
+
+          let multiplierForBase = null;
+          let invalidReason = null;
+
+          if (usageMode === "portion") {
+            const adaptedPortionCount = Number(adaptedRecipe.baseComponents?.[idx]?.portionCount ?? component.adaptedPortionCount ?? component.portionCount ?? 0);
+            const baseCovers = Number(baseRecipe.covers || 0);
+            if (!Number.isFinite(adaptedPortionCount) || adaptedPortionCount <= 0 || !Number.isFinite(baseCovers) || baseCovers <= 0) {
+              invalidReason = "portions non calculables";
+            } else {
+              multiplierForBase = adaptedPortionCount / baseCovers;
+            }
+          } else {
+            const adaptedQty = Number(adaptedRecipe.baseComponents?.[idx]?.quantity ?? component.adaptedQuantity ?? component.quantity ?? 0);
+            const sourceUnit = component.unit;
+            const targetUnit = effectiveYield?.unit;
+            const converted = effectiveYield ? convertQuantity(adaptedQty, sourceUnit, targetUnit) : null;
+            if (!effectiveYield || converted == null || Number(effectiveYield.quantity || 0) <= 0) {
+              invalidReason = "quantité non calculable";
+            } else {
+              multiplierForBase = converted / Number(effectiveYield.quantity);
+            }
+          }
+
+          const ingredientRows = (baseRecipe.directIngredients || []).length === 0
+            ? `<tr><td colspan="2" style="padding:8px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
+            : baseRecipe.directIngredients.map((ing) => {
+                if (multiplierForBase == null) {
+                  return `
+                    <tr>
+                      <td>${escapeHtml(ing.name)}</td>
+                      <td>quantité non calculable</td>
+                    </tr>
+                  `;
+                }
+                const adaptedIngredientQty = Number(ing.quantity || 0) * multiplierForBase;
+                const qtyLabel = Number.isFinite(adaptedIngredientQty)
+                  ? `${adaptedIngredientQty.toFixed(2)} ${escapeHtml(ing.unit)}`
+                  : "quantité non calculable";
+                return `
+                  <tr>
+                    <td>${escapeHtml(ing.name)}</td>
+                    <td>${qtyLabel}</td>
+                  </tr>
+                `;
+              }).join("");
+
+          const usageLabel = usageMode === "portion"
+            ? `${Number(adaptedRecipe.baseComponents?.[idx]?.portionCount ?? component.adaptedPortionCount ?? component.portionCount ?? 0).toFixed(2)} portions/couverts`
+            : `${Number(adaptedRecipe.baseComponents?.[idx]?.quantity ?? component.adaptedQuantity ?? component.quantity ?? 0).toFixed(2)} ${escapeHtml(component.unit)}`;
+
+          return `
+            <section class="subrecipe-block">
+              <h2>${idx + 1}. ${escapeHtml(baseRecipe.name)}</h2>
+              <p class="meta"><strong>Utilisation adaptée :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:#991b1b;">${invalidReason}</span>` : ""}</p>
+              <div class="grid">
+                <div>
+                  <h3>Ingrédients adaptés</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ingrédient</th>
+                        <th>Quantité adaptée</th>
+                      </tr>
+                    </thead>
+                    <tbody>${ingredientRows}</tbody>
+                  </table>
+                </div>
+                <div>
+                  <h3>Procédé</h3>
+                  <div class="procedure">${buildProcedureHtml(baseRecipe.procedure)}</div>
+                </div>
+              </div>
+            </section>
+          `;
+        }).join("");
+
+    const content = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${escapeHtml(printTitle)}</title>
+          <style>
+            body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 24px; }
+            h1 { margin: 0 0 8px 0; color: #1A3A4A; }
+            h2 { margin: 0 0 10px 0; color: #1A3A4A; font-size: 18px; }
+            h3 { margin: 0 0 8px 0; color: #1A3A4A; font-size: 15px; }
+            .meta { color: #4b5563; margin: 0 0 10px 0; }
+            .subrecipe-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin: 0 0 16px 0; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
+            th { background: #f9fafb; font-weight: 600; }
+            .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 10px; min-height: 60px; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
+          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}</p>
+          ${baseBlocks}
+          <section class="subrecipe-block">
+            <h2>Montage / finition</h2>
+            <div class="procedure">${buildProcedureHtml(adaptedRecipe.procedure)}</div>
+          </section>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const iframeWindow = iframe.contentWindow;
+    if (!iframeWindow) {
+      alert("Impossible d'ouvrir l'impression PDF. Vérifiez les paramètres de votre navigateur.");
+      iframe.remove();
+      return;
+    }
+
+    iframeWindow.document.open();
+    iframeWindow.document.write(content);
+    iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
     iframeWindow.focus();
     iframeWindow.print();
     setTimeout(() => iframe.remove(), 1000);
