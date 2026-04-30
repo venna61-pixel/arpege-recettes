@@ -1009,6 +1009,18 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       baseComponents: formData.baseComponents.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
     });
   };
+  const getInlineBaseComponentUnitOptions = (component) => {
+    const linkedBaseRecipe = normalizedRecipes.find((r) => Number(r.id) === Number(component?.baseRecipeId) && r.recipeType === "base") || null;
+    const effectiveYield = linkedBaseRecipe ? resolveEffectiveYield(linkedBaseRecipe) : null;
+    const referenceUnit = effectiveYield?.unit || linkedBaseRecipe?.outputUnit || null;
+    const group = referenceUnit ? getUnitGroup(referenceUnit) : "unknown";
+    const compatibleUnits = group === "mass"
+      ? BASE_QUANTITY_UNITS_MASS
+      : group === "volume"
+        ? BASE_QUANTITY_UNITS_VOLUME
+        : [...BASE_QUANTITY_UNITS_MASS, ...BASE_QUANTITY_UNITS_VOLUME];
+    return Array.from(new Set([...compatibleUnits, component?.unit].filter(Boolean)));
+  };
 
   const handleEdit = (recipe) => {
     const normalized = normalizeRecipe(recipe);
@@ -1218,7 +1230,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                           ) : (
                             <>
                               <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={component.quantity} onChange={(e) => updateBaseComponentLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
-                              <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={component.unit} onChange={(e) => updateBaseComponentLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                              <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={component.unit} onChange={(e) => updateBaseComponentLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{getInlineBaseComponentUnitOptions(component).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
                             </>
                           )}
                         </div>
