@@ -8,6 +8,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./models/schema.js"></script>
+    <script src="./logic/migration/legacy-to-v1.js"></script>
+    <script src="./logic/migration/report.js"></script>
+    <script src="./logic/migration/versioned-storage.js"></script>
+    <script src="./logic/migration/parallel-read.js"></script>
+    <script src="./logic/runtime/data-source.js"></script>
+    <script src="./logic/core/costs-and-units.js"></script>
+    <script src="./logic/core/recipe-builder.js"></script>
+    <script src="./logic/core/recipe-filters.js"></script>
+    <script src="./logic/core/recipe-submission.js"></script>
+    <script src="./logic/core/recipe-scaling.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -40,17 +51,30 @@ const UNITS = [
   "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
   "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
 ];
+const YIELD_UNITS = ["Gramme", "Kg", "Ml", "Cl", "Litre"];
+const BASE_QUANTITY_UNITS_MASS = ["Gramme", "Kg"];
+const BASE_QUANTITY_UNITS_VOLUME = ["Ml", "Cl", "Litre"];
+if (!window.ArpegeCostsAndUnits) {
+  throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeScaling) {
+  throw new Error("Module requis manquant: logic/core/recipe-scaling.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeBuilder) {
+  throw new Error("Module requis manquant: logic/core/recipe-builder.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeFilters) {
+  throw new Error("Module requis manquant: logic/core/recipe-filters.js n'est pas chargé.");
+}
+if (!window.ArpegeRecipeSubmission) {
+  throw new Error("Module requis manquant: logic/core/recipe-submission.js n'est pas chargé.");
+}
+const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
+if (!unitCatalogCheck.isConsistent) {
+  console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
+}
 
 const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
-const MASS_UNITS = { "Kg": 1000, "Gramme": 1 };
-const VOLUME_UNITS = { "Litre": 1000, "Ml": 1, "Cl": 10 };
-const COUNT_UNITS = [
-  "Pièce", "Unité", "Part", "Portion", "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte",
-  "Boîte 1/4", "Boîte 1/8", "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe",
-  "Botte", "Bouteille", "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Lot", "Pack",
-  "Pain", "Paire", "Paquet", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet", "Seau",
-  "Tablette", "Terrine", "Tube", "Tubo", "Carton"
-];
 
 const INITIAL_INGREDIENTS = [
   { id: 1, category: "Laitage", name: "Crème fraîche", price: 2.50, unit: "Litre", supplier: "Laiterie du Nord" },
@@ -106,99 +130,44 @@ const formatDecimal = (value, maxDigits = 6) => {
   if (!Number.isFinite(n)) return "0";
   return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: maxDigits, useGrouping: false });
 };
-const getUnitGroup = (unit) => MASS_UNITS[unit] ? "mass" : VOLUME_UNITS[unit] ? "volume" : COUNT_UNITS.includes(unit) ? "count" : "unknown";
-const convertQuantity = (quantity, fromUnit, toUnit) => {
-  if (quantity == null || !fromUnit || !toUnit || fromUnit === toUnit) return quantity;
-  const fromGroup = getUnitGroup(fromUnit);
-  const toGroup = getUnitGroup(toUnit);
-  if (fromGroup !== toGroup) return null;
-  if (fromGroup === "mass") return quantity * MASS_UNITS[fromUnit] / MASS_UNITS[toUnit];
-  if (fromGroup === "volume") return quantity * VOLUME_UNITS[fromUnit] / VOLUME_UNITS[toUnit];
-  if (fromGroup === "count") return quantity;
-  return null;
+const normalizeUnknownPrice = (rawPrice) => {
+  const raw = String(rawPrice ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
 };
-
-const calculateIngredientCost = (ingredientLine) => {
-  const recipeQty = Number(ingredientLine.quantity || 0);
-  const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, ingredientLine.unitPrice);
-  if (convertedQty == null) return null;
-  return convertedQty * Number(ingredientLine.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
+const formatPriceDisplay = (price) => {
+  const n = Number(price);
+  if (!Number.isFinite(n) || n <= 0) return "Prix inconnu";
+  return `${formatDecimal(n)} €`;
 };
-
-const normalizeRecipe = (recipe) => {
-  const categories = Array.isArray(recipe.categories)
-    ? recipe.categories
-    : recipe.category
-      ? [recipe.category]
-      : [];
-
-  return {
-    ...recipe,
-    recipeType: recipe.recipeType || "base",
-    categories,
-    directIngredients: recipe.directIngredients || recipe.ingredients || [],
-    baseComponents: recipe.baseComponents || [],
-    outputQuantity: Number(recipe.outputQuantity || recipe.covers || 1),
-    outputUnit: recipe.outputUnit || (recipe.recipeType === "final" ? "Portion" : "Kg"),
-    covers: Number(recipe.covers || 1),
-    wasteCoeff: Number(recipe.wasteCoeff || 1),
-  };
-};
-
-const getRecipeById = (recipes, id) => recipes.find(r => Number(r.id) === Number(id));
-
-const calculateRecipeTotalCost = (recipe, allRecipes, visited = new Set()) => {
-  const current = normalizeRecipe(recipe);
-  if (visited.has(current.id)) return null;
-  const nextVisited = new Set(visited);
-  nextVisited.add(current.id);
-
-  let total = 0;
-  for (const ing of current.directIngredients) {
-    const lineCost = calculateIngredientCost(ing);
-    if (lineCost == null) return null;
-    total += lineCost;
-  }
-
-  for (const component of current.baseComponents || []) {
-    const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
-    if (!baseRecipe) return null;
-    const normalizedBase = normalizeRecipe(baseRecipe);
-    const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited);
-    if (baseCost == null) return null;
-    const converted = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
-    if (converted == null || Number(normalizedBase.outputQuantity || 0) <= 0) return null;
-    total += baseCost * (converted / Number(normalizedBase.outputQuantity));
-  }
-
-  return total * Number(current.wasteCoeff || 1);
-};
-
-const getCostStatus = (recipe, allRecipes) => {
-  const current = normalizeRecipe(recipe);
-  for (const ing of current.directIngredients) {
-    const convertedQty = convertQuantity(Number(ing.quantity || 0), ing.unit, ing.unitPrice);
-    if (convertedQty == null) {
-      return { valid: false, message: `Conversion impossible entre ${ing.unit} et ${ing.unitPrice} pour ${ing.name}` };
-    }
-  }
-
-  for (const component of current.baseComponents || []) {
-    const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
-    if (!baseRecipe) {
-      return { valid: false, message: `Recette de base introuvable : ${component.name}` };
-    }
-    const normalizedBase = normalizeRecipe(baseRecipe);
-    const convertedQty = convertQuantity(Number(component.quantity || 0), component.unit, normalizedBase.outputUnit);
-    if (convertedQty == null) {
-      return { valid: false, message: `Conversion impossible entre ${component.unit} et ${normalizedBase.outputUnit} pour ${component.name}` };
-    }
-  }
-
-  const totalCost = calculateRecipeTotalCost(current, allRecipes);
-  if (totalCost == null) return { valid: false, message: "Calcul du coût impossible" };
-  return { valid: true, message: "" };
-};
+const {
+  convertQuantity,
+  calculateIngredientCost,
+  computeBaseComponentCost,
+  computeTheoreticalYieldFromDirectIngredients,
+  getUnitGroup,
+  resolveEffectiveYield,
+  normalizeRecipe,
+  getRecipeById,
+  calculateRecipeTotalCost,
+  getCostStatus
+} = window.ArpegeCostsAndUnits;
+const {
+  buildDirectIngredientLine,
+  buildBaseComponentLine
+} = window.ArpegeRecipeBuilder;
+const {
+  filterRecipesForList,
+  filterIngredientsForPicker,
+  filterBaseRecipesForPicker
+} = window.ArpegeRecipeFilters;
+const {
+  validateRecipeDraft,
+  buildRecipePayload,
+  upsertRecipe
+} = window.ArpegeRecipeSubmission;
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
@@ -327,11 +296,12 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
   };
   const handleSubmit = (e) => {
     e.preventDefault();
-    const normalized = { ...formData, price: parseFloat(formData.price) };
+    const normalized = { ...formData, price: normalizeUnknownPrice(formData.price) };
     if (editingId) setIngredients(ingredients.map(ing => ing.id === editingId ? { ...normalized, id: editingId } : ing));
     else setIngredients([...ingredients, { ...normalized, id: Math.max(...ingredients.map(i => i.id), 0) + 1 }]);
     resetForm();
   };
+
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <div className="flex justify-between items-center mb-6">
@@ -347,7 +317,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label><select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
           </div>
@@ -363,7 +333,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
               <tr key={ing.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{ing.category}</span></td>
                 <td className="px-6 py-4 font-medium">{ing.name}</td>
-                <td className="px-6 py-4 text-gray-600">{formatDecimal(ing.price)} €</td>
+                <td className="px-6 py-4 text-gray-600">{formatPriceDisplay(ing.price)}</td>
                 <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
                 <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
                 {isChef && <td className="px-6 py-4 text-sm"><button onClick={() => { setFormData(ing); setEditingId(ing.id); setShowForm(true); }} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => window.confirm("Supprimer cet ingrédient ?") && setIngredients(ingredients.filter(i => i.id !== ing.id))} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
@@ -387,7 +357,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
   if (!isOpen) return null;
   const handleSubmit = (e) => {
     e.preventDefault();
-    onAdd({ ...formData, id: Date.now(), price: parseFloat(formData.price) });
+    onAdd({ ...formData, id: Date.now(), price: normalizeUnknownPrice(formData.price) });
     setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
     onClose();
   };
@@ -402,7 +372,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€) *</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
@@ -413,15 +383,15 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
   );
 };
 
-const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
+const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, isChef }) => {
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
   }, [isOpen, onClose]);
   if (!isOpen || !recipe) return null;
   const normalized = normalizeRecipe(recipe);
-  const costStatus = getCostStatus(normalized, allRecipes);
-  const totalCost = calculateRecipeTotalCost(normalized, allRecipes);
+  const costStatus = getCostStatus(normalized, allRecipes, ingredients);
+  const totalCost = calculateRecipeTotalCost(normalized, allRecipes, new Set(), ingredients);
 
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
@@ -437,12 +407,22 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const sanitizePrintTitle = (value, suffix) => {
+    const invalidChars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"];
+    let cleanedName = String(value || "Recette");
+    invalidChars.forEach((char) => {
+      cleanedName = cleanedName.split(char).join(" ");
+    });
+    cleanedName = cleanedName.replace(/\s+/g, " ").trim();
+    return `${cleanedName || "Recette"} - ${suffix}`;
+  };
 
   const handlePrintPdf = () => {
+    const printTitle = sanitizePrintTitle(normalized.name, "Fiche");
     const directRows = normalized.directIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : normalized.directIngredients.map((ing) => {
-          const ingredientCost = calculateIngredientCost(ing);
+          const ingredientCost = calculateIngredientCost(ing, ingredients);
           return `
             <tr>
               <td>${escapeHtml(ing.name)}</td>
@@ -456,15 +436,17 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucune recette de base liée</td></tr>`
       : normalized.baseComponents.map((component) => {
           const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {});
-          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null;
-          const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null;
-          const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
-            ? baseCost * (converted / Number(baseRecipe.outputQuantity))
+          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null;
+          const prorated = (baseCost != null && baseRecipe.id)
+            ? computeBaseComponentCost({ component, baseRecipe, baseCost })
             : null;
+          const usageLabel = component.usageMode === "portion"
+            ? `${Number(component.portionCount || 0).toFixed(2)} portions/couverts`
+            : `${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}`;
           return `
             <tr>
               <td>${escapeHtml(component.name)}</td>
-              <td>${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}</td>
+              <td>${usageLabel}</td>
               ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
             </tr>
           `;
@@ -505,7 +487,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <title>Fiche recette - ${escapeHtml(normalized.name)}</title>
+          <title>${escapeHtml(printTitle)}</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 28px; }
             h1 { margin: 0 0 8px 0; color: #1A3A4A; }
@@ -522,7 +504,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
         <body>
           <h1>${escapeHtml(normalized.name)}</h1>
           <p class="meta"><strong>Type :</strong> ${normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</p>
-          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)} • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}</p>
+          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)}${normalized.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}` : ""}</p>
           <div class="badges">${normalized.categories.map(cat => `<span class="badge">${escapeHtml(cat)}</span>`).join("")}</div>
 
           <section>
@@ -555,6 +537,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
       targetWindow.document.open();
       targetWindow.document.write(content);
       targetWindow.document.close();
+      targetWindow.document.title = printTitle;
       targetWindow.focus();
       targetWindow.print();
     };
@@ -580,6 +563,158 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
     setTimeout(() => iframe.remove(), 1000);
   };
 
+  const handlePrintProductionSheet = () => {
+    if (normalized.recipeType === "base") return;
+    const printTitle = sanitizePrintTitle(normalized.name, "Fiche complète");
+
+    const baseBlocks = normalized.baseComponents.length === 0
+      ? `<p style="color:#6b7280;font-style:italic;">Aucune sous-recette liée.</p>`
+      : normalized.baseComponents.map((component, idx) => {
+          const baseRecipeRaw = getRecipeById(allRecipes, component.baseRecipeId);
+          if (!baseRecipeRaw) {
+            return `
+              <section class="subrecipe-block">
+                <h2>${idx + 1}. ${escapeHtml(component.name || "Sous-recette introuvable")}</h2>
+                <p style="color:#991b1b;font-weight:600;">Sous-recette introuvable.</p>
+              </section>
+            `;
+          }
+
+          const baseRecipe = normalizeRecipe(baseRecipeRaw);
+          const effectiveYield = resolveEffectiveYield(baseRecipe);
+          const usageMode = component.usageMode || "quantity";
+
+          let multiplier = null;
+          let invalidReason = null;
+
+          if (usageMode === "portion") {
+            const portionCount = Number(component.portionCount || 0);
+            const baseCovers = Number(baseRecipe.covers || 0);
+            if (!Number.isFinite(portionCount) || portionCount <= 0 || !Number.isFinite(baseCovers) || baseCovers <= 0) {
+              invalidReason = "portions non calculables";
+            } else {
+              multiplier = portionCount / baseCovers;
+            }
+          } else {
+            const sourceQty = Number(component.quantity || 0);
+            const sourceUnit = component.unit;
+            const targetUnit = effectiveYield?.unit;
+            const converted = effectiveYield ? convertQuantity(sourceQty, sourceUnit, targetUnit) : null;
+            if (!effectiveYield || converted == null || Number(effectiveYield.quantity || 0) <= 0) {
+              invalidReason = "quantité non calculable";
+            } else {
+              multiplier = converted / Number(effectiveYield.quantity);
+            }
+          }
+
+          const ingredientsRows = (baseRecipe.directIngredients || []).length === 0
+            ? `<tr><td colspan="2" style="padding:8px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
+            : baseRecipe.directIngredients.map((ing) => {
+                if (multiplier == null) {
+                  return `
+                    <tr>
+                      <td>${escapeHtml(ing.name)}</td>
+                      <td>quantité non calculable</td>
+                    </tr>
+                  `;
+                }
+                const adaptedQty = Number(ing.quantity || 0) * multiplier;
+                const qtyLabel = Number.isFinite(adaptedQty) ? `${adaptedQty.toFixed(2)} ${escapeHtml(ing.unit)}` : "quantité non calculable";
+                return `
+                  <tr>
+                    <td>${escapeHtml(ing.name)}</td>
+                    <td>${qtyLabel}</td>
+                  </tr>
+                `;
+              }).join("");
+
+          const usageLabel = usageMode === "portion"
+            ? `${Number(component.portionCount || 0).toFixed(2)} portions/couverts`
+            : `${escapeHtml(component.quantity)} ${escapeHtml(component.unit)}`;
+
+          return `
+            <section class="subrecipe-block">
+              <h2>${idx + 1}. ${escapeHtml(baseRecipe.name)}</h2>
+              <p class="meta"><strong>Utilisation dans la recette finale :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:#991b1b;">${invalidReason}</span>` : ""}</p>
+              <div class="grid">
+                <div>
+                  <h3>Ingrédients adaptés</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ingrédient</th>
+                        <th>Quantité adaptée</th>
+                      </tr>
+                    </thead>
+                    <tbody>${ingredientsRows}</tbody>
+                  </table>
+                </div>
+                <div>
+                  <h3>Procédé</h3>
+                  <div class="procedure">${buildProcedureHtml(baseRecipe.procedure)}</div>
+                </div>
+              </div>
+            </section>
+          `;
+        }).join("");
+
+    const content = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${escapeHtml(printTitle)}</title>
+          <style>
+            body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 24px; }
+            h1 { margin: 0 0 8px 0; color: #1A3A4A; }
+            h2 { margin: 0 0 10px 0; color: #1A3A4A; font-size: 18px; }
+            h3 { margin: 0 0 8px 0; color: #1A3A4A; font-size: 15px; }
+            .meta { color: #4b5563; margin: 0 0 10px 0; }
+            .subrecipe-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin: 0 0 16px 0; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
+            th { background: #f9fafb; font-weight: 600; }
+            .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 10px; min-height: 60px; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(normalized.name)}</h1>
+          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)}</p>
+          ${baseBlocks}
+          <section class="subrecipe-block">
+            <h2>Montage / finition</h2>
+            <div class="procedure">${buildProcedureHtml(normalized.procedure)}</div>
+          </section>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const iframeWindow = iframe.contentWindow;
+    if (!iframeWindow) {
+      alert("Impossible d'ouvrir l'impression PDF. Vérifiez les paramètres de votre navigateur.");
+      iframe.remove();
+      return;
+    }
+
+    iframeWindow.document.open();
+    iframeWindow.document.write(content);
+    iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
+    iframeWindow.focus();
+    iframeWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+
   return (
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto slide-in relative">
@@ -590,15 +725,20 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
             {normalized.categories.map(cat => <span key={cat} className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
           </div>
           <h3 className="text-2xl font-bold text-[#1A3A4A]">{normalized.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts • Rendement : {normalized.outputQuantity} {normalized.outputUnit}</p>
-          <button onClick={handlePrintPdf} className="mt-4 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
+          <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts{normalized.recipeType === "base" ? ` • Rendement : ${normalized.outputQuantity} ${normalized.outputUnit}` : ""}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={handlePrintPdf} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
+            {normalized.recipeType !== "base" && (
+              <button onClick={handlePrintProductionSheet} className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">Imprimer fiche complète de production</button>
+            )}
+          </div>
         </div>
         <div className="p-6 space-y-6">
           <div>
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients directs ({normalized.directIngredients.length})</h4>
             <div className="bg-gray-50 rounded-lg p-4">
               {normalized.directIngredients.length === 0 ? <p className="text-sm text-gray-500 italic">Aucun ingrédient direct</p> : (
-                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing, ingredients); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
               )}
             </div>
           </div>
@@ -608,7 +748,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
               <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Recettes de base utilisées ({normalized.baseComponents.length})</h4>
               <div className="bg-gray-50 rounded-lg p-4">
                 {normalized.baseComponents.length === 0 ? <p className="text-sm text-gray-500 italic">Aucune recette de base liée</p> : (
-                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes) : null; const converted = baseRecipe.id ? convertQuantity(Number(component.quantity || 0), component.unit, baseRecipe.outputUnit) : null; const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0) ? baseCost * (converted / Number(baseRecipe.outputQuantity)) : null; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{component.quantity} {component.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null; const prorated = (baseCost != null && baseRecipe.id) ? computeBaseComponentCost({ component, baseRecipe, baseCost }) : null; const usageLabel = component.usageMode === "portion" ? `${component.portionCount} portions/couverts` : `${component.quantity} ${component.unit}`; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{usageLabel}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
                 )}
               </div>
             </div>
@@ -630,7 +770,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, isOpen, onClose, isChef }) => {
   );
 };
 
-const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
+const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) => {
   const normalized = recipe ? normalizeRecipe(recipe) : null;
   const [pivotType, setPivotType] = useState("covers");
   const [pivotValue, setPivotValue] = useState("");
@@ -648,22 +788,27 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
   }, [isOpen, onClose]);
   if (!isOpen || !normalized) return null;
 
-  const baseCost = calculateRecipeTotalCost(normalized, recipes);
-  const ingredientPivotSource = normalized.directIngredients[selectedIngredientIndex] || normalized.baseComponents[selectedIngredientIndex] || null;
-  const totalDirectQty = normalized.directIngredients.reduce((sum, ing) => sum + Number(ing.quantity || 0), 0) + normalized.baseComponents.reduce((sum, c) => sum + Number(c.quantity || 0), 0);
-  const numericPivot = parseFloat(pivotValue);
-  let multiplier = 1;
-  if (numericPivot > 0) {
-    if (pivotType === "covers") multiplier = numericPivot / (normalized.covers || 1);
-    if (pivotType === "globalQuantity") multiplier = numericPivot / (totalDirectQty || 1);
-    if (pivotType === "budget") multiplier = numericPivot / (baseCost || 1);
-    if (pivotType === "ingredientQuantity") multiplier = numericPivot / Number(ingredientPivotSource?.quantity || 1);
-  }
-  const adaptedDirectIngredients = normalized.directIngredients.map(ing => ({ ...ing, adaptedQuantity: Number(ing.quantity || 0) * multiplier }));
-  const adaptedBaseComponents = normalized.baseComponents.map(c => ({ ...c, adaptedQuantity: Number(c.quantity || 0) * multiplier }));
-  const adaptedRecipe = { ...normalized, covers: normalized.covers * multiplier, directIngredients: adaptedDirectIngredients.map(i => ({ ...i, quantity: i.adaptedQuantity })), baseComponents: adaptedBaseComponents.map(c => ({ ...c, quantity: c.adaptedQuantity })) };
-  const adaptedCost = calculateRecipeTotalCost(adaptedRecipe, recipes);
-  const adaptedCostStatus = getCostStatus(adaptedRecipe, recipes);
+  const baseCost = calculateRecipeTotalCost(normalized, recipes, new Set(), ingredients);
+  const scaling = window.ArpegeRecipeScaling.computePivotMultiplier({
+    pivotType,
+    pivotValue,
+    normalizedRecipe: normalized,
+    baseCost,
+    selectedIngredientIndex,
+  });
+  const multiplier = scaling.multiplier;
+  const ingredientPivotSource = scaling.ingredientPivotSource;
+  const totalDirectQty = scaling.totalDirectQty;
+  const { adaptedDirectIngredients, adaptedBaseComponents, adaptedRecipe } = window.ArpegeRecipeScaling.buildAdaptedRecipe({
+    normalizedRecipe: normalized,
+    multiplier,
+  });
+  const { adaptedCost, adaptedCostStatus } = window.ArpegeRecipeScaling.computeAdaptedMetrics({
+    adaptedRecipe,
+    recipes,
+    calculateRecipeTotalCost: (recipeInput, recipesInput) => calculateRecipeTotalCost(recipeInput, recipesInput, new Set(), ingredients),
+    getCostStatus: (recipeInput, recipesInput) => getCostStatus(recipeInput, recipesInput, ingredients),
+  });
 
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -671,6 +816,15 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const sanitizePrintTitle = (value, suffix) => {
+    const invalidChars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"];
+    let cleanedName = String(value || "Recette");
+    invalidChars.forEach((char) => {
+      cleanedName = cleanedName.split(char).join(" ");
+    });
+    cleanedName = cleanedName.replace(/\s+/g, " ").trim();
+    return `${cleanedName || "Recette"} - ${suffix}`;
+  };
 
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
@@ -681,10 +835,11 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
   };
 
   const handlePrintAdaptedSheet = () => {
+    const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche adaptée");
     const directRows = adaptedDirectIngredients.length === 0
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
       : adaptedDirectIngredients.map((ing) => {
-          const ingredientCost = calculateIngredientCost({ ...ing, quantity: ing.adaptedQuantity });
+          const ingredientCost = calculateIngredientCost({ ...ing, quantity: ing.adaptedQuantity }, ingredients);
           return `
             <tr>
               <td>${escapeHtml(ing.name)}</td>
@@ -698,15 +853,21 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
       ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucune recette de base liée</td></tr>`
       : adaptedBaseComponents.map((component) => {
           const baseRecipe = normalizeRecipe(getRecipeById(recipes, component.baseRecipeId) || {});
-          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, recipes) : null;
-          const converted = baseRecipe.id ? convertQuantity(Number(component.adaptedQuantity || 0), component.unit, baseRecipe.outputUnit) : null;
-          const prorated = (baseCost != null && converted != null && Number(baseRecipe.outputQuantity || 0) > 0)
-            ? baseCost * (converted / Number(baseRecipe.outputQuantity))
+          const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, recipes, new Set(), ingredients) : null;
+          const adaptedComponent = component.usageMode === "portion"
+            ? { ...component, portionCount: component.adaptedPortionCount }
+            : { ...component, quantity: component.adaptedQuantity };
+          const prorated = (baseCost != null && baseRecipe.id)
+            ? computeBaseComponentCost({ component: adaptedComponent, baseRecipe, baseCost })
             : null;
+          const portionDisplayValue = component.adaptedPortionCount ?? component.portionCount;
+          const adaptedLabel = component.usageMode === "portion"
+            ? `${Number(portionDisplayValue || 0).toFixed(2)} portions/couverts`
+            : `${Number(component.adaptedQuantity || 0).toFixed(2)} ${component.unit}`;
           return `
             <tr>
               <td>${escapeHtml(component.name)}</td>
-              <td>${escapeHtml(component.adaptedQuantity.toFixed(2))} ${escapeHtml(component.unit)}</td>
+              <td>${escapeHtml(adaptedLabel)}</td>
               ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
             </tr>
           `;
@@ -747,7 +908,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <title>Fiche adaptée - ${escapeHtml(adaptedRecipe.name)}</title>
+          <title>${escapeHtml(printTitle)}</title>
           <style>
             body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 28px; }
             h1 { margin: 0 0 8px 0; color: #1A3A4A; }
@@ -765,7 +926,7 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
           <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
           <p class="meta"><strong>Type :</strong> ${adaptedRecipe.recipeType === "base" ? "Recette de base" : "Recette finale"}</p>
           <p class="meta"><strong>Coefficient :</strong> ${escapeHtml(multiplier.toFixed(4))}</p>
-          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))} • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}</p>
+          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}${adaptedRecipe.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}` : ""}</p>
           <div class="badges">${adaptedRecipe.categories.map(cat => `<span class="badge">${escapeHtml(cat)}</span>`).join("")}</div>
 
           <section>
@@ -813,6 +974,161 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
     iframeWindow.document.open();
     iframeWindow.document.write(content);
     iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
+    iframeWindow.focus();
+    iframeWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+
+  const handlePrintAdaptedProductionSheet = () => {
+    if (adaptedRecipe.recipeType === "base") return;
+    const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche complète adaptée");
+
+    const baseBlocks = adaptedBaseComponents.length === 0
+      ? `<p style="color:#6b7280;font-style:italic;">Aucune sous-recette liée.</p>`
+      : adaptedBaseComponents.map((component, idx) => {
+          const baseRecipeRaw = getRecipeById(recipes, component.baseRecipeId);
+          if (!baseRecipeRaw) {
+            return `
+              <section class="subrecipe-block">
+                <h2>${idx + 1}. ${escapeHtml(component.name || "Sous-recette introuvable")}</h2>
+                <p style="color:#991b1b;font-weight:600;">Sous-recette introuvable.</p>
+              </section>
+            `;
+          }
+
+          const baseRecipe = normalizeRecipe(baseRecipeRaw);
+          const effectiveYield = resolveEffectiveYield(baseRecipe);
+          const usageMode = component.usageMode || "quantity";
+
+          let multiplierForBase = null;
+          let invalidReason = null;
+
+          if (usageMode === "portion") {
+            const adaptedPortionCount = Number(adaptedRecipe.baseComponents?.[idx]?.portionCount ?? component.adaptedPortionCount ?? component.portionCount ?? 0);
+            const baseCovers = Number(baseRecipe.covers || 0);
+            if (!Number.isFinite(adaptedPortionCount) || adaptedPortionCount <= 0 || !Number.isFinite(baseCovers) || baseCovers <= 0) {
+              invalidReason = "portions non calculables";
+            } else {
+              multiplierForBase = adaptedPortionCount / baseCovers;
+            }
+          } else {
+            const adaptedQty = Number(adaptedRecipe.baseComponents?.[idx]?.quantity ?? component.adaptedQuantity ?? component.quantity ?? 0);
+            const sourceUnit = component.unit;
+            const targetUnit = effectiveYield?.unit;
+            const converted = effectiveYield ? convertQuantity(adaptedQty, sourceUnit, targetUnit) : null;
+            if (!effectiveYield || converted == null || Number(effectiveYield.quantity || 0) <= 0) {
+              invalidReason = "quantité non calculable";
+            } else {
+              multiplierForBase = converted / Number(effectiveYield.quantity);
+            }
+          }
+
+          const ingredientRows = (baseRecipe.directIngredients || []).length === 0
+            ? `<tr><td colspan="2" style="padding:8px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
+            : baseRecipe.directIngredients.map((ing) => {
+                if (multiplierForBase == null) {
+                  return `
+                    <tr>
+                      <td>${escapeHtml(ing.name)}</td>
+                      <td>quantité non calculable</td>
+                    </tr>
+                  `;
+                }
+                const adaptedIngredientQty = Number(ing.quantity || 0) * multiplierForBase;
+                const qtyLabel = Number.isFinite(adaptedIngredientQty)
+                  ? `${adaptedIngredientQty.toFixed(2)} ${escapeHtml(ing.unit)}`
+                  : "quantité non calculable";
+                return `
+                  <tr>
+                    <td>${escapeHtml(ing.name)}</td>
+                    <td>${qtyLabel}</td>
+                  </tr>
+                `;
+              }).join("");
+
+          const usageLabel = usageMode === "portion"
+            ? `${Number(adaptedRecipe.baseComponents?.[idx]?.portionCount ?? component.adaptedPortionCount ?? component.portionCount ?? 0).toFixed(2)} portions/couverts`
+            : `${Number(adaptedRecipe.baseComponents?.[idx]?.quantity ?? component.adaptedQuantity ?? component.quantity ?? 0).toFixed(2)} ${escapeHtml(component.unit)}`;
+
+          return `
+            <section class="subrecipe-block">
+              <h2>${idx + 1}. ${escapeHtml(baseRecipe.name)}</h2>
+              <p class="meta"><strong>Utilisation adaptée :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:#991b1b;">${invalidReason}</span>` : ""}</p>
+              <div class="grid">
+                <div>
+                  <h3>Ingrédients adaptés</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ingrédient</th>
+                        <th>Quantité adaptée</th>
+                      </tr>
+                    </thead>
+                    <tbody>${ingredientRows}</tbody>
+                  </table>
+                </div>
+                <div>
+                  <h3>Procédé</h3>
+                  <div class="procedure">${buildProcedureHtml(baseRecipe.procedure)}</div>
+                </div>
+              </div>
+            </section>
+          `;
+        }).join("");
+
+    const content = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${escapeHtml(printTitle)}</title>
+          <style>
+            body { font-family: Inter, Arial, sans-serif; color: #111827; margin: 24px; }
+            h1 { margin: 0 0 8px 0; color: #1A3A4A; }
+            h2 { margin: 0 0 10px 0; color: #1A3A4A; font-size: 18px; }
+            h3 { margin: 0 0 8px 0; color: #1A3A4A; font-size: 15px; }
+            .meta { color: #4b5563; margin: 0 0 10px 0; }
+            .subrecipe-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin: 0 0 16px 0; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
+            th { background: #f9fafb; font-weight: 600; }
+            .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 10px; min-height: 60px; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
+          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}</p>
+          ${baseBlocks}
+          <section class="subrecipe-block">
+            <h2>Montage / finition</h2>
+            <div class="procedure">${buildProcedureHtml(adaptedRecipe.procedure)}</div>
+          </section>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const iframeWindow = iframe.contentWindow;
+    if (!iframeWindow) {
+      alert("Impossible d'ouvrir l'impression PDF. Vérifiez les paramètres de votre navigateur.");
+      iframe.remove();
+      return;
+    }
+
+    iframeWindow.document.open();
+    iframeWindow.document.write(content);
+    iframeWindow.document.close();
+    iframeWindow.document.title = printTitle;
     iframeWindow.focus();
     iframeWindow.print();
     setTimeout(() => iframe.remove(), 1000);
@@ -837,8 +1153,8 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
               {pivotType === "ingredientQuantity" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ligne pivot</label>
-                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = normalized.directIngredients[idx] || normalized.baseComponents[idx]; setPivotValue(String(source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
-                    {[...normalized.directIngredients, ...normalized.baseComponents].map((line, idx) => <option key={idx} value={idx}>{line.name} ({line.quantity} {line.unit})</option>)}
+                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = window.ArpegeRecipeScaling.getPivotSourceLine(normalized, idx); setPivotValue(String(source?.usageMode === "portion" ? source?.portionCount : source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                    {[...normalized.directIngredients, ...normalized.baseComponents].map((line, idx) => <option key={idx} value={idx}>{line.name} ({line.usageMode === "portion" ? `${line.portionCount} portions/couverts` : `${line.quantity} ${line.unit}`})</option>)}
                   </select>
                 </div>
               )}
@@ -851,13 +1167,18 @@ const AdaptModal = ({ recipe, recipes, isOpen, onClose, isChef }) => {
               <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span><span>{(normalized.covers * multiplier).toFixed(2)}</span></div>
               {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}</span></div>}
             </div>
-            <button onClick={handlePrintAdaptedSheet} className="mt-4 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche adaptée (PDF)</button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button onClick={handlePrintAdaptedSheet} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche adaptée (PDF)</button>
+              {normalized.recipeType !== "base" && (
+                <button onClick={handlePrintAdaptedProductionSheet} className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">Imprimer fiche complète adaptée</button>
+              )}
+            </div>
           </div>
           <div>
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Lignes adaptées</h4>
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 max-h-72 overflow-y-auto">
               {adaptedDirectIngredients.map((ing, idx) => <div key={`i-${idx}`} className="flex justify-between items-center py-3 border-b border-gray-200"><div><div className="font-medium text-[#1A3A4A]">{ing.name}</div><div className="text-xs text-gray-500">Base : {ing.quantity} {ing.unit}</div></div><div className="text-right text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">{ing.adaptedQuantity.toFixed(2)} {ing.unit}</div></div>)}
-              {adaptedBaseComponents.map((c, idx) => <div key={`c-${idx}`} className="flex justify-between items-center py-3 border-b border-gray-200"><div><div className="font-medium text-[#1A3A4A]">{c.name} <span className="text-xs text-gray-500">(recette de base)</span></div><div className="text-xs text-gray-500">Base : {c.quantity} {c.unit}</div></div><div className="text-right text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">{c.adaptedQuantity.toFixed(2)} {c.unit}</div></div>)}
+              {adaptedBaseComponents.map((c, idx) => <div key={`c-${idx}`} className="flex justify-between items-center py-3 border-b border-gray-200"><div><div className="font-medium text-[#1A3A4A]">{c.name} <span className="text-xs text-gray-500">(recette de base)</span></div><div className="text-xs text-gray-500">Base : {c.usageMode === "portion" ? `${c.portionCount} portions/couverts` : `${c.quantity} ${c.unit}`}</div></div><div className="text-right text-gray-700 bg-white px-3 py-1 rounded-full text-sm border border-gray-200">{c.usageMode === "portion" ? `${Number((adaptedRecipe.baseComponents?.[idx]?.portionCount ?? c.adaptedPortionCount ?? c.portionCount) || 0).toFixed(2)} portions/couverts` : `${c.adaptedQuantity.toFixed(2)} ${c.unit}`}</div></div>)}
             </div>
           </div>
           <div>
@@ -879,6 +1200,10 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [detailRecipe, setDetailRecipe] = useState(null);
   const [adaptRecipe, setAdaptRecipe] = useState(null);
   const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
+  const [editingDirectIndex, setEditingDirectIndex] = useState(null);
+  const [editingBaseIndex, setEditingBaseIndex] = useState(null);
+  const [directSnapshot, setDirectSnapshot] = useState(null);
+  const [baseSnapshot, setBaseSnapshot] = useState(null);
 
   const emptyForm = {
     recipeType: sectionType,
@@ -895,29 +1220,60 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const [formData, setFormData] = useState(emptyForm);
   const [currentIng, setCurrentIng] = useState({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-  const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
+  const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: "quantity", portionCount: "", searchText: "", categoryFilter: "Tous" });
 
-  const filteredBaseRecipesForPicker = normalizedRecipes.filter(recipe => {
-    if (recipe.recipeType !== "base") return false;
-    if (currentBase.categoryFilter !== "Tous" && !recipe.categories.includes(currentBase.categoryFilter)) return false;
-    return recipe.name.toLowerCase().includes(currentBase.searchText.toLowerCase());
+  const filteredBaseRecipesForPicker = filterBaseRecipesForPicker({
+    recipes: normalizedRecipes,
+    searchText: currentBase.searchText,
+    categoryFilter: currentBase.categoryFilter,
   });
 
-  const filteredIngredientsForSearch = ingredients.filter(ing => ing.name.toLowerCase().includes(currentIng.searchText.toLowerCase()));
-
-  const filteredRecipes = normalizedRecipes.filter(recipe => {
-    const matchSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) || recipe.categories.join(" ").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchType = recipe.recipeType === sectionType;
-    const matchCategory = categoryFilter === "Tous" || recipe.categories.includes(categoryFilter);
-    return matchSearch && matchType && matchCategory;
+  const filteredIngredientsForSearch = filterIngredientsForPicker({
+    ingredients,
+    searchText: currentIng.searchText,
   });
+
+  const filteredRecipes = filterRecipesForList({
+    recipes: normalizedRecipes,
+    searchTerm,
+    sectionType,
+    categoryFilter,
+  });
+  const theoreticalYield = useMemo(
+    () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
+    [formData.directIngredients]
+  );
+  const selectedBaseRecipeForUsage = useMemo(
+    () => normalizedRecipes.find((r) => Number(r.id) === Number(currentBase.baseRecipeId) && r.recipeType === "base") || null,
+    [normalizedRecipes, currentBase.baseRecipeId]
+  );
+  const baseYieldReferenceUnit = useMemo(() => {
+    if (!selectedBaseRecipeForUsage) return null;
+    const effectiveYield = resolveEffectiveYield(selectedBaseRecipeForUsage);
+    return effectiveYield?.unit || selectedBaseRecipeForUsage.outputUnit || null;
+  }, [selectedBaseRecipeForUsage]);
+  const baseYieldGroup = baseYieldReferenceUnit ? getUnitGroup(baseYieldReferenceUnit) : "unknown";
+  const compatibleBaseUnits = useMemo(() => {
+    if (baseYieldGroup === "mass") return BASE_QUANTITY_UNITS_MASS;
+    if (baseYieldGroup === "volume") return BASE_QUANTITY_UNITS_VOLUME;
+    return [...BASE_QUANTITY_UNITS_MASS, ...BASE_QUANTITY_UNITS_VOLUME];
+  }, [baseYieldGroup]);
+  const baseUnitOptions = Array.from(new Set([...compatibleBaseUnits, currentBase.unit].filter(Boolean)));
+  const canAddBase = Boolean(
+    currentBase.baseRecipeId &&
+    (currentBase.usageMode === "portion" ? currentBase.portionCount : currentBase.quantity)
+  );
 
   const resetForm = () => {
     setFormData({ ...emptyForm, recipeType: sectionType });
     setEditingId(null);
     setShowForm(false);
+    setEditingDirectIndex(null);
+    setEditingBaseIndex(null);
+    setDirectSnapshot(null);
+    setBaseSnapshot(null);
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
-    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: "Tous" });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: "quantity", portionCount: "", searchText: "", categoryFilter: "Tous" });
   };
 
   const toggleRecipeCategory = (category) => {
@@ -931,52 +1287,58 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     if (!finalIngredientId || !currentIng.quantity) return;
     const ing = ingredients.find(i => Number(i.id) === Number(finalIngredientId));
     if (!ing) return;
+    const line = buildDirectIngredientLine({
+      ingredient: ing,
+      ingredientId: finalIngredientId,
+      quantity: currentIng.quantity,
+      unit: currentIng.unit,
+      wasteCoeff: currentIng.wasteCoeff,
+    });
+    if (!line) return;
     setFormData({
       ...formData,
-      directIngredients: [...formData.directIngredients, {
-        ingredientId: Number(finalIngredientId),
-        name: ing.name,
-        quantity: parseFloat(currentIng.quantity),
-        unit: currentIng.unit,
-        wasteCoeff: parseFloat(currentIng.wasteCoeff || 1),
-        pricePerUnit: ing.price,
-        unitPrice: ing.unit
-      }]
+      directIngredients: [...formData.directIngredients, line]
     });
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
   };
 
   const addBaseComponentToRecipe = (baseRecipeId = null) => {
     const finalBaseRecipeId = baseRecipeId || currentBase.baseRecipeId;
-    if (!finalBaseRecipeId || !currentBase.quantity) return;
+    if (!finalBaseRecipeId) return;
+    if (currentBase.usageMode === "portion" && !currentBase.portionCount) return;
+    if (currentBase.usageMode !== "portion" && !currentBase.quantity) return;
     const baseRecipe = normalizedRecipes.find(r => Number(r.id) === Number(finalBaseRecipeId) && r.recipeType === "base");
     if (!baseRecipe) return;
+    const line = buildBaseComponentLine({
+      baseRecipe,
+      baseRecipeId: finalBaseRecipeId,
+      quantity: currentBase.usageMode === "portion" ? 0 : currentBase.quantity,
+      unit: currentBase.unit,
+      usageMode: currentBase.usageMode,
+      portionCount: currentBase.usageMode === "portion" ? currentBase.portionCount : undefined,
+    });
+    if (!line) return;
     setFormData({
       ...formData,
-      baseComponents: [...formData.baseComponents, {
-        baseRecipeId: Number(finalBaseRecipeId),
-        name: baseRecipe.name,
-        quantity: parseFloat(currentBase.quantity),
-        unit: currentBase.unit,
-      }]
+      baseComponents: [...formData.baseComponents, line]
     });
-    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", searchText: "", categoryFilter: currentBase.categoryFilter });
+    setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: currentBase.usageMode, portionCount: "", searchText: "", categoryFilter: currentBase.categoryFilter });
   };
 
   const handleAddNewIngredient = (newIngredient) => {
     setIngredients([...ingredients, newIngredient]);
     if (currentIng.quantity) {
+      const line = buildDirectIngredientLine({
+        ingredient: newIngredient,
+        ingredientId: newIngredient.id,
+        quantity: currentIng.quantity,
+        unit: currentIng.unit || "Gramme",
+        wasteCoeff: currentIng.wasteCoeff,
+      });
+      if (!line) return;
       setFormData({
         ...formData,
-        directIngredients: [...formData.directIngredients, {
-          ingredientId: newIngredient.id,
-          name: newIngredient.name,
-          quantity: parseFloat(currentIng.quantity) || 0,
-          unit: currentIng.unit || "Gramme",
-          wasteCoeff: parseFloat(currentIng.wasteCoeff) || 1.0,
-          pricePerUnit: newIngredient.price,
-          unitPrice: newIngredient.unit
-        }]
+        directIngredients: [...formData.directIngredients, line]
       });
     }
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
@@ -984,17 +1346,40 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.directIngredients.length === 0 && (formData.recipeType !== "final" || formData.baseComponents.length === 0)) {
-      alert("Ajoute au moins un ingrédient ou une recette de base.");
+    const validation = validateRecipeDraft(formData);
+    if (!validation.valid) {
+      alert(validation.message);
       return;
     }
-    const payload = normalizeRecipe({ ...formData });
-    if (editingId) {
-      setRecipes(recipes.map(r => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r));
-    } else {
-      setRecipes([...recipes, { ...payload, id: Math.max(...recipes.map(r => Number(r.id)), 0) + 1 }]);
-    }
+    const payload = buildRecipePayload(formData, normalizeRecipe);
+    setRecipes(upsertRecipe(recipes, payload, editingId));
     resetForm();
+  };
+
+  const updateDirectIngredientLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      directIngredients: formData.directIngredients.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
+  };
+
+  const updateBaseComponentLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      baseComponents: formData.baseComponents.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
+  };
+  const getInlineBaseComponentUnitOptions = (component) => {
+    const linkedBaseRecipe = normalizedRecipes.find((r) => Number(r.id) === Number(component?.baseRecipeId) && r.recipeType === "base") || null;
+    const effectiveYield = linkedBaseRecipe ? resolveEffectiveYield(linkedBaseRecipe) : null;
+    const referenceUnit = effectiveYield?.unit || linkedBaseRecipe?.outputUnit || null;
+    const group = referenceUnit ? getUnitGroup(referenceUnit) : "unknown";
+    const compatibleUnits = group === "mass"
+      ? BASE_QUANTITY_UNITS_MASS
+      : group === "volume"
+        ? BASE_QUANTITY_UNITS_VOLUME
+        : [...BASE_QUANTITY_UNITS_MASS, ...BASE_QUANTITY_UNITS_VOLUME];
+    return Array.from(new Set([...compatibleUnits, component?.unit].filter(Boolean)));
   };
 
   const handleEdit = (recipe) => {
@@ -1003,13 +1388,17 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     setEditingId(normalized.id);
     setShowForm(true);
     setDetailRecipe(null);
+    setEditingDirectIndex(null);
+    setEditingBaseIndex(null);
+    setDirectSnapshot(null);
+    setBaseSnapshot(null);
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} />
-      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
-      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
+      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
+      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
 
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
         <div>
@@ -1043,12 +1432,38 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               </select>
             </div>
             <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts</label><input type="number" min="1" step="0.01" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+          <div className={`grid grid-cols-1 ${formData.recipeType === "base" ? "md:grid-cols-2" : "md:grid-cols-1"} gap-4`}>
+            {formData.recipeType === "base" && (
+              <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement quantité</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{Array.from(new Set([...YIELD_UNITS, formData.outputUnit].filter(Boolean))).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                </div>
+                <div className="mt-3 text-sm">
+                  {theoreticalYield ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-[#1A3A4A]">Rendement théorique calculé : {formatDecimal(theoreticalYield.quantity)} {theoreticalYield.unit}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, outputQuantity: Number(theoreticalYield.quantity), outputUnit: theoreticalYield.unit })}
+                        className="px-3 py-1.5 rounded-lg bg-[#1A3A4A] text-white text-xs font-medium hover:bg-[#16303d]"
+                      >
+                        Utiliser ce rendement
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600">Rendement théorique non calculable automatiquement : unités incompatibles</span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement portions/couverts</h4>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts (1 couvert = 1 portion)</label><input type="number" min="1" step="0.01" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            </div>
           </div>
 
           <div>
@@ -1071,7 +1486,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               {currentIng.searchText && !currentIng.ingredientId && (
                 <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
                   {filteredIngredientsForSearch.length > 0 ? filteredIngredientsForSearch.map(ing => (
-                    <button key={ing.id} type="button" onClick={() => setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name })} className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"><span>{ing.name}</span><span className="text-sm text-gray-500">{formatDecimal(ing.price)}€/{ing.unit}</span></button>
+                    <button key={ing.id} type="button" onClick={() => setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name })} className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"><span>{ing.name}</span><span className="text-sm text-gray-500">{Number.isFinite(Number(ing.price)) && Number(ing.price) > 0 ? `${formatDecimal(ing.price)}€/${ing.unit}` : `Prix inconnu/${ing.unit}`}</span></button>
                   )) : <div className="p-4 text-center"><p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p><button type="button" onClick={() => setShowAddIngredientModal(true)} className="text-[#1A3A4A] font-medium text-sm">Créer "{currentIng.searchText}"</button></div>}
                 </div>
               )}
@@ -1109,10 +1524,35 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   </div>
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mode d'utilisation</label>
+                  <select value={currentBase.usageMode || "quantity"} onChange={(e) => setCurrentBase({ ...currentBase, usageMode: e.target.value === "portion" ? "portion" : "quantity" })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                    <option value="quantity">Quantité</option>
+                    <option value="portion">Portions / couverts</option>
+                  </select>
+                </div>
+                {currentBase.usageMode === "quantity" && (
+                  <div className="text-xs text-gray-600 flex items-end">
+                    {selectedBaseRecipeForUsage
+                      ? `Unités compatibles avec le rendement de la base (${baseYieldReferenceUnit || "inconnu"})`
+                      : "Sélectionnez une recette de base pour filtrer les unités compatibles"}
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="any" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-                <div className="flex items-end"><button type="button" onClick={() => addBaseComponentToRecipe()} disabled={!currentBase.baseRecipeId || !currentBase.quantity} className={`w-full py-2 rounded-lg font-medium ${currentBase.baseRecipeId && currentBase.quantity ? "bg-slate-700 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter la base</button></div>
+                {currentBase.usageMode === "portion" ? (
+                  <>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Portions / couverts utilisés</label><input type="number" step="any" value={currentBase.portionCount} onChange={(e) => setCurrentBase({ ...currentBase, portionCount: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div className="text-xs text-gray-600 flex items-end">Référence : couverts ({selectedBaseRecipeForUsage ? (selectedBaseRecipeForUsage.covers || 0) : "?"}) de la recette de base.</div>
+                  </>
+                ) : (
+                  <>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="any" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{baseUnitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                  </>
+                )}
+                <div className="flex items-end"><button type="button" onClick={() => addBaseComponentToRecipe()} disabled={!canAddBase} className={`w-full py-2 rounded-lg font-medium ${canAddBase ? "bg-slate-700 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter la base</button></div>
               </div>
             </div>
           )}
@@ -1120,16 +1560,84 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           {(formData.directIngredients.length > 0 || formData.baseComponents.length > 0) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
-                <div className="space-y-2">
-                  {formData.directIngredients.map((ing, idx) => <div key={idx} className="flex items-center justify-between bg-amber-50 px-4 py-2 rounded-lg"><span className="font-medium">{ing.name} - {ing.quantity} {ing.unit}</span><button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                  <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
+                  <div className="space-y-2">
+                  {formData.directIngredients.map((ing, idx) => (
+                    <div key={idx} className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
+                      {editingDirectIndex === idx ? (
+                        <>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-[#1A3A4A]">{ing.name}</span>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => { setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">OK</button>
+                              <button type="button" onClick={() => { if (directSnapshot != null) updateDirectIngredientLine(idx, directSnapshot); setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Annuler</button>
+                              <button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-red-500">Supprimer</button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={ing.quantity} onChange={(e) => updateDirectIngredientLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                            <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={ing.unit} onChange={(e) => updateDirectIngredientLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                            <div><label className="block text-xs text-gray-600 mb-1">Coeff. perte</label><input type="number" step="0.01" value={ing.wasteCoeff} onChange={(e) => updateDirectIngredientLine(idx, { wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-[#1A3A4A]">{ing.name}</div>
+                            <div className="text-xs text-gray-600">{ing.quantity} {ing.unit} • perte {ing.wasteCoeff}</div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => { setEditingDirectIndex(idx); setDirectSnapshot({ quantity: ing.quantity, unit: ing.unit, wasteCoeff: ing.wasteCoeff }); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">Modifier</button>
+                            <button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Supprimer</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  </div>
                 </div>
-              </div>
               {formData.recipeType === "final" && (
                 <div>
                   <h4 className="font-medium text-gray-700 mb-2">Recettes de base liées ({formData.baseComponents.length})</h4>
                   <div className="space-y-2">
-                    {formData.baseComponents.map((component, idx) => <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-lg border border-slate-200"><span className="font-medium">{component.name} - {component.quantity} {component.unit}</span><button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                    {formData.baseComponents.map((component, idx) => (
+                      <div key={idx} className="bg-slate-50 px-4 py-3 rounded-lg border border-slate-200">
+                        {editingBaseIndex === idx ? (
+                          <>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-[#1A3A4A]">{component.name}</span>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => { setEditingBaseIndex(null); setBaseSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">OK</button>
+                                <button type="button" onClick={() => { if (baseSnapshot) updateBaseComponentLine(idx, baseSnapshot); setEditingBaseIndex(null); setBaseSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Annuler</button>
+                                <button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">Supprimer</button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <div><label className="block text-xs text-gray-600 mb-1">Mode</label><select value={component.usageMode || "quantity"} onChange={(e) => updateBaseComponentLine(idx, { usageMode: e.target.value === "portion" ? "portion" : "quantity" })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white"><option value="quantity">Quantité</option><option value="portion">Portions / couverts</option></select></div>
+                              {(component.usageMode || "quantity") === "portion" ? (
+                                <div><label className="block text-xs text-gray-600 mb-1">Portions / couverts</label><input type="number" step="any" value={component.portionCount ?? ""} onChange={(e) => updateBaseComponentLine(idx, { portionCount: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                              ) : (
+                                <>
+                                  <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={component.quantity} onChange={(e) => updateBaseComponentLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                                  <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={component.unit} onChange={(e) => updateBaseComponentLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{getInlineBaseComponentUnitOptions(component).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-[#1A3A4A]">{component.name}</div>
+                              <div className="text-xs text-gray-600">{(component.usageMode || "quantity") === "portion" ? `${component.portionCount || 0} portions/couverts` : `${component.quantity} ${component.unit}`}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => { setEditingBaseIndex(idx); setBaseSnapshot({ usageMode: component.usageMode || "quantity", quantity: component.quantity, unit: component.unit, portionCount: component.portionCount }); }} className="text-xs px-2 py-1 rounded bg-slate-700 text-white">Modifier</button>
+                              <button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Supprimer</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1145,8 +1653,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       {!showForm && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredRecipes.map(recipe => {
-          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes);
-          const costStatus = getCostStatus(recipe, normalizedRecipes);
+          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
+          const costStatus = getCostStatus(recipe, normalizedRecipes, ingredients);
           return (
             <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
               <div className="p-6">
@@ -1161,7 +1669,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 <div className="space-y-1 mb-4 text-sm text-gray-600">
                   <p>{recipe.directIngredients.length} ingrédient(s) direct(s)</p>
                   {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
-                  <p>Rendement : {recipe.outputQuantity} {recipe.outputUnit}</p>
+                  <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
                   {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                 </div>
                 <div className="flex space-x-2">
@@ -1180,8 +1688,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 };
 
 
-const ProducersView = ({ ingredients }) => {
-  const producers = Array.from(new Set((ingredients || []).map(ing => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
+const ProducersView = ({ ingredients, suppliersRuntime }) => {
+  const legacyProducers = Array.from(new Set((ingredients || []).map(ing => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
+  const producers = suppliersRuntime?.canaryActive ? suppliersRuntime.data : legacyProducers;
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <div className="mb-6">
@@ -1210,7 +1719,7 @@ const ProducersView = ({ ingredients }) => {
 
 const CostsView = ({ recipes, ingredients }) => {
   const normalizedRecipes = recipes.map(normalizeRecipe);
-  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes), status: getCostStatus(recipe, normalizedRecipes) }));
+  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients), status: getCostStatus(recipe, normalizedRecipes, ingredients) }));
   const validRecipes = enriched.filter(r => r.status.valid && r.totalCost != null);
   const avgCostPerRecipe = validRecipes.length ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length : 0;
   const mostExpensive = validRecipes.length ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0]) : null;
@@ -1240,8 +1749,39 @@ const App = () => {
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [activeTab, setActiveTab] = useState("ingredients");
+
+  useEffect(() => {
+    if (!window.ArpegeLegacyMigration || !window.ArpegeMigrationReport || !window.ArpegeVersionedStorage || !window.ArpegeParallelRead) return;
+    try {
+      const result = window.ArpegeLegacyMigration.migrateLegacyData({ ingredients, recipes });
+      const shadowReport = window.ArpegeMigrationReport.buildMigrationReport(result);
+      window.ArpegeMigrationReport.printMigrationReport(shadowReport);
+      const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult: result, storage: window.localStorage });
+      const writeReport = window.ArpegeVersionedStorage.buildWriteReport({ migrationResult: result, persistResult });
+      const v1Data = window.ArpegeParallelRead.readV1Data(window.localStorage);
+      const crossCheckReport = window.ArpegeParallelRead.buildCrossCheckReport({ legacyData: { ingredients, recipes }, migrationResult: result, v1Data });
+      const switchReadiness = window.ArpegeParallelRead.evaluateSwitchReadiness(crossCheckReport);
+      const featureFlags = window.ArpegeParallelRead.getFeatureFlags(window.localStorage);
+      window.__ARPEGE_SHADOW_MIGRATION__ = { result, shadowReport };
+      window.__ARPEGE_V1_WRITE_REPORT__ = writeReport;
+      window.__ARPEGE_V1_CROSS_CHECK_REPORT__ = crossCheckReport;
+      window.__ARPEGE_V1_SWITCH_READINESS__ = switchReadiness;
+      window.__ARPEGE_FEATURE_FLAGS__ = featureFlags;
+    } catch (error) {
+      console.error("[Shadow Migration] Échec de la migration en mémoire", error);
+    }
+  }, [ingredients, recipes]);
+
   if (!user) return <Login onLogin={setUser} />;
   const isChef = user.role === "chef";
+  const suppliersRuntime = window.ArpegeRuntimeDataSource
+    ? window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+        legacyIngredients: ingredients,
+        storage: window.localStorage,
+        crossCheckReport: window.__ARPEGE_V1_CROSS_CHECK_REPORT__ || null,
+        switchReadiness: window.__ARPEGE_V1_SWITCH_READINESS__ || { ready: false },
+      }).suppliers
+    : { source: "legacy", canaryActive: false, reason: "RUNTIME_DATA_SOURCE_UNAVAILABLE", data: [] };
   return (
     <div className="min-h-screen bg-gray-50">
       <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -1249,7 +1789,7 @@ const App = () => {
         {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} isChef={isChef} />}
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
-        {activeTab === "producers" && <ProducersView ingredients={ingredients} />}
+        {activeTab === "producers" && <ProducersView ingredients={ingredients} suppliersRuntime={suppliersRuntime} />}
         {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
       </main>
     </div>
