@@ -49,9 +49,10 @@
     const ingredientId = ingredientLine?.ingredientId;
     const sourceIngredient = getIngredientById(ingredientsCatalog, ingredientId);
     if (sourceIngredient) {
+      const parsedPrice = Number(sourceIngredient.price);
       logPricingPath("catalog", { ingredientId, name: ingredientLine?.name, sourceIngredientId: sourceIngredient.id });
       return {
-        pricePerUnit: Number(sourceIngredient.price || 0),
+        pricePerUnit: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null,
         pricingUnit: String(sourceIngredient.unit || "").trim() || null,
         source: "catalog",
       };
@@ -63,9 +64,10 @@
       logPricingPath("missing ingredientId", { name: ingredientLine?.name });
       const sourceByName = getIngredientByName(ingredientsCatalog, ingredientLine?.name);
       if (sourceByName) {
+        const parsedPrice = Number(sourceByName.price);
         logPricingPath("catalog", { ingredientId: sourceByName.id, name: ingredientLine?.name, via: "name" });
         return {
-          pricePerUnit: Number(sourceByName.price || 0),
+          pricePerUnit: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null,
           pricingUnit: String(sourceByName.unit || "").trim() || null,
           source: "catalog",
         };
@@ -74,9 +76,10 @@
 
     const legacyPrice = ingredientLine?.pricePerUnit;
     const hasLegacyPrice = legacyPrice !== undefined && legacyPrice !== null && String(legacyPrice).trim() !== "";
+    const parsedLegacyPrice = hasLegacyPrice ? Number(legacyPrice) : null;
     logPricingPath("fallback legacy", { ingredientId, name: ingredientLine?.name, hasLegacyPrice });
     return {
-      pricePerUnit: hasLegacyPrice ? Number(legacyPrice) : null,
+      pricePerUnit: Number.isFinite(parsedLegacyPrice) && parsedLegacyPrice > 0 ? parsedLegacyPrice : null,
       pricingUnit: resolvePricingUnit(ingredientLine),
       source: "legacy",
     };
@@ -237,6 +240,9 @@
     const current = normalizeRecipe(recipe);
     for (const ing of current.directIngredients) {
       const pricing = resolveIngredientPricing(ing, ingredientsCatalog);
+      if (!Number.isFinite(pricing.pricePerUnit) || Number(pricing.pricePerUnit) <= 0) {
+        return { valid: false, message: `Prix manquant : ${ing.name || "ingrédient inconnu"}` };
+      }
       const pricingUnit = pricing.pricingUnit;
       if (!pricingUnit) {
         return { valid: false, message: `Unité de prix manquante pour ${ing.name}` };

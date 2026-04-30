@@ -149,6 +149,32 @@ function testIdMismatchAvecFallbackLegacy() {
   assert.strictEqual(cost, 2);
 }
 
+function testPrixZeroTraiteCommeInconnu() {
+  const line = { ingredientId: 50, name: 'Herbes', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const catalog = [{ id: 50, name: 'Herbes', price: 0, unit: 'Kg' }];
+  const cost = calculateIngredientCost(line, catalog);
+  assert.strictEqual(cost, null);
+}
+
+function testStatusPrixManquantExplicite() {
+  const recipe = {
+    id: 501,
+    recipeType: 'base',
+    directIngredients: [
+      { ingredientId: 77, name: 'Épice test', quantity: 1, unit: 'Kg', unitPrice: 'Kg', wasteCoeff: 1 },
+    ],
+    baseComponents: [],
+    outputQuantity: 1,
+    outputUnit: 'Kg',
+    covers: 1,
+    wasteCoeff: 1,
+  };
+  const status = getCostStatus(recipe, [recipe], [{ id: 77, name: 'Épice test', price: null, unit: 'Kg' }]);
+  assert.strictEqual(status.valid, false);
+  assert.ok(status.message.includes('Prix manquant'));
+  assert.ok(status.message.includes('Épice test'));
+}
+
 function testRendementTheoriqueCalculable() {
   const recipe = {
     id: 101,
@@ -375,6 +401,8 @@ function runAll() {
     testCompatibiliteAppelsSansCatalogue,
     testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue,
     testIdMismatchAvecFallbackLegacy,
+    testPrixZeroTraiteCommeInconnu,
+    testStatusPrixManquantExplicite,
     testRendementTheoriqueCalculable,
     testRendementTheoriqueNonCalculable,
     testRendementReelPrioritaire,

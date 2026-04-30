@@ -99,10 +99,10 @@
       createIssue(report, "warning", "EMPTY_INGREDIENT_NAME", { ingredientId, policy: "KEEP_WITH_FALLBACK" });
     }
 
-    const prixAchat = parseNumber(legacyIngredient.price, report, { entity: "Ingredient", field: "price", ingredientId }, { gtZero: true, policyOnInvalid: "EXCLUDE_RECORD" });
+    const prixAchatRaw = parseNumber(legacyIngredient.price, report, { entity: "Ingredient", field: "price", ingredientId }, { gtZero: false, policyOnInvalid: "KEEP_WITH_NULL" });
+    const prixAchat = Number.isFinite(prixAchatRaw) && Number(prixAchatRaw) > 0 ? Number(prixAchatRaw) : null;
     if (prixAchat == null) {
-      createIssue(report, "error", "INGREDIENT_EXCLUDED_INVALID_PRICE", { ingredientId, policy: "EXCLUDE_RECORD" });
-      return null;
+      createIssue(report, "warning", "INGREDIENT_PRICE_MISSING", { ingredientId, policy: "KEEP_WITH_NULL_PRICE" });
     }
 
     const unit = parseUnit(legacyIngredient.unit, report, { entity: "Ingredient", field: "unit", ingredientId }, { fallbackAllowed: true });

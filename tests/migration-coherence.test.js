@@ -111,6 +111,18 @@ function testFallbackExpliciteApplique() {
   assert.ok(migrationResult.report.warnings.some((w) => w.type === 'FINAL_COVERS_FORCED'));
 }
 
+function testIngredientSansPrixConserveAvecWarning() {
+  const legacy = {
+    ingredients: [{ id: 2, category: 'Épicerie', name: 'Épice', price: '', unit: 'Kg', supplier: 'Primeur' }],
+    recipes: [{ id: 41, recipeType: 'base', categories: ['Plat'], name: 'A', covers: 1, outputQuantity: 1, outputUnit: 'Kg', directIngredients: [{ ingredientId: 2, quantity: 1, unit: 'Kg' }], baseComponents: [] }],
+  };
+  const { migrationResult } = runMigration(legacy);
+  assert.strictEqual(migrationResult.ingredients.length, 1);
+  assert.strictEqual(migrationResult.ingredients[0].prix_achat, null);
+  assert.ok(migrationResult.report.warnings.some((w) => w.type === 'INGREDIENT_PRICE_MISSING'));
+  assert.ok(!migrationResult.report.errors.some((e) => e.type === 'INGREDIENT_EXCLUDED_INVALID_PRICE'));
+}
+
 function testV1Absente() {
   const legacy = {
     ingredients: [{ id: 1, category: 'Légumes', name: 'Tomate', price: 2, unit: 'Kg', supplier: 'Primeur' }],
@@ -306,6 +318,7 @@ function runAll() {
     testCycleDetecte,
     testLigneInvalideExclue,
     testFallbackExpliciteApplique,
+    testIngredientSansPrixConserveAvecWarning,
     testV1Absente,
     testV1PresenteEtCoherente,
     testV1PresenteMaisIncoherente,
