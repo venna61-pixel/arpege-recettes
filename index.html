@@ -289,6 +289,20 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
     else setIngredients([...ingredients, { ...normalized, id: Math.max(...ingredients.map(i => i.id), 0) + 1 }]);
     resetForm();
   };
+
+  const updateDirectIngredientLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      directIngredients: formData.directIngredients.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
+  };
+
+  const updateBaseComponentLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      baseComponents: formData.baseComponents.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
+  };
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <div className="flex justify-between items-center mb-6">
@@ -1169,16 +1183,46 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           {(formData.directIngredients.length > 0 || formData.baseComponents.length > 0) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
-                <div className="space-y-2">
-                  {formData.directIngredients.map((ing, idx) => <div key={idx} className="flex items-center justify-between bg-amber-50 px-4 py-2 rounded-lg"><span className="font-medium">{ing.name} - {ing.quantity} {ing.unit}</span><button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                  <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
+                  <div className="space-y-2">
+                  {formData.directIngredients.map((ing, idx) => (
+                    <div key={idx} className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-[#1A3A4A]">{ing.name}</span>
+                        <button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-red-500">✕</button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={ing.quantity} onChange={(e) => updateDirectIngredientLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                        <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={ing.unit} onChange={(e) => updateDirectIngredientLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-600 mb-1">Coeff. perte</label><input type="number" step="0.01" value={ing.wasteCoeff} onChange={(e) => updateDirectIngredientLine(idx, { wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                      </div>
+                    </div>
+                  ))}
+                  </div>
                 </div>
-              </div>
               {formData.recipeType === "final" && (
                 <div>
                   <h4 className="font-medium text-gray-700 mb-2">Recettes de base liées ({formData.baseComponents.length})</h4>
                   <div className="space-y-2">
-                    {formData.baseComponents.map((component, idx) => <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-lg border border-slate-200"><span className="font-medium">{component.name} - {component.usageMode === "portion" ? `${component.portionCount} portions/couverts` : `${component.quantity} ${component.unit}`}</span><button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button></div>)}
+                    {formData.baseComponents.map((component, idx) => (
+                      <div key={idx} className="bg-slate-50 px-4 py-3 rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-[#1A3A4A]">{component.name}</span>
+                          <button type="button" onClick={() => setFormData({ ...formData, baseComponents: formData.baseComponents.filter((_, i) => i !== idx) })} className="text-red-500">✕</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <div><label className="block text-xs text-gray-600 mb-1">Mode</label><select value={component.usageMode || "quantity"} onChange={(e) => updateBaseComponentLine(idx, { usageMode: e.target.value === "portion" ? "portion" : "quantity" })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white"><option value="quantity">Quantité</option><option value="portion">Portions / couverts</option></select></div>
+                          {(component.usageMode || "quantity") === "portion" ? (
+                            <div><label className="block text-xs text-gray-600 mb-1">Portions / couverts</label><input type="number" step="any" value={component.portionCount ?? ""} onChange={(e) => updateBaseComponentLine(idx, { portionCount: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                          ) : (
+                            <>
+                              <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={component.quantity} onChange={(e) => updateBaseComponentLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                              <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={component.unit} onChange={(e) => updateBaseComponentLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
