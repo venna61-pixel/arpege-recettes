@@ -491,7 +491,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
         <body>
           <h1>${escapeHtml(normalized.name)}</h1>
           <p class="meta"><strong>Type :</strong> ${normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</p>
-          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)} • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}</p>
+          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)}${normalized.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}` : ""}</p>
           <div class="badges">${normalized.categories.map(cat => `<span class="badge">${escapeHtml(cat)}</span>`).join("")}</div>
 
           <section>
@@ -559,7 +559,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
             {normalized.categories.map(cat => <span key={cat} className="px-3 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
           </div>
           <h3 className="text-2xl font-bold text-[#1A3A4A]">{normalized.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts • Rendement : {normalized.outputQuantity} {normalized.outputUnit}</p>
+          <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts{normalized.recipeType === "base" ? ` • Rendement : ${normalized.outputQuantity} ${normalized.outputUnit}` : ""}</p>
           <button onClick={handlePrintPdf} className="mt-4 bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
         </div>
         <div className="p-6 space-y-6">
@@ -745,7 +745,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
           <p class="meta"><strong>Type :</strong> ${adaptedRecipe.recipeType === "base" ? "Recette de base" : "Recette finale"}</p>
           <p class="meta"><strong>Coefficient :</strong> ${escapeHtml(multiplier.toFixed(4))}</p>
-          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))} • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}</p>
+          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}${adaptedRecipe.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}` : ""}</p>
           <div class="badges">${adaptedRecipe.categories.map(cat => `<span class="badge">${escapeHtml(cat)}</span>`).join("")}</div>
 
           <section>
@@ -1328,7 +1328,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 <div className="space-y-1 mb-4 text-sm text-gray-600">
                   <p>{recipe.directIngredients.length} ingrédient(s) direct(s)</p>
                   {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
-                  <p>Rendement : {recipe.outputQuantity} {recipe.outputUnit}</p>
+                  <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
                   {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                 </div>
                 <div className="flex space-x-2">
