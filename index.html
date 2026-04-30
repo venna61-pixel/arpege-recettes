@@ -290,19 +290,6 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
     resetForm();
   };
 
-  const updateDirectIngredientLine = (idx, patch) => {
-    setFormData({
-      ...formData,
-      directIngredients: formData.directIngredients.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
-    });
-  };
-
-  const updateBaseComponentLine = (idx, patch) => {
-    setFormData({
-      ...formData,
-      baseComponents: formData.baseComponents.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
-    });
-  };
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <div className="flex justify-between items-center mb-6">
@@ -1007,6 +994,20 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     const payload = buildRecipePayload(formData, normalizeRecipe);
     setRecipes(upsertRecipe(recipes, payload, editingId));
     resetForm();
+  };
+
+  const updateDirectIngredientLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      directIngredients: formData.directIngredients.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
+  };
+
+  const updateBaseComponentLine = (idx, patch) => {
+    setFormData({
+      ...formData,
+      baseComponents: formData.baseComponents.map((line, i) => (i === idx ? { ...line, ...patch } : line)),
+    });
   };
 
   const handleEdit = (recipe) => {
