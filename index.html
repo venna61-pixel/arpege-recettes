@@ -550,7 +550,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
   };
 
   const handlePrintProductionSheet = () => {
-    if (normalized.recipeType !== "final") return;
+    if (normalized.recipeType === "base") return;
 
     const baseBlocks = normalized.baseComponents.length === 0
       ? `<p style="color:#6b7280;font-style:italic;">Aucune sous-recette liée.</p>`
@@ -712,7 +712,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
           <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts{normalized.recipeType === "base" ? ` • Rendement : ${normalized.outputQuantity} ${normalized.outputUnit}` : ""}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button onClick={handlePrintPdf} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
-            {normalized.recipeType === "final" && (
+            {normalized.recipeType !== "base" && (
               <button onClick={handlePrintProductionSheet} className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">Imprimer fiche complète de production</button>
             )}
           </div>
