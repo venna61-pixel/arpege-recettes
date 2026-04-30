@@ -1043,30 +1043,32 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             <div className="md:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement quantité</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{Array.from(new Set([...YIELD_UNITS, formData.outputUnit].filter(Boolean))).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+          <div className={`grid grid-cols-1 ${formData.recipeType === "base" ? "md:grid-cols-2" : "md:grid-cols-1"} gap-4`}>
+            {formData.recipeType === "base" && (
+              <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement quantité</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{Array.from(new Set([...YIELD_UNITS, formData.outputUnit].filter(Boolean))).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+                </div>
+                <div className="mt-3 text-sm">
+                  {theoreticalYield ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span className="text-[#1A3A4A]">Rendement théorique calculé : {formatDecimal(theoreticalYield.quantity)} {theoreticalYield.unit}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, outputQuantity: Number(theoreticalYield.quantity), outputUnit: theoreticalYield.unit })}
+                        className="px-3 py-1.5 rounded-lg bg-[#1A3A4A] text-white text-xs font-medium hover:bg-[#16303d]"
+                      >
+                        Utiliser ce rendement
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600">Rendement théorique non calculable automatiquement : unités incompatibles</span>
+                  )}
+                </div>
               </div>
-              <div className="mt-3 text-sm">
-                {theoreticalYield ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <span className="text-[#1A3A4A]">Rendement théorique calculé : {formatDecimal(theoreticalYield.quantity)} {theoreticalYield.unit}</span>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, outputQuantity: Number(theoreticalYield.quantity), outputUnit: theoreticalYield.unit })}
-                      className="px-3 py-1.5 rounded-lg bg-[#1A3A4A] text-white text-xs font-medium hover:bg-[#16303d]"
-                    >
-                      Utiliser ce rendement
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-gray-600">Rendement théorique non calculable automatiquement : unités incompatibles</span>
-                )}
-              </div>
-            </div>
+            )}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement portions/couverts</h4>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts (1 couvert = 1 portion)</label><input type="number" min="1" step="0.01" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
