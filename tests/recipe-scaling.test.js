@@ -108,6 +108,41 @@ function testRecalculRecetteAdapteeEtStatut() {
   assert.strictEqual(adaptedCostStatus.valid, true);
 }
 
+function testAdaptationModePortionPourBaseComponent() {
+  const baseRecipe = {
+    id: 50,
+    recipeType: 'base',
+    categories: ['Base'],
+    name: 'Base Portion',
+    covers: 10,
+    outputQuantity: 999,
+    outputUnit: 'Kg',
+    directIngredients: [{ ingredientId: 11, name: 'X', quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    baseComponents: [],
+    wasteCoeff: 1,
+  };
+  const finalRecipe = {
+    id: 51,
+    recipeType: 'final',
+    categories: ['Plat'],
+    name: 'Final Portion',
+    covers: 2,
+    outputQuantity: 2,
+    outputUnit: 'Portion',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 50, name: 'Base Portion', usageMode: 'portion', portionCount: 2, quantity: 0, unit: 'Kg' }],
+    wasteCoeff: 1,
+  };
+
+  const { adaptedBaseComponents, adaptedRecipe } = buildAdaptedRecipe({ normalizedRecipe: finalRecipe, multiplier: 2 });
+  assert.strictEqual(adaptedBaseComponents[0].adaptedPortionCount, 4);
+  assert.strictEqual(adaptedRecipe.baseComponents[0].portionCount, 4);
+  assert.strictEqual(adaptedRecipe.baseComponents[0].quantity, 0);
+
+  const adaptedCost = calculateRecipeTotalCost(adaptedRecipe, [baseRecipe, finalRecipe, adaptedRecipe], new Set(), null);
+  assert.strictEqual(adaptedCost, 40);
+}
+
 function runAll() {
   const tests = [
     testPivotParCouverts,
@@ -117,6 +152,7 @@ function runAll() {
     testPivotParLignePivotBaseComponent,
     testCasInvalideValeurAbsente,
     testRecalculRecetteAdapteeEtStatut,
+    testAdaptationModePortionPourBaseComponent,
   ];
 
   for (const testFn of tests) {

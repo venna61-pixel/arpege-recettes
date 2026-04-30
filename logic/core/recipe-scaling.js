@@ -70,16 +70,27 @@
       adaptedQuantity: Number(ing.quantity || 0) * multiplier,
     }));
 
-    const adaptedBaseComponents = normalizedRecipe.baseComponents.map((c) => ({
-      ...c,
-      adaptedQuantity: Number(c.quantity || 0) * multiplier,
-    }));
+    const adaptedBaseComponents = normalizedRecipe.baseComponents.map((c) => {
+      const usageMode = c?.usageMode === "portion" ? "portion" : "quantity";
+      const adaptedQuantity = Number(c.quantity || 0) * multiplier;
+      const adaptedPortionCount = Number(c.portionCount || 0) * multiplier;
+      return {
+        ...c,
+        adaptedQuantity,
+        adaptedPortionCount,
+        usageMode,
+      };
+    });
 
     const adaptedRecipe = {
       ...normalizedRecipe,
       covers: normalizedRecipe.covers * multiplier,
       directIngredients: adaptedDirectIngredients.map((i) => ({ ...i, quantity: i.adaptedQuantity })),
-      baseComponents: adaptedBaseComponents.map((c) => ({ ...c, quantity: c.adaptedQuantity })),
+      baseComponents: adaptedBaseComponents.map((c) => (
+        c.usageMode === "portion"
+          ? { ...c, portionCount: c.adaptedPortionCount, quantity: Number(c.quantity || 0) }
+          : { ...c, quantity: c.adaptedQuantity }
+      )),
     };
 
     return { adaptedDirectIngredients, adaptedBaseComponents, adaptedRecipe };
