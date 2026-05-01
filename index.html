@@ -1331,16 +1331,6 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     searchText: currentIng.searchText,
   });
 
-
-  const availableSuppliers = useMemo(() => {
-    const managed = (Array.isArray(suppliers) ? suppliers : [])
-      .map((s) => (typeof s === "string" ? s : (s?.name || s?.nom || "")))
-      .map((n) => String(n || "").trim())
-      .filter(Boolean);
-    const legacy = (ingredients || []).map((ing) => String(ing?.supplier || "").trim()).filter(Boolean);
-    return Array.from(new Set([...managed, ...legacy])).sort((a, b) => a.localeCompare(b, "fr"));
-  }, [suppliers, ingredients]);
-
   const hasCategorySelection = categoryFilter !== null;
 
   const filteredRecipes = hasCategorySelection
