@@ -296,7 +296,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("Tous");
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
 
   const availableCategories = useMemo(() => {
@@ -308,7 +308,10 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
     return ["Tous", ...categories];
   }, [ingredients]);
 
+  const hasCategorySelection = categoryFilter !== null;
+
   const filteredIngredients = useMemo(() => {
+    if (!hasCategorySelection) return [];
     const lowerSearch = searchTerm.toLowerCase();
     return ingredients
       .filter((ing) => {
@@ -318,7 +321,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
         return categoryMatch && searchMatch;
       })
       .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""), "fr"));
-  }, [ingredients, categoryFilter, searchTerm]);
+  }, [ingredients, hasCategorySelection, categoryFilter, searchTerm]);
 
   const resetForm = () => {
     setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
@@ -349,7 +352,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
                 key={category}
                 type="button"
                 onClick={() => setCategoryFilter(category)}
-                className={`px-3 py-2 rounded-full text-sm font-medium border transition-colors ${categoryFilter === category ? "bg-[#C8956C] text-white border-[#C8956C]" : "bg-white text-gray-700 border-gray-300 hover:bg-amber-50"}`}
+                className={`px-3 py-2 rounded-full text-sm transition-colors ${categoryFilter === category ? "bg-[#C8956C] text-white" : "bg-amber-50 text-[#7b5a42]"}`}
               >
                 {category}
               </button>
@@ -370,7 +373,12 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
           <div className="mt-4 flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Ajouter"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
         </form>
       )}
-      {!showForm && (
+      {!showForm && !hasCategorySelection && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-8 text-center text-gray-500">
+          Sélectionnez une catégorie pour afficher les ingrédients.
+        </div>
+      )}
+      {!showForm && hasCategorySelection && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -1259,7 +1267,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("Tous");
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const [detailRecipe, setDetailRecipe] = useState(null);
   const [adaptRecipe, setAdaptRecipe] = useState(null);
   const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
@@ -1296,12 +1304,16 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     searchText: currentIng.searchText,
   });
 
-  const filteredRecipes = filterRecipesForList({
-    recipes: normalizedRecipes,
-    searchTerm,
-    sectionType,
-    categoryFilter,
-  });
+  const hasCategorySelection = categoryFilter !== null;
+
+  const filteredRecipes = hasCategorySelection
+    ? filterRecipesForList({
+      recipes: normalizedRecipes,
+      searchTerm,
+      sectionType,
+      categoryFilter,
+    })
+    : [];
   const theoreticalYield = useMemo(
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
     [formData.directIngredients]
@@ -1713,7 +1725,13 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </form>
       )}
 
-      {!showForm && (
+      {!showForm && !hasCategorySelection && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-8 text-center text-gray-500">
+          Sélectionnez une catégorie pour afficher les recettes.
+        </div>
+      )}
+
+      {!showForm && hasCategorySelection && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
@@ -1751,26 +1769,166 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 };
 
 
-const ProducersView = ({ ingredients, suppliersRuntime }) => {
-  const legacyProducers = Array.from(new Set((ingredients || []).map(ing => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
-  const producers = suppliersRuntime?.canaryActive ? suppliersRuntime.data : legacyProducers;
+const ProducersView = ({ ingredients, suppliersRuntime, suppliers, setSuppliers, isChef }) => {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const emptySupplierForm = { name: "", phone: "", email: "", address: "", contact: "", notes: "" };
+  const [formData, setFormData] = useState(emptySupplierForm);
+
+  const runtimeSuppliers = suppliersRuntime?.canaryActive
+    ? (suppliersRuntime.data || [])
+    : Array.from(new Set((ingredients || []).map((ing) => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
+
+  const normalizedSuppliers = useMemo(() => {
+    const existing = Array.isArray(suppliers) ? suppliers : [];
+    const mappedExisting = existing.map((s, idx) => {
+      if (typeof s === "string") {
+        return { id: `legacy-${idx}-${s}`, name: s.trim(), phone: "", email: "", address: "", contact: "", notes: "", source: "legacy_list" };
+      }
+      return {
+        id: s.id ?? `supplier-${idx}`,
+        name: String(s.name || s.nom || "").trim(),
+        phone: String(s.phone || "").trim(),
+        email: String(s.email || "").trim(),
+        address: String(s.address || "").trim(),
+        contact: String(s.contact || "").trim(),
+        notes: String(s.notes || "").trim(),
+        source: "managed",
+      };
+    }).filter((s) => s.name);
+
+    const merged = new Map(mappedExisting.map((s) => [s.name.toLocaleLowerCase("fr"), s]));
+    for (const runtimeName of runtimeSuppliers) {
+      const trimmed = String(runtimeName || "").trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLocaleLowerCase("fr");
+      if (!merged.has(key)) {
+        merged.set(key, { id: `runtime-${key}`, name: trimmed, phone: "", email: "", address: "", contact: "", notes: "", source: "runtime" });
+      }
+    }
+
+    return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [suppliers, runtimeSuppliers]);
+
+  const resetForm = () => {
+    setFormData(emptySupplierForm);
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const payload = {
+      id: editingId || Date.now(),
+      name: String(formData.name || "").trim(),
+      phone: String(formData.phone || "").trim(),
+      email: String(formData.email || "").trim(),
+      address: String(formData.address || "").trim(),
+      contact: String(formData.contact || "").trim(),
+      notes: String(formData.notes || "").trim(),
+    };
+    if (!payload.name) return;
+
+    const managedSuppliers = (Array.isArray(suppliers) ? suppliers : []).map((s, idx) => (
+      typeof s === "string"
+        ? { id: `legacy-${idx}-${s}`, name: s.trim(), phone: "", email: "", address: "", contact: "", notes: "" }
+        : {
+          id: s.id ?? `supplier-${idx}`,
+          name: String(s.name || s.nom || "").trim(),
+          phone: String(s.phone || "").trim(),
+          email: String(s.email || "").trim(),
+          address: String(s.address || "").trim(),
+          contact: String(s.contact || "").trim(),
+          notes: String(s.notes || "").trim(),
+        }
+    )).filter((s) => s.name);
+
+    const hasExisting = managedSuppliers.some((s) => String(s.id) === String(editingId));
+    const next = editingId
+      ? (hasExisting
+        ? managedSuppliers.map((s) => String(s.id) === String(editingId) ? payload : s)
+        : [...managedSuppliers, payload])
+      : [...managedSuppliers, payload];
+
+    setSuppliers(next);
+    resetForm();
+  };
+
+  const handleEdit = (supplier) => {
+    if (!isChef) return;
+    setEditingId(supplier.id);
+    setFormData({
+      name: supplier.name || "",
+      phone: supplier.phone || "",
+      email: supplier.email || "",
+      address: supplier.address || "",
+      contact: supplier.contact || "",
+      notes: supplier.notes || "",
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = (supplier) => {
+    if (!isChef) return;
+    if (!window.confirm("Supprimer ce fournisseur ?")) return;
+    const managedSuppliers = (Array.isArray(suppliers) ? suppliers : []).map((s, idx) => (
+      typeof s === "string" ? { id: `legacy-${idx}-${s}`, name: s.trim() } : s
+    ));
+    setSuppliers(managedSuppliers.filter((s) => String(s.id) !== String(supplier.id)));
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-[#1A3A4A]">Fournisseurs</h2>
-        <p className="text-sm text-gray-500 mt-1">Liste alimentée automatiquement depuis les fournisseurs renseignés dans les ingrédients.</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-[#1A3A4A]">Fournisseurs</h2>
+          <p className="text-sm text-gray-500 mt-1">Gestion des fiches fournisseurs (compatibles avec les noms historiques des ingrédients).</p>
+        </div>
+        {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">+ Nouveau fournisseur</button>}
       </div>
+
+      {showForm && isChef && (
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 space-y-4">
+          <h3 className="text-lg font-semibold text-[#1A3A4A]">{editingId ? "Modifier le fournisseur" : "Nouveau fournisseur"}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="block text-sm text-gray-700 mb-1">Nom du fournisseur *</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+            <div><label className="block text-sm text-gray-700 mb-1">Téléphone</label><input type="text" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm text-gray-700 mb-1">Email</label><input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm text-gray-700 mb-1">Personne de contact</label><input type="text" value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div className="md:col-span-2"><label className="block text-sm text-gray-700 mb-1">Adresse</label><input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div className="md:col-span-2"><label className="block text-sm text-gray-700 mb-1">Notes</label><textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 h-24 resize-none" /></div>
+          </div>
+          <div className="flex gap-3"><button type="submit" className="bg-[#1A3A4A] text-white px-5 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Créer"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-5 py-2 rounded-lg">Annuler</button></div>
+        </form>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {producers.length === 0 ? (
+        {normalizedSuppliers.length === 0 ? (
           <div className="p-6 text-gray-500">Aucun fournisseur renseigné pour le moment.</div>
         ) : (
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
-              <tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th></tr>
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                {isChef && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {producers.map((producer, idx) => (
-                <tr key={idx} className="hover:bg-gray-50"><td className="px-6 py-4 text-[#1A3A4A] font-medium">{producer}</td></tr>
+              {normalizedSuppliers.map((supplier) => (
+                <tr key={supplier.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 font-medium text-[#1A3A4A]">{supplier.name}</td>
+                  <td className="px-4 py-4 text-gray-600">{supplier.phone || "—"}</td>
+                  <td className="px-4 py-4 text-gray-600">{supplier.email || "—"}</td>
+                  <td className="px-4 py-4 text-gray-600">{supplier.address || "—"}</td>
+                  <td className="px-4 py-4 text-gray-600">{supplier.contact || "—"}</td>
+                  <td className="px-4 py-4 text-gray-600">{supplier.notes || "—"}</td>
+                  {isChef && <td className="px-4 py-4 text-sm"><button onClick={() => handleEdit(supplier)} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => handleDelete(supplier)} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
+                </tr>
               ))}
             </tbody>
           </table>
@@ -1811,6 +1969,7 @@ const App = () => {
   const [user, setUser] = useLocalStorage("arpege_user", null);
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
+  const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
   const [activeTab, setActiveTab] = useState("ingredients");
 
   useEffect(() => {
@@ -1852,7 +2011,7 @@ const App = () => {
         {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} isChef={isChef} />}
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
-        {activeTab === "producers" && <ProducersView ingredients={ingredients} suppliersRuntime={suppliersRuntime} />}
+        {activeTab === "producers" && <ProducersView ingredients={ingredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
       </main>
     </div>
