@@ -292,7 +292,7 @@ const Header = ({ user, onLogout, activeTab, setActiveTab }) => {
   );
 };
 
-const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
+const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSuppliers, isChef }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -307,6 +307,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
     )).sort((a, b) => a.localeCompare(b, "fr"));
     return ["Tous", ...categories];
   }, [ingredients]);
+
 
   const hasCategorySelection = categoryFilter !== null;
 
@@ -329,9 +330,35 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
   };
   const handleSubmit = (e) => {
     e.preventDefault();
-    const normalized = { ...formData, price: normalizeUnknownPrice(formData.price) };
+    const normalizedSupplier = String(formData.supplier || "").trim();
+    const normalized = { ...formData, supplier: normalizedSupplier, price: normalizeUnknownPrice(formData.price) };
     if (editingId) setIngredients(ingredients.map(ing => ing.id === editingId ? { ...normalized, id: editingId } : ing));
     else setIngredients([...ingredients, { ...normalized, id: Math.max(...ingredients.map(i => i.id), 0) + 1 }]);
+
+    if (normalizedSupplier) {
+      const existingSuppliers = (Array.isArray(suppliers) ? suppliers : []).map((s, idx) => (
+        typeof s === "string"
+          ? { id: `legacy-${idx}-${s}`, name: String(s || "").trim(), phone: "", email: "", address: "", contact: "", notes: "" }
+          : {
+            id: s.id ?? `supplier-${idx}`,
+            name: String(s.name || s.nom || "").trim(),
+            phone: String(s.phone || "").trim(),
+            email: String(s.email || "").trim(),
+            address: String(s.address || "").trim(),
+            contact: String(s.contact || "").trim(),
+            notes: String(s.notes || "").trim(),
+          }
+      )).filter((s) => s.name);
+
+      const exists = existingSuppliers.some((s) => s.name.toLocaleLowerCase("fr") === normalizedSupplier.toLocaleLowerCase("fr"));
+      if (!exists) {
+        setSuppliers([
+          ...existingSuppliers,
+          { id: Date.now(), name: normalizedSupplier, phone: "", email: "", address: "", contact: "", notes: "" },
+        ]);
+      }
+    }
+
     resetForm();
   };
 
@@ -400,7 +427,7 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
                     <td className="px-6 py-4 font-medium">{ing.name}</td>
                     <td className="px-6 py-4 text-gray-600">{formatPriceDisplay(ing.price)}</td>
                     <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
-                    <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
+                    <td className="px-6 py-4 text-gray-600">{ing.supplier || "Fournisseur à saisir"}</td>
                     {isChef && <td className="px-6 py-4 text-sm"><button onClick={() => { setFormData(ing); setEditingId(ing.id); setShowForm(true); }} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => window.confirm("Supprimer cet ingrédient ?") && setIngredients(ingredients.filter(i => i.id !== ing.id))} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
                   </tr>
                 );
@@ -446,7 +473,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" list="suppliers-list" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" /><datalist id="suppliers-list">{availableSuppliers.map((supplierName) => <option key={supplierName} value={supplierName} />)}</datalist></div>
           <div className="flex space-x-3 pt-4"><button type="submit" className="flex-1 bg-[#1A3A4A] text-white py-3 rounded-lg font-medium">Ajouter</button><button type="button" onClick={onClose} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg">Annuler</button></div>
         </form>
       </div>
@@ -1304,6 +1331,16 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     searchText: currentIng.searchText,
   });
 
+
+  const availableSuppliers = useMemo(() => {
+    const managed = (Array.isArray(suppliers) ? suppliers : [])
+      .map((s) => (typeof s === "string" ? s : (s?.name || s?.nom || "")))
+      .map((n) => String(n || "").trim())
+      .filter(Boolean);
+    const legacy = (ingredients || []).map((ing) => String(ing?.supplier || "").trim()).filter(Boolean);
+    return Array.from(new Set([...managed, ...legacy])).sort((a, b) => a.localeCompare(b, "fr"));
+  }, [suppliers, ingredients]);
+
   const hasCategorySelection = categoryFilter !== null;
 
   const filteredRecipes = hasCategorySelection
@@ -1769,7 +1806,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 };
 
 
-const ProducersView = ({ ingredients, suppliersRuntime, suppliers, setSuppliers, isChef }) => {
+const ProducersView = ({ ingredients, setIngredients, suppliersRuntime, suppliers, setSuppliers, isChef }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const emptySupplierForm = { name: "", phone: "", email: "", address: "", contact: "", notes: "" };
@@ -1875,6 +1912,7 @@ const ProducersView = ({ ingredients, suppliersRuntime, suppliers, setSuppliers,
       typeof s === "string" ? { id: `legacy-${idx}-${s}`, name: s.trim() } : s
     ));
     setSuppliers(managedSuppliers.filter((s) => String(s.id) !== String(supplier.id)));
+    setIngredients((ingredients || []).map((ing) => String(ing?.supplier || "").trim() === String(supplier?.name || "").trim() ? { ...ing, supplier: "" } : ing));
   };
 
   return (
@@ -2008,10 +2046,10 @@ const App = () => {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="pb-12">
-        {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} isChef={isChef} />}
+        {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
-        {activeTab === "producers" && <ProducersView ingredients={ingredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
+        {activeTab === "producers" && <ProducersView ingredients={ingredients} setIngredients={setIngredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
       </main>
     </div>
