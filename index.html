@@ -1267,7 +1267,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("Tous");
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const [detailRecipe, setDetailRecipe] = useState(null);
   const [adaptRecipe, setAdaptRecipe] = useState(null);
   const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
@@ -1304,12 +1304,16 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     searchText: currentIng.searchText,
   });
 
-  const filteredRecipes = filterRecipesForList({
-    recipes: normalizedRecipes,
-    searchTerm,
-    sectionType,
-    categoryFilter,
-  });
+  const hasCategorySelection = categoryFilter !== null;
+
+  const filteredRecipes = hasCategorySelection
+    ? filterRecipesForList({
+      recipes: normalizedRecipes,
+      searchTerm,
+      sectionType,
+      categoryFilter,
+    })
+    : [];
   const theoreticalYield = useMemo(
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
     [formData.directIngredients]
@@ -1721,7 +1725,13 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </form>
       )}
 
-      {!showForm && (
+      {!showForm && !hasCategorySelection && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-8 text-center text-gray-500">
+          Sélectionnez une catégorie pour afficher les recettes.
+        </div>
+      )}
+
+      {!showForm && hasCategorySelection && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
