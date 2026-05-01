@@ -1465,20 +1465,18 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const handleAddNewIngredient = (newIngredient) => {
     setIngredients([...ingredients, newIngredient]);
-    if (currentIng.quantity) {
-      const line = buildDirectIngredientLine({
-        ingredient: newIngredient,
-        ingredientId: newIngredient.id,
-        quantity: currentIng.quantity,
-        unit: currentIng.unit || "Gramme",
-        wasteCoeff: currentIng.wasteCoeff,
-      });
-      if (!line) return;
-      setFormData({
-        ...formData,
-        directIngredients: [...formData.directIngredients, line]
-      });
-    }
+    const line = buildDirectIngredientLine({
+      ingredient: newIngredient,
+      ingredientId: newIngredient.id,
+      quantity: currentIng.quantity || 1,
+      unit: currentIng.unit || newIngredient.unit || "Gramme",
+      wasteCoeff: currentIng.wasteCoeff || 1,
+    });
+    if (!line) return;
+    setFormData({
+      ...formData,
+      directIngredients: [...formData.directIngredients, line]
+    });
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
   };
 
