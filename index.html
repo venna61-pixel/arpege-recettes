@@ -308,6 +308,14 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
     return ["Tous", ...categories];
   }, [ingredients]);
 
+  const ingredientSupplierSuggestions = useMemo(() => (
+    Array.from(new Set(
+      (ingredients || [])
+        .map((ing) => String(ing?.supplier || "").trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, "fr"))
+  ), [ingredients]);
+
 
   const hasCategorySelection = categoryFilter !== null;
 
@@ -395,7 +403,7 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" list="ingredient-suppliers-list" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" /><datalist id="ingredient-suppliers-list">{ingredientSupplierSuggestions.map((supplierName) => <option key={supplierName} value={supplierName} />)}</datalist></div>
           </div>
           <div className="mt-4 flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Ajouter"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
         </form>
@@ -1330,16 +1338,6 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     ingredients,
     searchText: currentIng.searchText,
   });
-
-
-  const availableSuppliers = useMemo(() => {
-    const managed = (Array.isArray(suppliers) ? suppliers : [])
-      .map((s) => (typeof s === "string" ? s : (s?.name || s?.nom || "")))
-      .map((n) => String(n || "").trim())
-      .filter(Boolean);
-    const legacy = (ingredients || []).map((ing) => String(ing?.supplier || "").trim()).filter(Boolean);
-    return Array.from(new Set([...managed, ...legacy])).sort((a, b) => a.localeCompare(b, "fr"));
-  }, [suppliers, ingredients]);
 
   const hasCategorySelection = categoryFilter !== null;
 
