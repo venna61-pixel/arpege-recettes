@@ -1483,14 +1483,19 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
 
   const handleAddNewIngredient = (payload) => {
     const newIngredient = payload?.ingredient || payload;
+    if (!newIngredient || newIngredient.id == null) return;
     const usage = payload?.recipeUsage || {};
+    const normalizedQuantity = Number(usage.recipeQuantity);
+    const normalizedWasteCoeff = Number(usage.recipeWasteCoeff);
+    const resolvedQuantity = Number.isFinite(normalizedQuantity) && normalizedQuantity > 0 ? normalizedQuantity : (Number(currentIng.quantity) > 0 ? Number(currentIng.quantity) : 1);
+    const resolvedWasteCoeff = Number.isFinite(normalizedWasteCoeff) && normalizedWasteCoeff > 0 ? normalizedWasteCoeff : (Number(currentIng.wasteCoeff) > 0 ? Number(currentIng.wasteCoeff) : 1);
     setIngredients([...ingredients, newIngredient]);
     const line = buildDirectIngredientLine({
       ingredient: newIngredient,
       ingredientId: newIngredient.id,
-      quantity: usage.recipeQuantity || currentIng.quantity || 1,
-      unit: usage.recipeUnit || currentIng.unit || newIngredient.unit || "Gramme",
-      wasteCoeff: usage.recipeWasteCoeff || currentIng.wasteCoeff || 1,
+      quantity: resolvedQuantity,
+      unit: usage.recipeUnit || newIngredient.unit || currentIng.unit || "Gramme",
+      wasteCoeff: resolvedWasteCoeff,
     });
     if (!line) return;
     setFormData({
@@ -1760,12 +1765,15 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               <div>
                   <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
                   <div className="space-y-2">
-                  {formData.directIngredients.map((ing, idx) => (
+                  {formData.directIngredients.map((ing, idx) => {
+                    const linkedIngredient = ingredients.find((i) => Number(i.id) === Number(ing?.ingredientId));
+                    const isOrphanIngredient = !linkedIngredient;
+                    return (
                     <div key={idx} className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
                       {editingDirectIndex === idx ? (
                         <>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-[#1A3A4A]">{ing.name}</span>
+                            <span className="font-medium text-[#1A3A4A]">{isOrphanIngredient ? <span className="text-amber-600 italic">Ingrédient supprimé du registre</span> : ing.name}</span>
                             <div className="flex gap-2">
                               <button type="button" onClick={() => { setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">OK</button>
                               <button type="button" onClick={() => { if (directSnapshot != null) updateDirectIngredientLine(idx, directSnapshot); setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Annuler</button>
@@ -1781,7 +1789,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                       ) : (
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium text-[#1A3A4A]">{ing.name}</div>
+                            <div className={`font-medium ${isOrphanIngredient ? "text-amber-600 italic" : "text-[#1A3A4A]"}`}>{isOrphanIngredient ? "Ingrédient supprimé du registre" : ing.name}</div>
                             <div className="text-xs text-gray-600">{ing.quantity} {ing.unit} • perte {ing.wasteCoeff}</div>
                           </div>
                           <div className="flex gap-2">
@@ -1791,7 +1799,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                   </div>
                 </div>
               {formData.recipeType === "final" && (
