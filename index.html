@@ -296,23 +296,29 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("Tous");
   const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
 
-  const filteredIngredients = ingredients.filter(ing => String(ing?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || String(ing?.category || "").toLowerCase().includes(searchTerm.toLowerCase()));
-  const groupedIngredients = useMemo(() => {
-    const grouped = new Map();
-    for (const ingredient of filteredIngredients) {
-      const category = String(ingredient?.category || "").trim() || "Non classé";
-      if (!grouped.has(category)) grouped.set(category, []);
-      grouped.get(category).push(ingredient);
-    }
-    return Array.from(grouped.entries())
-      .map(([category, items]) => ({
-        category,
-        items: [...items].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""), "fr")),
-      }))
-      .sort((a, b) => a.category.localeCompare(b.category, "fr"));
-  }, [filteredIngredients]);
+  const availableCategories = useMemo(() => {
+    const categories = Array.from(new Set(
+      ingredients
+        .map((ing) => String(ing?.category || "").trim() || "Non classé")
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, "fr"));
+    return ["Tous", ...categories];
+  }, [ingredients]);
+
+  const filteredIngredients = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
+    return ingredients
+      .filter((ing) => {
+        const normalizedCategory = String(ing?.category || "").trim() || "Non classé";
+        const categoryMatch = categoryFilter === "Tous" || normalizedCategory === categoryFilter;
+        const searchMatch = String(ing?.name || "").toLowerCase().includes(lowerSearch) || normalizedCategory.toLowerCase().includes(lowerSearch);
+        return categoryMatch && searchMatch;
+      })
+      .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""), "fr"));
+  }, [ingredients, categoryFilter, searchTerm]);
 
   const resetForm = () => {
     setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
@@ -335,6 +341,22 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
       {!showForm && (
         <div className="mb-6"><input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" /></div>
       )}
+      {!showForm && (
+        <div className="mb-6 overflow-x-auto">
+          <div className="flex gap-2 min-w-max">
+            {availableCategories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setCategoryFilter(category)}
+                className={`px-3 py-2 rounded-full text-sm font-medium border transition-colors ${categoryFilter === category ? "bg-[#C8956C] text-white border-[#C8956C]" : "bg-white text-gray-700 border-gray-300 hover:bg-amber-50"}`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100">
           <h3 className="text-lg font-semibold mb-4 text-[#1A3A4A]">{editingId ? "Modifier" : "Nouvel ingrédient"}</h3>
@@ -349,42 +371,39 @@ const IngredientsManager = ({ ingredients, setIngredients, isChef }) => {
         </form>
       )}
       {!showForm && (
-        <div className="space-y-5">
-          {groupedIngredients.map(group => (
-            <section key={group.category} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#1A3A4A]">{group.category}</h3>
-                <span className="text-xs text-gray-500">{group.items.length} ingrédient(s)</span>
-              </div>
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>
-                    {isChef && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fournisseur</th>
+                {isChef && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredIngredients.map(ing => {
+                const normalizedCategory = String(ing?.category || "").trim() || "Non classé";
+                return (
+                  <tr key={ing.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{normalizedCategory}</span></td>
+                    <td className="px-6 py-4 font-medium">{ing.name}</td>
+                    <td className="px-6 py-4 text-gray-600">{formatPriceDisplay(ing.price)}</td>
+                    <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
+                    <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
+                    {isChef && <td className="px-6 py-4 text-sm"><button onClick={() => { setFormData(ing); setEditingId(ing.id); setShowForm(true); }} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => window.confirm("Supprimer cet ingrédient ?") && setIngredients(ingredients.filter(i => i.id !== ing.id))} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {group.items.map(ing => (
-                    <tr key={ing.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium">{ing.name}</td>
-                      <td className="px-6 py-4 text-gray-600">{formatPriceDisplay(ing.price)}</td>
-                      <td className="px-6 py-4 text-gray-600">{ing.unit}</td>
-                      <td className="px-6 py-4 text-gray-600">{ing.supplier}</td>
-                      {isChef && <td className="px-6 py-4 text-sm"><button onClick={() => { setFormData(ing); setEditingId(ing.id); setShowForm(true); }} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => window.confirm("Supprimer cet ingrédient ?") && setIngredients(ingredients.filter(i => i.id !== ing.id))} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          ))}
-          {groupedIngredients.length === 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-gray-500">
-              Aucun ingrédient trouvé.
-            </div>
-          )}
+                );
+              })}
+              {filteredIngredients.length === 0 && (
+                <tr>
+                  <td colSpan={isChef ? 6 : 5} className="px-6 py-6 text-gray-500 text-center">Aucun ingrédient trouvé.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
