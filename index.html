@@ -1843,8 +1843,11 @@ const ProducersView = ({ ingredients, suppliersRuntime, suppliers, setSuppliers,
         }
     )).filter((s) => s.name);
 
+    const hasExisting = managedSuppliers.some((s) => String(s.id) === String(editingId));
     const next = editingId
-      ? managedSuppliers.map((s) => String(s.id) === String(editingId) ? payload : s)
+      ? (hasExisting
+        ? managedSuppliers.map((s) => String(s.id) === String(editingId) ? payload : s)
+        : [...managedSuppliers, payload])
       : [...managedSuppliers, payload];
 
     setSuppliers(next);
