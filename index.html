@@ -308,6 +308,24 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
     return ["Tous", ...categories];
   }, [ingredients]);
 
+  const ingredientSupplierSuggestions = useMemo(() => (
+    Array.from(new Set(
+      (ingredients || [])
+        .map((ing) => String(ing?.supplier || "").trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, "fr"))
+  ), [ingredients]);
+  const filteredSupplierSuggestions = useMemo(() => {
+    const query = String(formData.supplier || "").trim().toLocaleLowerCase("fr");
+    if (!query) return [];
+    return ingredientSupplierSuggestions.filter((supplierName) => {
+      const normalizedSupplier = String(supplierName || "").trim();
+      if (!normalizedSupplier) return false;
+      if (normalizedSupplier.toLocaleLowerCase("fr") === query) return false;
+      return normalizedSupplier.toLocaleLowerCase("fr").includes(query);
+    });
+  }, [ingredientSupplierSuggestions, formData.supplier]);
+
 
   const hasCategorySelection = categoryFilter !== null;
 
@@ -395,7 +413,7 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div className="relative"><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" />{filteredSupplierSuggestions.length > 0 && (<div className="absolute z-10 mt-1 w-full bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">{filteredSupplierSuggestions.map((supplierName) => (<button key={supplierName} type="button" onClick={() => setFormData({ ...formData, supplier: supplierName })} className="w-full text-left px-3 py-2 hover:bg-gray-100">{supplierName}</button>))}</div>)}</div>
           </div>
           <div className="mt-4 flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg">{editingId ? "Mettre à jour" : "Ajouter"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
         </form>
@@ -445,9 +463,25 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
   );
 };
 
-const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
+const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSuggestions = [] }) => {
   const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
-  useEffect(() => { if (isOpen) setFormData(prev => ({ ...prev, name: suggestedName || prev.name })); }, [isOpen, suggestedName]);
+  const [recipeUsage, setRecipeUsage] = useState({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
+  const filteredSupplierSuggestions = useMemo(() => {
+    const query = String(formData.supplier || "").trim().toLocaleLowerCase("fr");
+    if (!query) return [];
+    return (Array.isArray(supplierSuggestions) ? supplierSuggestions : []).filter((supplierName) => {
+      const normalizedSupplier = String(supplierName || "").trim();
+      if (!normalizedSupplier) return false;
+      if (normalizedSupplier.toLocaleLowerCase("fr") === query) return false;
+      return normalizedSupplier.toLocaleLowerCase("fr").includes(query);
+    });
+  }, [supplierSuggestions, formData.supplier]);
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(prev => ({ ...prev, name: suggestedName || prev.name }));
+      setRecipeUsage({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
+    }
+  }, [isOpen, suggestedName]);
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
@@ -455,8 +489,12 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
   if (!isOpen) return null;
   const handleSubmit = (e) => {
     e.preventDefault();
-    onAdd({ ...formData, id: Date.now(), price: normalizeUnknownPrice(formData.price) });
+    onAdd({
+      ingredient: { ...formData, id: Date.now(), price: normalizeUnknownPrice(formData.price) },
+      recipeUsage,
+    });
     setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
+    setRecipeUsage({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
     onClose();
   };
   return (
@@ -473,7 +511,15 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName }) => {
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" list="suppliers-list" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" /><datalist id="suppliers-list">{availableSuppliers.map((supplierName) => <option key={supplierName} value={supplierName} />)}</datalist></div>
+          <div className="relative"><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" />{filteredSupplierSuggestions.length > 0 && (<div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">{filteredSupplierSuggestions.map((supplierName) => (<button key={supplierName} type="button" onClick={() => setFormData({ ...formData, supplier: supplierName })} className="w-full text-left px-4 py-2 hover:bg-amber-50">{supplierName}</button>))}</div>)}</div>
+          <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+            <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Utilisation dans cette recette</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label><input type="number" step="any" min="0" value={recipeUsage.recipeQuantity} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeQuantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="1" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label><select value={recipeUsage.recipeUnit} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300"><option value="">Unité d'achat (par défaut)</option>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label><input type="number" step="0.01" min="0" value={recipeUsage.recipeWasteCoeff} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeWasteCoeff: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="1" /></div>
+            </div>
+          </div>
           <div className="flex space-x-3 pt-4"><button type="submit" className="flex-1 bg-[#1A3A4A] text-white py-3 rounded-lg font-medium">Ajouter</button><button type="button" onClick={onClose} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg">Annuler</button></div>
         </form>
       </div>
@@ -1291,6 +1337,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
 
 const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base" }) => {
   const normalizedRecipes = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
+  const procedureTextareaRef = React.useRef(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1302,6 +1349,14 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [editingBaseIndex, setEditingBaseIndex] = useState(null);
   const [directSnapshot, setDirectSnapshot] = useState(null);
   const [baseSnapshot, setBaseSnapshot] = useState(null);
+  const parseLocalizedNumberInput = (rawValue) => {
+    const value = String(rawValue ?? "");
+    if (value === "") return "";
+    const normalized = value.replace(",", ".");
+    if (normalized.endsWith(".")) return normalized;
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : "";
+  };
 
   const emptyForm = {
     recipeType: sectionType,
@@ -1330,16 +1385,13 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     ingredients,
     searchText: currentIng.searchText,
   });
-
-
-  const availableSuppliers = useMemo(() => {
-    const managed = (Array.isArray(suppliers) ? suppliers : [])
-      .map((s) => (typeof s === "string" ? s : (s?.name || s?.nom || "")))
-      .map((n) => String(n || "").trim())
-      .filter(Boolean);
-    const legacy = (ingredients || []).map((ing) => String(ing?.supplier || "").trim()).filter(Boolean);
-    return Array.from(new Set([...managed, ...legacy])).sort((a, b) => a.localeCompare(b, "fr"));
-  }, [suppliers, ingredients]);
+  const supplierSuggestions = useMemo(() => (
+    Array.from(new Set(
+      (ingredients || [])
+        .map((ing) => String(ing?.supplier || "").trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, "fr"))
+  ), [ingredients]);
 
   const hasCategorySelection = categoryFilter !== null;
 
@@ -1437,22 +1489,27 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     setCurrentBase({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: currentBase.usageMode, portionCount: "", searchText: "", categoryFilter: currentBase.categoryFilter });
   };
 
-  const handleAddNewIngredient = (newIngredient) => {
+  const handleAddNewIngredient = (payload) => {
+    const newIngredient = payload?.ingredient || payload;
+    if (!newIngredient || newIngredient.id == null) return;
+    const usage = payload?.recipeUsage || {};
+    const normalizedQuantity = Number(usage.recipeQuantity);
+    const normalizedWasteCoeff = Number(usage.recipeWasteCoeff);
+    const resolvedQuantity = Number.isFinite(normalizedQuantity) && normalizedQuantity > 0 ? normalizedQuantity : (Number(currentIng.quantity) > 0 ? Number(currentIng.quantity) : 1);
+    const resolvedWasteCoeff = Number.isFinite(normalizedWasteCoeff) && normalizedWasteCoeff > 0 ? normalizedWasteCoeff : (Number(currentIng.wasteCoeff) > 0 ? Number(currentIng.wasteCoeff) : 1);
     setIngredients([...ingredients, newIngredient]);
-    if (currentIng.quantity) {
-      const line = buildDirectIngredientLine({
-        ingredient: newIngredient,
-        ingredientId: newIngredient.id,
-        quantity: currentIng.quantity,
-        unit: currentIng.unit || "Gramme",
-        wasteCoeff: currentIng.wasteCoeff,
-      });
-      if (!line) return;
-      setFormData({
-        ...formData,
-        directIngredients: [...formData.directIngredients, line]
-      });
-    }
+    const line = buildDirectIngredientLine({
+      ingredient: newIngredient,
+      ingredientId: newIngredient.id,
+      quantity: resolvedQuantity,
+      unit: usage.recipeUnit || newIngredient.unit || currentIng.unit || "Gramme",
+      wasteCoeff: resolvedWasteCoeff,
+    });
+    if (!line) return;
+    setFormData({
+      ...formData,
+      directIngredients: [...formData.directIngredients, line]
+    });
     setCurrentIng({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 1.0, searchText: "" });
   };
 
@@ -1506,9 +1563,51 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     setBaseSnapshot(null);
   };
 
+  const replaceProcedureSelection = ({ prefix = "", suffix = "", placeholder = "" }) => {
+    const textarea = procedureTextareaRef.current;
+    const currentValue = String(formData.procedure || "");
+    const start = textarea ? textarea.selectionStart : currentValue.length;
+    const end = textarea ? textarea.selectionEnd : currentValue.length;
+    const selectedText = currentValue.slice(start, end);
+    const fallbackText = selectedText || placeholder;
+    const inserted = `${prefix}${fallbackText}${suffix}`;
+    const nextValue = `${currentValue.slice(0, start)}${inserted}${currentValue.slice(end)}`;
+    setFormData({ ...formData, procedure: nextValue });
+
+    const nextCursorStart = start + prefix.length;
+    const nextCursorEnd = nextCursorStart + fallbackText.length;
+    window.setTimeout(() => {
+      if (!procedureTextareaRef.current) return;
+      procedureTextareaRef.current.focus();
+      procedureTextareaRef.current.setSelectionRange(nextCursorStart, nextCursorEnd);
+    }, 0);
+  };
+
+  const applyProcedureBulletList = () => {
+    const textarea = procedureTextareaRef.current;
+    const currentValue = String(formData.procedure || "");
+    const start = textarea ? textarea.selectionStart : currentValue.length;
+    const end = textarea ? textarea.selectionEnd : currentValue.length;
+    const lineStart = currentValue.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const lineEndIndex = currentValue.indexOf("\n", end);
+    const blockEnd = lineEndIndex === -1 ? currentValue.length : lineEndIndex;
+    const block = currentValue.slice(lineStart, blockEnd);
+    const target = block || "Nouvel élément";
+    const transformed = target.split("\n").map((line) => line.startsWith("- ") ? line : `- ${line}`).join("\n");
+    const nextValue = `${currentValue.slice(0, lineStart)}${transformed}${currentValue.slice(blockEnd)}`;
+    setFormData({ ...formData, procedure: nextValue });
+    const selectionStart = lineStart;
+    const selectionEnd = lineStart + transformed.length;
+    window.setTimeout(() => {
+      if (!procedureTextareaRef.current) return;
+      procedureTextareaRef.current.focus();
+      procedureTextareaRef.current.setSelectionRange(selectionStart, selectionEnd);
+    }, 0);
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
-      <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} />
+      <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} supplierSuggestions={supplierSuggestions} />
       <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
       <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
 
@@ -1551,7 +1650,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement quantité</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="number" min="0.01" step="0.01" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Rendement produit</label><input type="text" inputMode="decimal" value={formData.outputQuantity} onChange={(e) => setFormData({ ...formData, outputQuantity: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité de rendement</label><select value={formData.outputUnit} onChange={(e) => setFormData({ ...formData, outputUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{Array.from(new Set([...YIELD_UNITS, formData.outputUnit].filter(Boolean))).map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
                 </div>
                 <div className="mt-3 text-sm">
@@ -1574,7 +1673,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             )}
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Rendement portions/couverts</h4>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts (1 couvert = 1 portion)</label><input type="number" min="1" step="0.01" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Couverts (1 couvert = 1 portion)</label><input type="text" inputMode="decimal" value={formData.covers} onChange={(e) => setFormData({ ...formData, covers: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
             </div>
           </div>
 
@@ -1604,9 +1703,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label><input type="number" step="any" value={currentIng.quantity} onChange={(e) => setCurrentIng({ ...currentIng, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label><input type="text" inputMode="decimal" value={currentIng.quantity} onChange={(e) => setCurrentIng({ ...currentIng, quantity: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label><select value={currentIng.unit} onChange={(e) => setCurrentIng({ ...currentIng, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label><input type="number" step="0.01" value={currentIng.wasteCoeff} onChange={(e) => setCurrentIng({ ...currentIng, wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label><input type="text" inputMode="decimal" value={currentIng.wasteCoeff} onChange={(e) => setCurrentIng({ ...currentIng, wasteCoeff: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
               <div className="flex items-end"><button type="button" onClick={() => addIngredientToRecipe()} disabled={!currentIng.ingredientId || !currentIng.quantity} className={`w-full py-2 rounded-lg font-medium ${currentIng.ingredientId && currentIng.quantity ? "bg-[#1A3A4A] text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}>Ajouter</button></div>
             </div>
           </div>
@@ -1655,12 +1754,12 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {currentBase.usageMode === "portion" ? (
                   <>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Portions / couverts utilisés</label><input type="number" step="any" value={currentBase.portionCount} onChange={(e) => setCurrentBase({ ...currentBase, portionCount: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Portions / couverts utilisés</label><input type="text" inputMode="decimal" value={currentBase.portionCount} onChange={(e) => setCurrentBase({ ...currentBase, portionCount: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
                     <div className="text-xs text-gray-600 flex items-end">Référence : couverts ({selectedBaseRecipeForUsage ? (selectedBaseRecipeForUsage.covers || 0) : "?"}) de la recette de base.</div>
                   </>
                 ) : (
                   <>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="number" step="any" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité utilisée</label><input type="text" inputMode="decimal" value={currentBase.quantity} onChange={(e) => setCurrentBase({ ...currentBase, quantity: parseLocalizedNumberInput(e.target.value) })} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité utilisée</label><select value={currentBase.unit} onChange={(e) => setCurrentBase({ ...currentBase, unit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300">{baseUnitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
                   </>
                 )}
@@ -1674,12 +1773,15 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               <div>
                   <h4 className="font-medium text-gray-700 mb-2">Lignes directes ({formData.directIngredients.length})</h4>
                   <div className="space-y-2">
-                  {formData.directIngredients.map((ing, idx) => (
+                  {formData.directIngredients.map((ing, idx) => {
+                    const linkedIngredient = ingredients.find((i) => Number(i.id) === Number(ing?.ingredientId));
+                    const isOrphanIngredient = !linkedIngredient;
+                    return (
                     <div key={idx} className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
                       {editingDirectIndex === idx ? (
                         <>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-[#1A3A4A]">{ing.name}</span>
+                            <span className="font-medium text-[#1A3A4A]">{isOrphanIngredient ? <span className="text-amber-600 italic">Ingrédient supprimé du registre</span> : ing.name}</span>
                             <div className="flex gap-2">
                               <button type="button" onClick={() => { setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">OK</button>
                               <button type="button" onClick={() => { if (directSnapshot != null) updateDirectIngredientLine(idx, directSnapshot); setEditingDirectIndex(null); setDirectSnapshot(null); }} className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Annuler</button>
@@ -1687,15 +1789,15 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                             </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="number" step="any" value={ing.quantity} onChange={(e) => updateDirectIngredientLine(idx, { quantity: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                            <div><label className="block text-xs text-gray-600 mb-1">Quantité</label><input type="text" inputMode="decimal" value={ing.quantity} onChange={(e) => updateDirectIngredientLine(idx, { quantity: parseLocalizedNumberInput(e.target.value) })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
                             <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={ing.unit} onChange={(e) => updateDirectIngredientLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
-                            <div><label className="block text-xs text-gray-600 mb-1">Coeff. perte</label><input type="number" step="0.01" value={ing.wasteCoeff} onChange={(e) => updateDirectIngredientLine(idx, { wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
+                            <div><label className="block text-xs text-gray-600 mb-1">Coeff. perte</label><input type="text" inputMode="decimal" value={ing.wasteCoeff} onChange={(e) => updateDirectIngredientLine(idx, { wasteCoeff: parseLocalizedNumberInput(e.target.value) })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
                           </div>
                         </>
                       ) : (
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium text-[#1A3A4A]">{ing.name}</div>
+                            <div className={`font-medium ${isOrphanIngredient ? "text-amber-600 italic" : "text-[#1A3A4A]"}`}>{isOrphanIngredient ? "Ingrédient supprimé du registre" : ing.name}</div>
                             <div className="text-xs text-gray-600">{ing.quantity} {ing.unit} • perte {ing.wasteCoeff}</div>
                           </div>
                           <div className="flex gap-2">
@@ -1705,7 +1807,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                   </div>
                 </div>
               {formData.recipeType === "final" && (
@@ -1756,8 +1859,18 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             </div>
           )}
 
-          <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]"><h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4><textarea value={formData.procedure} onChange={(e) => setFormData({ ...formData, procedure: e.target.value })} placeholder="Décrivez les étapes de préparation..." className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 resize-none" /></div>
-          <div className="flex items-center space-x-4"><label className="text-sm font-medium text-gray-700">Coeff. perte global :</label><input type="number" step="0.01" value={formData.wasteCoeff} onChange={(e) => setFormData({ ...formData, wasteCoeff: parseFloat(e.target.value) || 1 })} className="w-24 px-3 py-2 rounded-lg border border-gray-300" /></div>
+          <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">
+            <h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button type="button" onClick={() => replaceProcedureSelection({ prefix: "**", suffix: "**", placeholder: "texte" })} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">Gras</button>
+              <button type="button" onClick={() => replaceProcedureSelection({ prefix: "*", suffix: "*", placeholder: "texte" })} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">Italique</button>
+              <button type="button" onClick={() => replaceProcedureSelection({ prefix: "__", suffix: "__", placeholder: "texte" })} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">Souligné</button>
+              <button type="button" onClick={() => replaceProcedureSelection({ prefix: "[red]", suffix: "[/red]", placeholder: "texte" })} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-red-700 hover:bg-red-50">Rouge</button>
+              <button type="button" onClick={applyProcedureBulletList} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">Puce</button>
+            </div>
+            <textarea ref={procedureTextareaRef} value={formData.procedure} onChange={(e) => setFormData({ ...formData, procedure: e.target.value })} placeholder="Décrivez les étapes de préparation..." className="w-full h-32 px-4 py-3 rounded-lg border border-gray-300 resize-none" />
+          </div>
+          <div className="flex items-center space-x-4"><label className="text-sm font-medium text-gray-700">Coeff. perte global :</label><input type="text" inputMode="decimal" value={formData.wasteCoeff} onChange={(e) => setFormData({ ...formData, wasteCoeff: parseLocalizedNumberInput(e.target.value) })} className="w-24 px-3 py-2 rounded-lg border border-gray-300" /></div>
           <div className="flex space-x-3"><button type="submit" className="bg-[#1A3A4A] text-white px-6 py-2 rounded-lg font-medium">{editingId ? "Mettre à jour" : "Créer la recette"}</button><button type="button" onClick={resetForm} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg">Annuler</button></div>
         </form>
       )}
