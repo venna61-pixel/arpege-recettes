@@ -2164,10 +2164,26 @@ const CostsView = ({ recipes, ingredients }) => {
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200"><h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3></div>
-        <table className="w-full">
-          <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sous-catégories</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût total</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût/couvert</th></tr></thead>
-          <tbody className="divide-y divide-gray-200">{enriched.map(recipe => <tr key={recipe.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td><td className="px-6 py-4 text-gray-600">{recipe.recipeType === "base" ? "Base" : "Finale"}</td><td className="px-6 py-4 text-gray-600">{recipe.categories.join(", ")}</td><td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</td><td className="px-6 py-4 text-gray-600">{recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</td></tr>)}</tbody>
-        </table>
+        <div className="block sm:hidden p-4 space-y-3">
+          {enriched.map(recipe => (
+            <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="font-semibold text-[#1A3A4A] mb-2">{recipe.name}</div>
+              <div className="space-y-1 text-sm text-gray-700">
+                <div><span className="font-medium">Type :</span> {recipe.recipeType === "base" ? "Base" : "Finale"}</div>
+                <div><span className="font-medium">Sous-catégories :</span> {recipe.categories.join(", ")}</div>
+                <div><span className="font-medium">Statut coût :</span> {recipe.status.valid ? "Calculable" : "Non calculable"}</div>
+                <div><span className="font-medium">Coût total :</span> <span className="font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</span></div>
+                <div><span className="font-medium">Coût/portion :</span> {recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden sm:block">
+          <table className="w-full">
+            <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sous-catégories</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût total</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût/couvert</th></tr></thead>
+            <tbody className="divide-y divide-gray-200">{enriched.map(recipe => <tr key={recipe.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td><td className="px-6 py-4 text-gray-600">{recipe.recipeType === "base" ? "Base" : "Finale"}</td><td className="px-6 py-4 text-gray-600">{recipe.categories.join(", ")}</td><td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</td><td className="px-6 py-4 text-gray-600">{recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</td></tr>)}</tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
