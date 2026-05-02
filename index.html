@@ -2091,36 +2091,55 @@ const ProducersView = ({ ingredients, setIngredients, suppliersRuntime, supplier
         </form>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="space-y-4">
         {normalizedSuppliers.length === 0 ? (
-          <div className="p-6 text-gray-500">Aucun fournisseur renseigné pour le moment.</div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-gray-500">Aucun fournisseur renseigné pour le moment.</div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                {isChef && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
+          <>
+            <div className="block sm:hidden space-y-3">
               {normalizedSuppliers.map((supplier) => (
-                <tr key={supplier.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 font-medium text-[#1A3A4A]">{supplier.name}</td>
-                  <td className="px-4 py-4 text-gray-600">{supplier.phone || "—"}</td>
-                  <td className="px-4 py-4 text-gray-600">{supplier.email || "—"}</td>
-                  <td className="px-4 py-4 text-gray-600">{supplier.address || "—"}</td>
-                  <td className="px-4 py-4 text-gray-600">{supplier.contact || "—"}</td>
-                  <td className="px-4 py-4 text-gray-600">{supplier.notes || "—"}</td>
-                  {isChef && <td className="px-4 py-4 text-sm"><button onClick={() => handleEdit(supplier)} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => handleDelete(supplier)} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
-                </tr>
+                <div key={supplier.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                  <div className="font-semibold text-[#1A3A4A] mb-2">{supplier.name}</div>
+                  <div className="space-y-1 text-sm text-gray-700">
+                    <div><span className="font-medium">Téléphone :</span> {supplier.phone || "—"}</div>
+                    <div><span className="font-medium">Email :</span> {supplier.email || "—"}</div>
+                    <div><span className="font-medium">Adresse :</span> {supplier.address || "—"}</div>
+                    <div><span className="font-medium">Contact :</span> {supplier.contact || "—"}</div>
+                    <div><span className="font-medium">Notes :</span> {supplier.notes || "—"}</div>
+                  </div>
+                  {isChef && <div className="mt-3 flex gap-3 text-sm"><button onClick={() => handleEdit(supplier)} className="text-[#1A3A4A] hover:text-[#C8956C]">Modifier</button><button onClick={() => handleDelete(supplier)} className="text-red-600 hover:text-red-800">Supprimer</button></div>}
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                    {isChef && <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {normalizedSuppliers.map((supplier) => (
+                    <tr key={supplier.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 font-medium text-[#1A3A4A]">{supplier.name}</td>
+                      <td className="px-4 py-4 text-gray-600">{supplier.phone || "—"}</td>
+                      <td className="px-4 py-4 text-gray-600">{supplier.email || "—"}</td>
+                      <td className="px-4 py-4 text-gray-600">{supplier.address || "—"}</td>
+                      <td className="px-4 py-4 text-gray-600">{supplier.contact || "—"}</td>
+                      <td className="px-4 py-4 text-gray-600">{supplier.notes || "—"}</td>
+                      {isChef && <td className="px-4 py-4 text-sm"><button onClick={() => handleEdit(supplier)} className="text-[#1A3A4A] hover:text-[#C8956C] mr-3">Modifier</button><button onClick={() => handleDelete(supplier)} className="text-red-600 hover:text-red-800">Supprimer</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
