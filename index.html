@@ -498,7 +498,8 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
 
 const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSuggestions = [] }) => {
   const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
-  const [recipeUsage, setRecipeUsage] = useState({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
+  const [recipeUsage, setRecipeUsage] = useState({ recipeQuantity: "", recipeWasteCoeff: "" });
+  const [recipeUnit, setRecipeUnit] = useState("");
   const filteredSupplierSuggestions = useMemo(() => {
     const query = String(formData.supplier || "").trim().toLocaleLowerCase("fr");
     if (!query) return [];
@@ -512,7 +513,8 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
   useEffect(() => {
     if (isOpen) {
       setFormData(prev => ({ ...prev, name: suggestedName || prev.name }));
-      setRecipeUsage({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
+      setRecipeUsage({ recipeQuantity: "", recipeWasteCoeff: "" });
+      setRecipeUnit("");
     }
   }, [isOpen, suggestedName]);
   useEffect(() => {
@@ -524,10 +526,11 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
     e.preventDefault();
     onAdd({
       ingredient: { ...formData, id: Date.now(), price: normalizeUnknownPrice(formData.price) },
-      recipeUsage,
+      recipeUsage: { ...recipeUsage, recipeUnit },
     });
     setFormData({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "" });
-    setRecipeUsage({ recipeQuantity: "", recipeUnit: "", recipeWasteCoeff: "" });
+    setRecipeUsage({ recipeQuantity: "", recipeWasteCoeff: "" });
+    setRecipeUnit("");
     onClose();
   };
   return (
@@ -549,7 +552,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
             <h4 className="text-sm font-semibold text-[#1A3A4A] mb-3">Utilisation dans cette recette</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label><input type="number" step="any" min="0" value={recipeUsage.recipeQuantity} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeQuantity: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="1" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label><select value={recipeUsage.recipeUnit} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeUnit: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300"><option value="">Unité d'achat (par défaut)</option>{UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité recette</label><select value={recipeUnit} onChange={(e) => setRecipeUnit(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300"><option value="">Unité d'achat (par défaut)</option>{DISPLAY_UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Coeff. perte</label><input type="number" step="0.01" min="0" value={recipeUsage.recipeWasteCoeff} onChange={(e) => setRecipeUsage({ ...recipeUsage, recipeWasteCoeff: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="1" /></div>
             </div>
           </div>
@@ -1524,6 +1527,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     const newIngredient = payload?.ingredient || payload;
     if (!newIngredient || newIngredient.id == null) return;
     const usage = payload?.recipeUsage || {};
+    const recipeUnit = payload?.recipeUsage?.recipeUnit;
     const normalizedQuantity = parseLocalizedNumber(usage.recipeQuantity, NaN);
     const normalizedWasteCoeff = parseLocalizedNumber(usage.recipeWasteCoeff, NaN);
     const resolvedQuantity = Number.isFinite(normalizedQuantity) && normalizedQuantity > 0 ? normalizedQuantity : parseLocalizedNumber(currentIng.quantity, 1);
@@ -1533,7 +1537,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       ingredient: newIngredient,
       ingredientId: newIngredient.id,
       quantity: resolvedQuantity,
-      unit: usage.recipeUnit || newIngredient.unit || currentIng.unit || "Gramme",
+      unit: recipeUnit || newIngredient.unit || currentIng.unit || "Gramme",
       wasteCoeff: resolvedWasteCoeff,
     });
     if (!line) return;
