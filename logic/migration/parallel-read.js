@@ -41,6 +41,9 @@
     };
   }
 
+  // Entrée: storage compatible localStorage. Sortie: snapshot v1 + liste des clés présentes + booléen exists.
+  // Cas null/fallback: JSON invalide -> fallback null par collection (pas d'exception propagée).
+  // Limite: "exists" indique seulement la présence de clés, pas leur cohérence métier.
   function readV1Data(storage = global.localStorage) {
     const keys = storageApi.TARGET_KEYS;
     const data = {
@@ -66,6 +69,7 @@
     };
   }
 
+  // Entrées: données legacy et résultat de migration shadow. Sortie: compteurs comparables legacy vs migré.
   function countLegacyVolumes(legacy, migrationResult) {
     return {
       legacyIngredients: (legacy.ingredients || []).length,
@@ -79,6 +83,7 @@
     };
   }
 
+  // Entrée: snapshot v1 lu depuis storage. Sortie: volumes v1 normalisés (0 si structure absente/invalide).
   function countV1Volumes(v1Data) {
     const v = v1Data.data;
     return {
@@ -92,6 +97,8 @@
     };
   }
 
+  // Entrée: report de migration. Sortie: signaux classés (missing refs, exclusions, fallbacks, erreurs/warnings bruts).
+  // Limite: la classification repose sur des types connus; un nouveau type non listé reste non catégorisé.
   function collectMigrationSignals(report) {
     const warnings = report?.warnings || [];
     const errors = report?.errors || [];
@@ -105,6 +112,8 @@
     };
   }
 
+  // Entrée: snapshot v1. Sortie: anomalies de références internes v1 (ingrédients/sous-recettes manquants).
+  // Cas fallback: tableaux absents => itération vide, pas d'exception.
   function detectV1ReferenceIssues(v1Data) {
     const issues = [];
     const v = v1Data.data;
@@ -132,6 +141,7 @@
     return issues;
   }
 
+  // Entrées: volumes migrés vs volumes persistés v1. Sortie: deltas par collection avec sévérité associée.
   function buildVolumeDiffs(migratedVolumes, v1Volumes) {
     return [
       { field: "ingredients", migrated: migratedVolumes.migratedIngredients, v1: v1Volumes.v1Ingredients },
@@ -143,6 +153,8 @@
     ].map((d) => ({ ...d, delta: d.v1 - d.migrated, severity: d.v1 === d.migrated ? "info" : "medium" }));
   }
 
+  // Entrée: rapport de cross-check. Sortie: décision readiness (ready bool + blocants high/medium + critères).
+  // Limite: tout écart medium est bloquant par politique actuelle, même si métierment tolérable.
   function evaluateSwitchReadiness(crossCheckReport) {
     const discrepancies = crossCheckReport.discrepancies || [];
     const high = discrepancies.filter((d) => d.severity === "high");
@@ -167,6 +179,10 @@
     };
   }
 
+  // Entrées: legacy ingrédients, snapshot v1, feature flags, readiness, cross-check.
+  // Sortie: décision de source fournisseurs (legacy ou v1_canary) + raison + payload trié.
+  // Cas fallback: si flag off / v1 absent / readiness KO / data v1 incomplète => fallback legacy explicite.
+  // Limite: la canary ne couvre ici que la source "fournisseurs", pas tout le domaine recette.
   function resolveCanarySuppliersSource({ legacyIngredients = [], v1Data, featureFlags, switchReadiness, crossCheckReport }) {
     const legacySuppliers = Array.from(new Set((legacyIngredients || []).map((ing) => (ing.supplier || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "fr"));
 
@@ -199,6 +215,9 @@
     return { source: "v1_canary", canaryActive: true, suppliers: canarySuppliers, reason: "CANARY_ENABLED_SAFE" };
   }
 
+  // Entrées: données legacy, résultat de migration shadow, snapshot v1 persisté.
+  // Sortie: rapport de cohérence consolidé (status, severity, écarts détaillés, signaux migration).
+  // Cas null/fallback: si v1 absent, status "v1_absent" avec sévérité medium pour empêcher bascule automatique.
   function buildCrossCheckReport({ legacyData, migrationResult, v1Data }) {
     const migratedVolumes = countLegacyVolumes(legacyData, migrationResult);
     const migrationSignals = collectMigrationSignals(migrationResult.report || {});

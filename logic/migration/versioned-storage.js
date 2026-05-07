@@ -33,6 +33,8 @@
     }
   }
 
+  // Entrée: résultat de migration (dont report). Sortie: décision binaire d'écriture + causes de blocage.
+  // Limite: la politique de blocage dépend d'une liste de warnings "bloquants" codée en dur.
   function buildWriteDecision(migrationResult) {
     const report = migrationResult?.report || { errors: [], warnings: [] };
     const blockingErrors = report.errors || [];
@@ -64,6 +66,9 @@
     };
   }
 
+  // Entrées: résultat de migration + storage cible. Sortie: statut d'écriture (written/not_written/failed_rolled_back).
+  // Cas fallback: si décision KO => shadow_only; en erreur d'I/O => rollback des clés déjà écrites.
+  // Limite: rollback best-effort limité aux clés écrites dans cette tentative.
   function persistVersionedData({ migrationResult, storage = global.localStorage }) {
     const decision = buildWriteDecision(migrationResult);
     const payload = buildPayload(migrationResult);

@@ -310,6 +310,158 @@ function testRuntimeCanaryRefuseEtFallbackAvecRaison() {
   assert.strictEqual(runtime.suppliers.reason, 'V1_ABSENT');
 }
 
+
+function testReadLegacyDataJSONCorrompuRetourneSafeEmpty() {
+  const storage = new MemoryStorage({
+    [window.ArpegeVersionedStorage.LEGACY_KEYS.ingredients]: '{bad-json',
+    [window.ArpegeVersionedStorage.LEGACY_KEYS.recipes]: 'not-json',
+  });
+
+  const legacy = window.ArpegeVersionedStorage.readLegacyData(storage);
+  assert.deepStrictEqual(legacy.ingredients, []);
+  assert.deepStrictEqual(legacy.recipes, []);
+  assert.ok(legacy.readError);
+}
+
+function testReadV1DataJSONCorrompuNeCrashPas() {
+  const storage = new MemoryStorage({
+    [window.ArpegeVersionedStorage.TARGET_KEYS.ingredients]: '{bad-json',
+  });
+
+  const v1 = window.ArpegeParallelRead.readV1Data(storage);
+  assert.strictEqual(v1.exists, true);
+  assert.deepStrictEqual(v1.data.ingredients, null);
+}
+
+function testChampsLegacyManquantsAppliquentFallbacks() {
+  const legacy = {
+    ingredients: [{ id: 3, name: 'Sans catégorie ni unité', price: 0 }],
+    recipes: [{
+      id: 50,
+      recipeType: 'base',
+      name: 'Recette partielle',
+      directIngredients: [{ ingredientId: 3, quantity: 1, unit: 'Kg' }],
+      baseComponents: [],
+    }],
+  };
+
+  const { migrationResult } = runMigration(legacy);
+  assert.strictEqual(migrationResult.ingredients[0].famille, 'Non classé');
+  assert.strictEqual(migrationResult.ingredients[0].unite_par_defaut, 'Unité');
+  assert.strictEqual(migrationResult.ingredients[0].prix_achat, null);
+  assert.ok(migrationResult.report.warnings.some((w) => w.type === 'EMPTY_UNIT_FALLBACK'));
+  assert.ok(migrationResult.report.warnings.some((w) => w.type === 'INGREDIENT_PRICE_MISSING'));
+}
+
+function testIdsMixtesStringNumberResolventReferences() {
+  const legacy = {
+    ingredients: [{ id: '7', category: 'Épicerie', name: 'Sel', price: 2, unit: 'Kg', supplier: 'Primeur' }],
+    recipes: [{
+      id: '70',
+      recipeType: 'base',
+      categories: ['Plat'],
+      name: 'Base sel',
+      covers: 2,
+      outputQuantity: 1,
+      outputUnit: 'Kg',
+      directIngredients: [{ ingredientId: '7', quantity: 0.2, unit: 'Kg' }],
+      baseComponents: [],
+    }],
+  };
+
+  const { migrationResult } = runMigration(legacy);
+  assert.strictEqual(migrationResult.ingredients[0].id, 7);
+  assert.strictEqual(migrationResult.recettesBase[0].id, 70);
+  assert.strictEqual(migrationResult.lignesRecetteIngredient[0].ingredient_id, 7);
+  assert.ok(!migrationResult.report.warnings.some((w) => w.type === 'MISSING_INGREDIENT_REFERENCE'));
+}
+
+function testUnitesInconnuesConserveesAvecWarning() {
+  const legacy = {
+    ingredients: [{ id: 8, category: 'Épicerie', name: 'Poudre X', price: 4, unit: 'Scoop', supplier: 'Lab' }],
+    recipes: [{
+      id: 80,
+      recipeType: 'base',
+      categories: ['Plat'],
+      name: 'Base X',
+      covers: 2,
+      outputQuantity: 1,
+      outputUnit: 'Scoop',
+      directIngredients: [{ ingredientId: 8, quantity: 1, unit: 'Scoop' }],
+      baseComponents: [],
+    }],
+  };
+
+  const { migrationResult } = runMigration(legacy);
+  assert.strictEqual(migrationResult.ingredients[0].unite_par_defaut, 'Scoop');
+  assert.ok(migrationResult.report.warnings.some((w) => w.type === 'UNKNOWN_UNIT' && w.unit === 'Scoop'));
+}
+
+function testPrixVidesNullZeroVersPrixNullSansErreurBloquante() {
+  const legacy = {
+    ingredients: [
+      { id: 9, category: 'Épicerie', name: 'A', price: '', unit: 'Kg', supplier: 'S1' },
+      { id: 10, category: 'Épicerie', name: 'B', price: null, unit: 'Kg', supplier: 'S1' },
+      { id: 11, category: 'Épicerie', name: 'C', price: 0, unit: 'Kg', supplier: 'S1' },
+    ],
+    recipes: [{ id: 90, recipeType: 'base', categories: ['Plat'], name: 'Base', covers: 1, outputQuantity: 1, outputUnit: 'Kg', directIngredients: [{ ingredientId: 9, quantity: 1, unit: 'Kg' }], baseComponents: [] }],
+  };
+
+  const { migrationResult } = runMigration(legacy);
+  assert.deepStrictEqual(migrationResult.ingredients.map((i) => i.prix_achat), [null, null, null]);
+  assert.strictEqual(migrationResult.report.warnings.filter((w) => w.type === 'INGREDIENT_PRICE_MISSING').length, 3);
+  assert.ok(!migrationResult.report.errors.some((e) => e.type === 'INGREDIENT_EXCLUDED_INVALID_PRICE'));
+}
+
+function testMigrationIdempotente() {
+  const legacy = {
+    ingredients: [{ id: 1, category: 'Légumes', name: 'Tomate', price: 2, unit: 'Kg', supplier: 'Primeur' }],
+    recipes: [{ id: 100, recipeType: 'base', categories: ['Plat'], name: 'Base tomate', covers: 4, outputQuantity: 1, outputUnit: 'Kg', directIngredients: [{ ingredientId: 1, quantity: 0.5, unit: 'Kg' }], baseComponents: [] }],
+  };
+
+  const first = window.ArpegeLegacyMigration.migrateLegacyData(legacy);
+  const second = window.ArpegeLegacyMigration.migrateLegacyData(legacy);
+  assert.deepStrictEqual(second, first);
+}
+
+function testFournisseursLegacyStringVsObjetModerne() {
+  const legacyIngredients = [
+    { supplier: 'Primeur' },
+    { supplier: ' primeur ' },
+    { supplier: 'Boucherie Martin' },
+  ];
+
+  const storage = new MemoryStorage({
+    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.ArpegeVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'Fournisseur V1' }]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
+    [window.ArpegeVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
+  });
+
+  const legacyRuntime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+    legacyIngredients,
+    storage,
+    crossCheckReport: { severity: 'info' },
+    switchReadiness: { ready: false },
+  });
+  assert.strictEqual(legacyRuntime.suppliers.source, 'legacy');
+  assert.deepStrictEqual(legacyRuntime.suppliers.data, ['Boucherie Martin', 'primeur', 'Primeur']);
+
+  const canaryRuntime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+    legacyIngredients,
+    storage,
+    crossCheckReport: { severity: 'info' },
+    switchReadiness: { ready: true },
+  });
+  assert.strictEqual(canaryRuntime.suppliers.source, 'v1_canary');
+  assert.deepStrictEqual(canaryRuntime.suppliers.data, ['Fournisseur V1']);
+}
+
 function runAll() {
   const tests = [
     testMigrationSimpleValide,
@@ -332,6 +484,14 @@ function runAll() {
     testRuntimeSourceLegacyParDefaut,
     testRuntimeCanaryAutorise,
     testRuntimeCanaryRefuseEtFallbackAvecRaison,
+    testReadLegacyDataJSONCorrompuRetourneSafeEmpty,
+    testReadV1DataJSONCorrompuNeCrashPas,
+    testChampsLegacyManquantsAppliquentFallbacks,
+    testIdsMixtesStringNumberResolventReferences,
+    testUnitesInconnuesConserveesAvecWarning,
+    testPrixVidesNullZeroVersPrixNullSansErreurBloquante,
+    testMigrationIdempotente,
+    testFournisseursLegacyStringVsObjetModerne,
   ];
 
   for (const testFn of tests) {

@@ -379,6 +379,10 @@
     };
   }
 
+  // Entrée: payload legacy brut ({ ingredients, recipes }) potentiellement incomplet/hétérogène.
+  // Sortie: structure cible v1 complète + rapport détaillé (warnings/errors/notes/stats).
+  // Cas null/fallback: champs manquants normalisés via defaults; références cassées conservées avec statut si possible.
+  // Limite: cette étape transforme et signale, elle ne décide pas seule de l'écriture persistée.
   function migrateLegacyData(legacy) {
     const report = {
       warnings: [],
