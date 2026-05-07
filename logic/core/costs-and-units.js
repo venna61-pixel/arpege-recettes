@@ -133,6 +133,8 @@
     return Number.isFinite(Number(yieldValue.quantity)) && Number(yieldValue.quantity) > 0 && !!String(yieldValue.unit || "").trim();
   };
 
+  // Entrée: une recette (legacy/normalisée). Sortie: rendement exploitable priorisé (actual > legacy > theoretical) ou null.
+  // Cas fallback: si une source est absente/invalide, on tente la suivante. Limite: retourne null si aucune source cohérente.
   const resolveEffectiveYield = (recipe) => {
     const current = normalizeRecipe(recipe);
     const actualYield = {
@@ -187,6 +189,9 @@
     };
   };
 
+  // Entrée: recette potentiellement partielle/hétérogène (fields legacy + champs manquants).
+  // Sortie: objet recette normalisé avec valeurs par défaut stables pour le calcul.
+  // Limite: n'effectue pas de validation métier stricte, elle prépare seulement des valeurs "calculables".
   const normalizeRecipe = (recipe) => {
     const categories = Array.isArray(recipe.categories)
       ? recipe.categories
@@ -209,6 +214,10 @@
 
   const getRecipeById = (recipes, id) => recipes.find(r => Number(r.id) === Number(id));
 
+  // Entrées: recette cible, référentiel des recettes, set anti-cycle, catalogue ingrédients optionnel.
+  // Sortie: coût total numérique (avec pertes) ou null si données insuffisantes/inconvertibles/cycle détecté.
+  // Cas null/fallback: fallback prix legacy géré en amont; ici toute conversion/référence invalide coupe le calcul.
+  // Limite: un seul "null" intermédiaire invalide l'ensemble du coût pour garder un résultat conservateur.
   const calculateRecipeTotalCost = (recipe, allRecipes, visited = new Set(), ingredientsCatalog = null) => {
     const current = normalizeRecipe(recipe);
     if (visited.has(current.id)) return null;
