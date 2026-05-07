@@ -1006,6 +1006,44 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     return `${cleanedName || "Recette"} - ${suffix}`;
   };
 
+  const detectProcedureWarnings = (procedureText) => {
+    const text = String(procedureText || "");
+    const unique = (items) => [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+    const dimensionRegexes = [
+      /\b\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+(?:[.,]\d+)?)?(?:\s*(?:mm|cm|m))?\b/gi,
+      /\b\d+(?:[.,]\d+)?\s*(?:mm|cm|m|mm²|cm²|m²|mm2|cm2|m2)\b/gi,
+    ];
+    const timeRegexes = [
+      /\b\d+\s*h\s*\d{1,2}\b/gi,
+      /\b\d+\s*h\b/gi,
+      /\b\d+\s*(?:min|mins|minute|minutes)\b/gi,
+      /\b\d+\s*(?:heure|heures)\b/gi,
+    ];
+    const collectMatches = (regexes) => unique(regexes.flatMap((regex) => text.match(regex) || []));
+    const dimensions = collectMatches(dimensionRegexes);
+    const cookingTimes = collectMatches(timeRegexes);
+    return {
+      dimensions,
+      cookingTimes,
+      hasWarnings: dimensions.length > 0 || cookingTimes.length > 0,
+    };
+  };
+
+  const buildProcedureWarningHtml = ({ multiplierValue, dimensions, cookingTimes }) => {
+    if ((!dimensions || dimensions.length === 0) && (!cookingTimes || cookingTimes.length === 0)) return "";
+    const dimensionsLine = dimensions.length > 0 ? `<p><strong>Dimensions détectées :</strong> ${escapeHtml(dimensions.join(", "))}</p>` : "";
+    const timesLine = cookingTimes.length > 0 ? `<p><strong>Temps de cuisson détectés :</strong> ${escapeHtml(cookingTimes.join(", "))}</p>` : "";
+    return `
+      <div class="warning-box">
+        <p><strong>⚠️ Vérification manuelle recommandée</strong></p>
+        <p>Cette recette a été adaptée avec un coefficient de x${escapeHtml(multiplierValue.toFixed(2))}</p>
+        <p>Les éléments suivants ne s'adaptent pas automatiquement :</p>
+        ${dimensionsLine}
+        ${timesLine}
+      </div>
+    `;
+  };
+
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
     return procedure
@@ -1100,6 +1138,9 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 14px; }
             th { text-align: left; background: #f9fafb; font-weight: 600; }
             .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 12px; }
+            .warning-box { margin-top: 12px; background: #fff7ed; border: 1px solid #fdba74; border-left: 4px solid #f97316; border-radius: 8px; padding: 12px; color: #9a3412; }
+            .warning-box p { margin: 0 0 6px 0; }
+            .warning-box p:last-child { margin-bottom: 0; }
           </style>
         </head>
         <body>
@@ -1128,6 +1169,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           <section>
             <h2>Procédé / Préparation</h2>
             <div class="procedure">${buildProcedureHtml(adaptedRecipe.procedure)}</div>
+            ${buildProcedureWarningHtml({ multiplierValue: multiplier, dimensions: procedureWarnings.dimensions, cookingTimes: procedureWarnings.cookingTimes })}
           </section>
 
           ${costSection}
@@ -1159,6 +1201,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     iframeWindow.print();
     setTimeout(() => iframe.remove(), 1000);
   };
+  const procedureWarnings = detectProcedureWarnings(adaptedRecipe.procedure);
 
   const handlePrintAdaptedProductionSheet = () => {
     if (adaptedRecipe.recipeType === "base") return;
@@ -1364,6 +1407,15 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           <div>
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Procédé / Préparation</h4>
             <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">{normalized.procedure ? normalized.procedure.split("\n").map((step, idx) => <p key={idx} className="mb-2 last:mb-0">{step}</p>) : <p className="text-gray-500 italic">Aucun procédé renseigné</p>}</div>
+            {procedureWarnings.hasWarnings && (
+              <div className="mt-4 bg-orange-50 border border-orange-300 border-l-4 border-l-orange-500 rounded-lg p-4 text-orange-900">
+                <p className="font-semibold">⚠️ Vérification manuelle recommandée</p>
+                <p>Cette recette a été adaptée avec un coefficient de x{multiplier.toFixed(2)}</p>
+                <p>Les éléments suivants ne s'adaptent pas automatiquement :</p>
+                {procedureWarnings.dimensions.length > 0 && <p><strong>Dimensions détectées :</strong> {procedureWarnings.dimensions.join(", ")}</p>}
+                {procedureWarnings.cookingTimes.length > 0 && <p><strong>Temps de cuisson détectés :</strong> {procedureWarnings.cookingTimes.join(", ")}</p>}
+              </div>
+            )}
           </div>
         </div>
       </div>
