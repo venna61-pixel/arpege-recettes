@@ -23,13 +23,13 @@ function sampleRecipe() {
     outputQuantity: 4,
     outputUnit: 'Portion',
     directIngredients: [
-      { ingredientId: 1, name: 'A', quantity: 2, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 4, wasteCoeff: 1 },
-      { ingredientId: 2, name: 'B', quantity: 1, unit: 'Litre', unitPrice: 'Litre', pricePerUnit: 3, wasteCoeff: 1 },
+      { ingredientId: 1, name: 'A', quantity: 2, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 4, wasteCoeff: 0 },
+      { ingredientId: 2, name: 'B', quantity: 1, unit: 'Litre', unitPrice: 'Litre', pricePerUnit: 3, wasteCoeff: 0 },
     ],
     baseComponents: [
       { baseRecipeId: 10, name: 'Base', quantity: 2, unit: 'Kg' },
     ],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
 }
 
@@ -43,10 +43,10 @@ function sampleBaseRecipe() {
     outputQuantity: 2,
     outputUnit: 'Kg',
     directIngredients: [
-      { ingredientId: 3, name: 'C', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 },
+      { ingredientId: 3, name: 'C', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 },
     ],
     baseComponents: [],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
 }
 
@@ -117,9 +117,9 @@ function testAdaptationModePortionPourBaseComponent() {
     covers: 10,
     outputQuantity: 999,
     outputUnit: 'Kg',
-    directIngredients: [{ ingredientId: 11, name: 'X', quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 11, name: 'X', quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
     baseComponents: [],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 51,
@@ -131,7 +131,7 @@ function testAdaptationModePortionPourBaseComponent() {
     outputUnit: 'Portion',
     directIngredients: [],
     baseComponents: [{ baseRecipeId: 50, name: 'Base Portion', usageMode: 'portion', portionCount: 2, quantity: 0, unit: 'Kg' }],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
 
   const { adaptedBaseComponents, adaptedRecipe } = buildAdaptedRecipe({ normalizedRecipe: finalRecipe, multiplier: 2 });

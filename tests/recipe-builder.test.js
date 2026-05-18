@@ -18,14 +18,14 @@ function testMappingIngredientComplet() {
     ingredientId: 7,
     quantity: '1.5',
     unit: 'Kg',
-    wasteCoeff: '1.1',
+    wasteCoeff: '10',
   });
   assert.deepStrictEqual(line, {
     ingredientId: 7,
     name: 'Farine',
     quantity: 1.5,
     unit: 'Kg',
-    wasteCoeff: 1.1,
+    wasteCoeff: 10,
     pricePerUnit: 2.4,
     unitPrice: 'Kg',
   });

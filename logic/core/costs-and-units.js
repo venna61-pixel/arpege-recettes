@@ -93,7 +93,9 @@
     if (!pricingUnit) return null;
     const convertedQty = convertQuantity(recipeQty, ingredientLine.unit, pricingUnit);
     if (convertedQty == null) return null;
-    return convertedQty * Number(pricing.pricePerUnit || 0) * Number(ingredientLine.wasteCoeff || 1);
+    const wastePct = Number(ingredientLine.wasteCoeff ?? 0);
+    const wasteFactor = wastePct >= 100 ? 1 : 100 / (100 - wastePct);
+    return convertedQty * Number(pricing.pricePerUnit || 0) * wasteFactor;
   };
 
   const resolvePricingUnit = (ingredientLine) => {
@@ -208,7 +210,7 @@
       outputQuantity: Number(recipe.outputQuantity || recipe.covers || 1),
       outputUnit: recipe.outputUnit || (recipe.recipeType === "final" ? "Portion" : "Kg"),
       covers: Number(recipe.covers || 1),
-      wasteCoeff: Number(recipe.wasteCoeff || 1),
+      wasteCoeff: Number(recipe.wasteCoeff ?? 0),
     };
   };
 
@@ -242,7 +244,9 @@
       total += componentCost;
     }
 
-    return total * Number(current.wasteCoeff || 1);
+    const globalWastePct = Number(current.wasteCoeff ?? 0);
+    const globalWasteFactor = globalWastePct >= 100 ? 1 : 100 / (100 - globalWastePct);
+    return total * globalWasteFactor;
   };
 
   const getCostStatus = (recipe, allRecipes, ingredientsCatalog = null) => {

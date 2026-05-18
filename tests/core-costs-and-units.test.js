@@ -31,8 +31,8 @@ function testConversionIncompatible() {
 }
 
 function testCoutIngredient() {
-  const cost = calculateIngredientCost({ quantity: 0.5, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1.1 });
-  assert.strictEqual(cost, 5.5);
+  const cost = calculateIngredientCost({ quantity: 0.5, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 20 });
+  assert.strictEqual(cost, 6.25);
 }
 
 function testResolvePricingUnitFallback() {
@@ -51,11 +51,11 @@ function testCoutTotalRecette() {
     id: 1,
     recipeType: 'base',
     directIngredients: [
-      { ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 },
-      { ingredientId: 2, name: 'B', quantity: 500, unit: 'Gramme', unitPrice: 'Kg', pricePerUnit: 4, wasteCoeff: 1 },
+      { ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 },
+      { ingredientId: 2, name: 'B', quantity: 500, unit: 'Gramme', unitPrice: 'Kg', pricePerUnit: 4, wasteCoeff: 0 },
     ],
     baseComponents: [],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
     outputQuantity: 1,
     outputUnit: 'Kg',
     covers: 1,
@@ -68,9 +68,9 @@ function testRecetteInvalideStatutInvalide() {
   const baseRecipe = {
     id: 1,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 }],
     baseComponents: [],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
     outputQuantity: 1,
     outputUnit: 'Kg',
     covers: 1,
@@ -81,7 +81,7 @@ function testRecetteInvalideStatutInvalide() {
     recipeType: 'final',
     directIngredients: [],
     baseComponents: [{ baseRecipeId: 1, name: 'Base A', quantity: 1, unit: 'Litre' }],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
@@ -92,7 +92,7 @@ function testRecetteInvalideStatutInvalide() {
 }
 
 function testCoutUtilisePrixCatalogueIngredient() {
-  const line = { ingredientId: 5, name: 'Tomate', quantity: 2, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 3, wasteCoeff: 1 };
+  const line = { ingredientId: 5, name: 'Tomate', quantity: 2, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 3, wasteCoeff: 0 };
   const ingredientsCatalog = [{ id: 5, name: 'Tomate', price: 10, unit: 'Kg' }];
   const cost = calculateIngredientCost(line, ingredientsCatalog);
   assert.strictEqual(cost, 20);
@@ -102,9 +102,9 @@ function testCoutRecetteChangeQuandPrixCatalogueChange() {
   const recipe = {
     id: 20,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 8, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 8, name: 'A', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 }],
     baseComponents: [],
-    wasteCoeff: 1,
+    wasteCoeff: 0,
     outputQuantity: 1,
     outputUnit: 'Kg',
     covers: 1,
@@ -118,39 +118,39 @@ function testCoutRecetteChangeQuandPrixCatalogueChange() {
 }
 
 function testFallbackLegacySiIngredientIntrouvable() {
-  const line = { ingredientId: 99, name: 'X', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 7, wasteCoeff: 1 };
+  const line = { ingredientId: 99, name: 'X', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 7, wasteCoeff: 0 };
   const cost = calculateIngredientCost(line, [{ id: 1, name: 'Autre', price: 2, unit: 'Kg' }]);
   assert.strictEqual(cost, 7);
 }
 
 function testCoutInvalideSiIngredientIntrouvableSansFallback() {
-  const line = { ingredientId: 99, name: 'X', quantity: 1, unit: 'Kg', wasteCoeff: 1 };
+  const line = { ingredientId: 99, name: 'X', quantity: 1, unit: 'Kg', wasteCoeff: 0 };
   const cost = calculateIngredientCost(line, [{ id: 1, name: 'Autre', price: 2, unit: 'Kg' }]);
   assert.strictEqual(cost, null);
 }
 
 function testCompatibiliteAppelsSansCatalogue() {
-  const line = { quantity: 0.5, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 };
+  const line = { quantity: 0.5, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 };
   const cost = calculateIngredientCost(line);
   assert.strictEqual(cost, 5);
 }
 
 function testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue() {
-  const line = { name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const line = { name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 };
   const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
   const cost = calculateIngredientCost(line, catalog);
   assert.strictEqual(cost, 9);
 }
 
 function testIdMismatchAvecFallbackLegacy() {
-  const line = { ingredientId: 999, name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const line = { ingredientId: 999, name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 };
   const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
   const cost = calculateIngredientCost(line, catalog);
   assert.strictEqual(cost, 2);
 }
 
 function testPrixZeroTraiteCommeInconnu() {
-  const line = { ingredientId: 50, name: 'Herbes', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 1 };
+  const line = { ingredientId: 50, name: 'Herbes', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 };
   const catalog = [{ id: 50, name: 'Herbes', price: 0, unit: 'Kg' }];
   const cost = calculateIngredientCost(line, catalog);
   assert.strictEqual(cost, null);
@@ -161,13 +161,13 @@ function testStatusPrixManquantExplicite() {
     id: 501,
     recipeType: 'base',
     directIngredients: [
-      { ingredientId: 77, name: 'Épice test', quantity: 1, unit: 'Kg', unitPrice: 'Kg', wasteCoeff: 1 },
+      { ingredientId: 77, name: 'Épice test', quantity: 1, unit: 'Kg', unitPrice: 'Kg', wasteCoeff: 0 },
     ],
     baseComponents: [],
     outputQuantity: 1,
     outputUnit: 'Kg',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const status = getCostStatus(recipe, [recipe], [{ id: 77, name: 'Épice test', price: null, unit: 'Kg' }]);
   assert.strictEqual(status.valid, false);
@@ -264,12 +264,12 @@ function testUsageSousRecetteModeQuantite() {
   const baseRecipe = {
     id: 201,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
     baseComponents: [],
     outputQuantity: 2,
     outputUnit: 'Kg',
     covers: 2,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 202,
@@ -279,7 +279,7 @@ function testUsageSousRecetteModeQuantite() {
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
   assert.strictEqual(cost, 5);
@@ -289,12 +289,12 @@ function testUsageSousRecetteModePortion() {
   const baseRecipe = {
     id: 211,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
     baseComponents: [],
     outputQuantity: 2,
     outputUnit: 'Kg',
     covers: 2,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 212,
@@ -304,7 +304,7 @@ function testUsageSousRecetteModePortion() {
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
   assert.strictEqual(cost, 5);
@@ -314,12 +314,12 @@ function testModePortionIgnoreOutputQuantityUnit() {
   const baseRecipe = {
     id: 241,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, quantity: 10, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
     baseComponents: [],
     outputQuantity: 999,
     outputUnit: 'Kg',
     covers: 10,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 242,
@@ -329,7 +329,7 @@ function testModePortionIgnoreOutputQuantityUnit() {
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
   assert.strictEqual(cost, 20);
@@ -339,12 +339,12 @@ function testCasInvalideModePortion() {
   const baseRecipe = {
     id: 221,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
     baseComponents: [],
     outputQuantity: 2,
     outputUnit: 'Kg',
     covers: 0,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 222,
@@ -354,7 +354,7 @@ function testCasInvalideModePortion() {
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const status = getCostStatus(finalRecipe, [baseRecipe, finalRecipe]);
   assert.strictEqual(status.valid, false);
@@ -364,12 +364,12 @@ function testCompatAncienneRecetteSansUsageMode() {
   const baseRecipe = {
     id: 231,
     recipeType: 'base',
-    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 8, wasteCoeff: 1 }],
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 8, wasteCoeff: 0 }],
     baseComponents: [],
     outputQuantity: 4,
     outputUnit: 'Kg',
     covers: 4,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const finalRecipe = {
     id: 232,
@@ -379,7 +379,7 @@ function testCompatAncienneRecetteSansUsageMode() {
     outputQuantity: 1,
     outputUnit: 'Portion',
     covers: 1,
-    wasteCoeff: 1,
+    wasteCoeff: 0,
   };
   const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
   assert.strictEqual(cost, 4);

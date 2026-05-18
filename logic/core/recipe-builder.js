@@ -17,7 +17,7 @@
       name: ingredient.name,
       quantity: toNumberOrDefault(quantity, 0),
       unit: unit || ingredient.unit || "Gramme",
-      wasteCoeff: toNumberOrDefault(wasteCoeff, 1),
+      wasteCoeff: toNumberOrDefault(wasteCoeff, 0),
       pricePerUnit: ingredient.price,
       unitPrice: ingredient.unit,
     };
