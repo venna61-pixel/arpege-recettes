@@ -1,0 +1,16 @@
+{
+  "name": "arpege-recettes",
+  "version": "1.0.0",
+  "description": "Gestion des recettes - L'Arpège",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run-all.js",
+    "test:allergenes": "node tests/allergenes.test.js",
+    "test:costs": "node tests/core-costs-and-units.test.js",
+    "test:scaling": "node tests/recipe-scaling.test.js",
+    "test:submission": "node tests/recipe-submission.test.js",
+    "test:builder": "node tests/recipe-builder.test.js",
+    "test:filters": "node tests/recipe-filters.test.js",
+    "test:migration": "node tests/migration-coherence.test.js"
+  }
+}

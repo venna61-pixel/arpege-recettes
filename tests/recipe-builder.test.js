@@ -80,7 +80,7 @@ function testValeursParDefaut() {
   });
   assert.strictEqual(directLine.quantity, 0);
   assert.strictEqual(directLine.unit, 'Kg');
-  assert.strictEqual(directLine.wasteCoeff, 1);
+  assert.strictEqual(directLine.wasteCoeff, 0);
 
   const baseRecipe = { id: 33, name: 'Fond', outputUnit: 'Litre' };
   const baseLine = buildBaseComponentLine({
