@@ -219,20 +219,32 @@ const useLocalStorage = (key, initialValue) => {
   return [storedValue, setValue];
 };
 
-const computeRecipeAllergeneSummary = (recipe, allIngredients) => {
+const computeRecipeAllergeneSummary = (recipe, allIngredients, allRecipes = []) => {
   const allergenSet = new Set();
-  let hasIncomplete = false;
-  (recipe.directIngredients || []).forEach(({ ingredientId, name }) => {
+  const incompleteIngredients = [];
+
+  const processLine = ({ ingredientId, name }, fromBaseRecipe = null) => {
     const ing = allIngredients.find(i => Number(i.id) === Number(ingredientId));
     if (ing && Array.isArray(ing.allergenes)) {
       ing.allergenes.forEach(a => allergenSet.add(a));
     } else {
       detectAllergenes(name).forEach(a => allergenSet.add(a));
-      if (!ing || ing.allergenes == null) hasIncomplete = true;
+      if (!ing || ing.allergenes == null) {
+        const entry = { ingredientId: Number(ingredientId), name: (ing && ing.name) || name || "?" };
+        if (fromBaseRecipe) entry.fromBaseRecipe = fromBaseRecipe;
+        incompleteIngredients.push(entry);
+      }
     }
+  };
+
+  (recipe.directIngredients || []).forEach(line => processLine(line, null));
+
+  (recipe.baseComponents || []).forEach(({ baseRecipeId }) => {
+    const base = allRecipes.find(r => Number(r.id) === Number(baseRecipeId));
+    if (base) (base.directIngredients || []).forEach(line => processLine(line, base.name));
   });
-  if ((recipe.baseComponents || []).length > 0) hasIncomplete = true;
-  return { allergens: Array.from(allergenSet).sort(), hasIncomplete };
+
+  return { allergens: Array.from(allergenSet).sort(), hasIncomplete: incompleteIngredients.length > 0, incompleteIngredients };
 };
 
 const AllergenesFormSection = ({ step, allergenesSelected, onStep, onToggle, onConfirm, onConfirmNone }) => {
@@ -286,6 +298,39 @@ const AllergenesFormSection = ({ step, allergenesSelected, onStep, onToggle, onC
           <button type="button" onClick={() => onStep("checkboxes")} className="text-sm text-gray-500 hover:text-gray-700 underline flex-shrink-0">Modifier</button>
         </div>
       )}
+    </div>
+  );
+};
+
+const IngredientAllergenesModal = ({ ingredient, isOpen, onClose, onSave }) => {
+  const [step, setStep] = useState("idle");
+  const [allergenesSelected, setAllergenesSelected] = useState([]);
+  useEffect(() => {
+    if (isOpen && ingredient) {
+      const detected = detectAllergenes(ingredient.name);
+      if (detected.length > 0) { setAllergenesSelected(detected); setStep("auto"); }
+      else { setAllergenesSelected([]); setStep("prompt"); }
+    }
+  }, [isOpen, ingredient]);
+  useEffect(() => {
+    const handleEsc = (e) => e.key === "Escape" && onClose();
+    if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
+  }, [isOpen, onClose]);
+  if (!isOpen || !ingredient) return null;
+  const handleConfirm = (allergenes) => { onSave({ ...ingredient, allergenes }); onClose(); };
+  const handleConfirmNone = () => { onSave({ ...ingredient, allergenes: [] }); onClose(); };
+  const handleToggle = (a) => setAllergenesSelected(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-[#1A3A4A]">Allergènes — {ingredient.name}</h3>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+          </div>
+          <AllergenesFormSection step={step} allergenesSelected={allergenesSelected} onStep={setStep} onToggle={handleToggle} onConfirm={handleConfirm} onConfirmNone={handleConfirmNone} />
+        </div>
+      </div>
     </div>
   );
 };
@@ -719,7 +764,8 @@ const migrateProcedureMarkdownToHtml = (text) => {
   return text.split("\n").map(line => `<p>${formatProcedureLine(line) || "<br>"}</p>`).join("");
 };
 
-const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, isChef }) => {
+const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient, isOpen, onClose, isChef }) => {
+  const [allergenesIngId, setAllergenesIngId] = useState(null);
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     if (isOpen) { window.addEventListener("keydown", handleEsc); return () => window.removeEventListener("keydown", handleEsc); }
@@ -752,7 +798,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
 
   const handlePrintPdf = () => {
     const printTitle = sanitizePrintTitle(normalized.name, "Fiche");
-    const { allergens: pdfAllergens, hasIncomplete: pdfAllergenesIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients);
+    const { allergens: pdfAllergens, hasIncomplete: pdfAllergenesIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients, allRecipes);
     const allergenesSection = `
       <section>
         <h2>Allergènes</h2>
@@ -1113,20 +1159,42 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, isOpen, onClose, i
           <div>
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Allergènes</h4>
             {(() => {
-              const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients);
+              const { allergens, hasIncomplete, incompleteIngredients } = computeRecipeAllergeneSummary(normalized, ingredients, allRecipes);
               return (
                 <div className="rounded-lg p-4 border border-red-100 bg-red-50">
                   {allergens.length > 0
                     ? <p className="text-red-800 font-semibold">{allergens.join(" · ")}</p>
                     : <p className="text-green-700 font-medium">Aucun allergène</p>
                   }
-                  {hasIncomplete && <p className="text-amber-600 text-sm mt-1 italic">⚠ La liste peut être incomplète (ingrédients non renseignés ou sous-recettes incluses)</p>}
+                  {hasIncomplete && (
+                    <div className="mt-2">
+                      <p className="text-amber-600 text-sm font-medium mb-1">⚠ Allergènes non renseignés sur :</p>
+                      <ul className="space-y-1">
+                        {incompleteIngredients.map((inc, i) => (
+                          <li key={i} className="flex items-center justify-between text-sm">
+                            <span className="text-amber-700">{inc.name}{inc.fromBaseRecipe ? <span className="text-gray-500 ml-1">(via {inc.fromBaseRecipe})</span> : null}</span>
+                            {onUpdateIngredient && (
+                              <button type="button" onClick={() => setAllergenesIngId(inc.ingredientId)} className="ml-3 text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white flex-shrink-0">Compléter</button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               );
             })()}
           </div>
         </div>
       </div>
+      {onUpdateIngredient && (
+        <IngredientAllergenesModal
+          ingredient={ingredients.find(i => i.id === allergenesIngId) || null}
+          isOpen={allergenesIngId !== null}
+          onClose={() => setAllergenesIngId(null)}
+          onSave={(updated) => { onUpdateIngredient(updated); setAllergenesIngId(null); }}
+        />
+      )}
     </div>
   );
 };
@@ -1232,7 +1300,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
 
   const handlePrintAdaptedSheet = () => {
     const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche adaptée");
-    const { allergens: adaptedAllergens, hasIncomplete: adaptedAllergenesIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients);
+    const { allergens: adaptedAllergens, hasIncomplete: adaptedAllergenesIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients, recipes);
     const allergenesSection = `
       <section>
         <h2>Allergènes</h2>
@@ -1514,7 +1582,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
         <body>
           <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
           <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}</p>
-          ${(() => { const { allergens: a, hasIncomplete: inc } = computeRecipeAllergeneSummary(normalized, ingredients); return `<section class="subrecipe-block"><h2>Allergènes</h2>${a.length > 0 ? `<p style="color:#991b1b;font-weight:600;">${escapeHtml(a.join(" · "))}</p>` : `<p style="color:#166534;font-weight:600;">Aucun allergène</p>`}${inc ? `<p style="color:#b45309;font-size:13px;font-style:italic;">⚠ La liste peut être incomplète</p>` : ""}</section>`; })()}
+          ${(() => { const { allergens: a, hasIncomplete: inc } = computeRecipeAllergeneSummary(normalized, ingredients, recipes); return `<section class="subrecipe-block"><h2>Allergènes</h2>${a.length > 0 ? `<p style="color:#991b1b;font-weight:600;">${escapeHtml(a.join(" · "))}</p>` : `<p style="color:#166534;font-weight:600;">Aucun allergène</p>`}${inc ? `<p style="color:#b45309;font-size:13px;font-style:italic;">⚠ La liste peut être incomplète</p>` : ""}</section>`; })()}
           ${baseBlocks}
           <section class="subrecipe-block">
             <h2>Montage / finition</h2>
@@ -1599,7 +1667,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           <div>
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Allergènes</h4>
             {(() => {
-              const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients);
+              const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients, recipes);
               return (
                 <div className="rounded-lg p-4 border border-red-100 bg-red-50">
                   {allergens.length > 0
@@ -1656,6 +1724,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   }, [showExportMenu]);
   const [editingDirectIndex, setEditingDirectIndex] = useState(null);
   const [editingBaseIndex, setEditingBaseIndex] = useState(null);
+  const [allergenesModalIngId, setAllergenesModalIngId] = useState(null);
   const [directSnapshot, setDirectSnapshot] = useState(null);
   const [baseSnapshot, setBaseSnapshot] = useState(null);
   const parseLocalizedNumber = (rawValue, fallback = 1) => {
@@ -1912,7 +1981,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       const r = normalizeRecipe(recipe);
       const totalCost = calculateRecipeTotalCost(r, normalizedRecipes, new Set(), ingredients);
       const costStatus = getCostStatus(r, normalizedRecipes, ingredients);
-      const { allergens: rAllergens, hasIncomplete: rAllergenesIncomplete } = computeRecipeAllergeneSummary(r, ingredients);
+      const { allergens: rAllergens, hasIncomplete: rAllergenesIncomplete } = computeRecipeAllergeneSummary(r, ingredients, normalizedRecipes);
       const directRows = r.directIngredients.length === 0
         ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
         : r.directIngredients.map(ing => {
@@ -1966,8 +2035,14 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} supplierSuggestions={supplierSuggestions} />
-      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
+      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} onUpdateIngredient={(updated) => setIngredients(ingredients.map(i => i.id === updated.id ? updated : i))} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
       <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
+      <IngredientAllergenesModal
+        ingredient={ingredients.find(i => i.id === allergenesModalIngId) || null}
+        isOpen={allergenesModalIngId !== null}
+        onClose={() => setAllergenesModalIngId(null)}
+        onSave={(updated) => { setIngredients(ingredients.map(i => i.id === updated.id ? updated : i)); setAllergenesModalIngId(null); }}
+      />
 
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
         <div>
@@ -2157,8 +2232,14 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                           <div>
                             <div className={`font-medium ${isOrphanIngredient ? "text-amber-600 italic" : "text-[#1A3A4A]"}`}>{isOrphanIngredient ? "Ingrédient supprimé du registre" : ing.name}</div>
                             <div className="text-xs text-gray-600">{ing.quantity} {ing.unit} • perte {ing.wasteCoeff}%</div>
+                            {!isOrphanIngredient && linkedIngredient && linkedIngredient.allergenes == null && (
+                              <span className="text-xs text-amber-600 italic">⚠ Allergènes non renseignés</span>
+                            )}
                           </div>
                           <div className="flex gap-2">
+                            {!isOrphanIngredient && linkedIngredient && linkedIngredient.allergenes == null && (
+                              <button type="button" onClick={() => setAllergenesModalIngId(linkedIngredient.id)} className="text-xs px-2 py-1 rounded bg-amber-500 text-white">Allergènes</button>
+                            )}
                             <button type="button" onClick={() => { setEditingDirectIndex(idx); setDirectSnapshot({ quantity: ing.quantity, unit: ing.unit, wasteCoeff: ing.wasteCoeff }); }} className="text-xs px-2 py-1 rounded bg-[#1A3A4A] text-white">Modifier</button>
                             <button type="button" onClick={() => setFormData({ ...formData, directIngredients: formData.directIngredients.filter((_, i) => i !== idx) })} className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">Supprimer</button>
                           </div>
@@ -2290,7 +2371,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
                   <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
                   {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
-                  {(() => { const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(recipe, ingredients); return (<div className="mt-1">{allergens.length > 0 && <p className="text-red-800 font-medium text-xs">Allergènes : {allergens.join(" · ")}</p>}{hasIncomplete && <p className="text-amber-500 text-xs italic">⚠ Allergènes incomplets</p>}{!hasIncomplete && allergens.length === 0 && <p className="text-green-600 text-xs">Aucun allergène</p>}</div>); })()}
+                  {(() => { const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(recipe, ingredients, normalizedRecipes); return (<div className="mt-1">{allergens.length > 0 && <p className="text-red-800 font-medium text-xs">Allergènes : {allergens.join(" · ")}</p>}{hasIncomplete && <p className="text-amber-500 text-xs italic cursor-pointer hover:underline" onClick={() => setDetailRecipe(recipe)}>⚠ Allergènes incomplets — cliquer pour compléter</p>}{!hasIncomplete && allergens.length === 0 && <p className="text-green-600 text-xs">Aucun allergène</p>}</div>); })()}
                 </div>
                 <div className="flex space-x-2">
                   <button onClick={() => setDetailRecipe(recipe)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium">Voir détail</button>
