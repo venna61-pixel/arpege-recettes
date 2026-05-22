@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>L'Arpège - Gestion des Recettes</title>
+    <title>Formula · Haute Cuisine</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -149,6 +149,28 @@ const LogoArpege = ({ className = "", size = "large" }) => {
       </div>
     </div>
   );
+};
+
+const FormulaLogo = ({ className = "" }) => (
+  <div className={`flex justify-center ${className}`}>
+    <img src="./logo/formula-logo.svg" alt="Formula · Haute Cuisine" className="w-64" />
+  </div>
+);
+
+const LogoRestaurant = ({ restaurantLogo, className = "", size = "large" }) => {
+  if (restaurantLogo) {
+    const isSmall = size === "small";
+    return (
+      <div className={`flex items-center ${className}`}>
+        <img
+          src={restaurantLogo}
+          alt="Logo restaurant"
+          className={`object-contain ${isSmall ? "h-10" : "h-20"}`}
+        />
+      </div>
+    );
+  }
+  return <LogoArpege className={className} size={size} />;
 };
 
 const roundTo = (value, decimals = 2) => Number((value || 0).toFixed(decimals));
@@ -349,8 +371,7 @@ const Login = ({ onLogin }) => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
         <div className="text-center mb-8">
-          <LogoArpege size="large" className="mb-6" />
-          <p className="text-gray-500 mt-2 italic text-lg">Gestion des Recettes</p>
+          <FormulaLogo className="mb-6" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -372,13 +393,14 @@ const Login = ({ onLogin }) => {
   );
 };
 
-const Header = ({ user, onLogout, activeTab, setActiveTab }) => {
+const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo }) => {
   const tabs = [
     { id: "ingredients", label: "Ingrédients", roles: ["chef", "employe"] },
     { id: "baseRecipes", label: "Recettes de base", roles: ["chef", "employe"] },
     { id: "finalRecipes", label: "Recettes finales", roles: ["chef", "employe"] },
     { id: "producers", label: "Fournisseurs", roles: ["chef", "employe"] },
     { id: "couts", label: "Coûts", roles: ["chef"] },
+    { id: "parametres", label: "Paramètres", roles: ["chef"] },
   ];
 
   const visibleTabs = tabs.filter(tab => tab.roles.includes(user.role));
@@ -387,7 +409,7 @@ const Header = ({ user, onLogout, activeTab, setActiveTab }) => {
     <header className="bg-white shadow-md border-b border-slate-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
-          <LogoArpege size="small" />
+          <LogoRestaurant size="small" restaurantLogo={restaurantLogo} />
           <nav className="hidden md:flex flex-wrap gap-2 justify-center px-4">
             {visibleTabs.map(tab => (
               <button
@@ -2621,12 +2643,69 @@ const CostsView = ({ recipes, ingredients }) => {
   );
 };
 
+const ParametresView = ({ restaurantLogo, onLogoChange }) => {
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Veuillez sélectionner un fichier image (JPG, PNG, SVG, WebP).");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image trop grande. Taille maximum : 2 Mo.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result;
+      window.localStorage.setItem("arpege_restaurant_logo", base64);
+      onLogoChange(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleReset = () => {
+    window.localStorage.removeItem("arpege_restaurant_logo");
+    onLogoChange(null);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <h2 className="text-2xl font-bold text-[#1A3A4A] mb-8">Paramètres</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-2">Logo du restaurant</h3>
+        <p className="text-sm text-gray-500 mb-6">Ce logo s'affiche dans l'application une fois connecté. Formats acceptés : JPG, PNG, SVG, WebP — max 2 Mo.</p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+          <div className="w-36 h-24 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50 shrink-0">
+            {restaurantLogo
+              ? <img src={restaurantLogo} alt="Logo actuel" className="w-full h-full object-contain p-2" />
+              : <span className="text-xs text-gray-400 text-center px-2">Logo par défaut</span>
+            }
+          </div>
+          <div className="flex flex-col gap-3">
+            <label className="cursor-pointer bg-[#1A3A4A] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors inline-block text-center">
+              Choisir une image
+              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            </label>
+            {restaurantLogo && (
+              <button onClick={handleReset} className="text-sm text-red-500 hover:text-red-700 transition-colors text-left">
+                Réinitialiser (logo par défaut)
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [user, setUser] = useLocalStorage("arpege_user", null);
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
   const [activeTab, setActiveTab] = useState("ingredients");
+  const [restaurantLogo, setRestaurantLogo] = useState(() => window.localStorage.getItem("arpege_restaurant_logo") || null);
 
   useEffect(() => {
     if (window.localStorage.getItem("arpege_waste_pct_v2")) return;
@@ -2685,13 +2764,14 @@ const App = () => {
     : { source: "legacy", canaryActive: false, reason: "RUNTIME_DATA_SOURCE_UNAVAILABLE", data: [] };
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} restaurantLogo={restaurantLogo} />
       <main className="pb-12">
         {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
         {activeTab === "producers" && <ProducersView ingredients={ingredients} setIngredients={setIngredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
+        {activeTab === "parametres" && isChef && <ParametresView restaurantLogo={restaurantLogo} onLogoChange={setRestaurantLogo} />}
       </main>
     </div>
   );
