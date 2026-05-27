@@ -20,6 +20,9 @@
     <script src="./logic/core/recipe-submission.js"></script>
     <script src="./logic/core/recipe-scaling.js"></script>
     <script src="./logic/core/allergenes.js"></script>
+    <script src="./logic/core/data-export.js"></script>
+    <script src="./logic/core/auth-helpers.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -36,15 +39,7 @@
         .procedure-editor p { margin: 0 0 4px 0; }
         .procedure-editor ul { list-style-type: disc; padding-left: 1.5rem; margin: 0; }
     </style>
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-C1BC423NRZ"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-C1BC423NRZ');
-</script>
+    <!-- Google Analytics chargé uniquement après consentement RGPD explicite -->
 </head>
 <body class="bg-gray-50">
 <div id="root"></div>
@@ -95,7 +90,12 @@ if (!window.ArpegeRecipeSubmission) {
 if (!window.ArpegeAllergenes) {
   throw new Error("Module requis manquant: logic/core/allergenes.js n'est pas chargé.");
 }
+if (!window.ArpegeDataExport) {
+  throw new Error("Module requis manquant: logic/core/data-export.js n'est pas chargé.");
+}
 const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames } = window.ArpegeAllergenes;
+const { buildExportPayload, parseImportPayload } = window.ArpegeDataExport;
+const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode } = window.ArpegeAuthHelpers;
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -103,32 +103,10 @@ if (!unitCatalogCheck.isConsistent) {
 
 const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
 
-const INITIAL_INGREDIENTS = [
-  { id: 1, category: "Laitage", name: "Crème fraîche", price: 2.50, unit: "Litre", supplier: "Laiterie du Nord" },
-  { id: 2, category: "Boucherie", name: "Filet de bœuf", price: 28.00, unit: "Kg", supplier: "Boucherie Martin" },
-  { id: 3, category: "Légumes", name: "Carottes", price: 1.20, unit: "Kg", supplier: "Maraîcher Local" },
-  { id: 4, category: "Épicerie", name: "Huile d'olive", price: 8.50, unit: "Litre", supplier: "Oliviers du Sud" },
-  { id: 5, category: "Boulangerie", name: "Pain de campagne", price: 3.20, unit: "Pièce", supplier: "Boulangerie Dupont" }
-];
-
-const INITIAL_RECIPES = [
-  {
-    id: 1,
-    recipeType: "base",
-    categories: ["Entrée"],
-    name: "Velouté de potiron",
-    covers: 4,
-    outputQuantity: 2,
-    outputUnit: "Litre",
-    directIngredients: [
-      { ingredientId: 3, name: "Carottes", quantity: 0.5, unit: "Kg", wasteCoeff: 0, pricePerUnit: 1.20, unitPrice: "Kg" },
-      { ingredientId: 1, name: "Crème fraîche", quantity: 0.2, unit: "Litre", wasteCoeff: 5, pricePerUnit: 2.50, unitPrice: "Litre" }
-    ],
-    baseComponents: [],
-    procedure: "1. Éplucher et couper le potiron en dés\n2. Faire revenir les oignons dans du beurre\n3. Ajouter le potiron et couvrir d'eau\n4. Laisser mijoter 25 minutes\n5. Mixer et ajouter la crème\n6. Assaisonner et servir chaud",
-    wasteCoeff: 5
-  }
-];
+// Aucune donnée pré-remplie : chaque restaurant commence avec un espace vide.
+// Ces tableaux ne servent que si localStorage ne contient encore rien (premier lancement).
+const INITIAL_INGREDIENTS = [];
+const INITIAL_RECIPES = [];
 
 const LogoArpege = ({ className = "", size = "large" }) => {
   const isSmall = size === "small";
@@ -157,16 +135,26 @@ const FormulaLogo = ({ className = "" }) => (
   </div>
 );
 
-const LogoRestaurant = ({ restaurantLogo, className = "", size = "large" }) => {
+const LogoRestaurant = ({ restaurantLogo, restaurantName, className = "", size = "large" }) => {
+  const isSmall = size === "small";
   if (restaurantLogo) {
-    const isSmall = size === "small";
     return (
       <div className={`flex items-center ${className}`}>
         <img
           src={restaurantLogo}
-          alt="Logo restaurant"
+          alt={restaurantName || "Logo restaurant"}
           className={`object-contain ${isSmall ? "h-10" : "h-20"}`}
         />
+      </div>
+    );
+  }
+  if (restaurantName) {
+    return (
+      <div className={`flex flex-col items-center ${className}`}>
+        <span className={`font-serif tracking-widest text-[#1A3A4A] ${isSmall ? "text-lg" : "text-3xl"}`}>
+          {restaurantName.toUpperCase()}
+        </span>
+        {!isSmall && <span className="text-xs tracking-[0.3em] text-gray-500 mt-1">via Formula</span>}
       </div>
     );
   }
@@ -239,6 +227,51 @@ const useLocalStorage = (key, initialValue) => {
   };
 
   return [storedValue, setValue];
+};
+
+// ─── RGPD — consentement analytics ──────────────────────────────────────────
+const CONSENT_KEY = "arpege_consent_analytics";
+const GA_ID = "G-C1BC423NRZ";
+
+// Charge Google Analytics dynamiquement, uniquement si l'utilisateur a accepté.
+const loadGoogleAnalytics = () => {
+  if (window.__GA_LOADED__) return;
+  window.__GA_LOADED__ = true;
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  document.head.appendChild(script);
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  window.gtag("js", new Date());
+  window.gtag("config", GA_ID);
+};
+
+// ─── Configuration restaurant ────────────────────────────────────────────────
+// Clé unique dans localStorage pour stocker le nom du restaurant + mots de passe chiffrés
+const CONFIG_KEY = "arpege_restaurant_config";
+
+const getConfig = () => {
+  try {
+    const raw = window.localStorage.getItem(CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveConfig = (config) => {
+  window.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+};
+
+// Chiffrement SHA-256 via l'API Web Crypto du navigateur (pas de lib externe nécessaire).
+// Le mot de passe n'est jamais stocké en clair — seulement son empreinte irréversible.
+const hashPassword = async (password) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode("formula-arpege-2024:" + password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
 const computeRecipeAllergeneSummary = (recipe, allIngredients, allRecipes = []) => {
@@ -357,43 +390,383 @@ const IngredientAllergenesModal = ({ ingredient, isOpen, onClose, onSave }) => {
   );
 };
 
-const Login = ({ onLogin }) => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+// ─── Bandeau de consentement RGPD ────────────────────────────────────────────
+// Apparaît une seule fois, en bas de l'écran. Choix stocké dans localStorage.
+const ConsentBanner = ({ onAccept, onDecline }) => (
+  <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t-2 border-[#C8956C] shadow-2xl">
+    <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-[#1A3A4A]">🍪 Mesure d'audience</p>
+        <p className="text-xs text-gray-500 mt-1">
+          Cette application utilise Google Analytics pour compter les visites (pays, appareil, durée).
+          Aucune recette ni donnée personnelle n'est transmise. Conformément au RGPD, votre accord est requis.
+        </p>
+      </div>
+      <div className="flex gap-3 shrink-0">
+        <button onClick={onAccept}
+          className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors">
+          Accepter
+        </button>
+        <button onClick={onDecline}
+          className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
+          Refuser
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Écran de premier lancement ─────────────────────────────────────────────
+// Étape 1 : formulaire de configuration (nom + mots de passe)
+// Étape 2 : affichage du code de secours (à noter avant de continuer)
+const SetupScreen = ({ onComplete }) => {
+  const [step, setStep] = useState("form"); // "form" | "recovery"
+  const [restaurantName, setRestaurantName] = useState("");
+  const [chefEmail, setChefEmail] = useState("");
+  const [chefPassword, setChefPassword] = useState("");
+  const [chefPasswordConfirm, setChefPasswordConfirm] = useState("");
+  const [employePassword, setEmployePassword] = useState("");
+  const [employePasswordConfirm, setEmployePasswordConfirm] = useState("");
   const [error, setError] = useState("");
-  const handleSubmit = (e) => {
+  const [loading, setLoading] = useState(false);
+  // Données en attente entre les deux étapes
+  const [pendingConfig, setPendingConfig] = useState(null);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoveryConfirmed, setRecoveryConfirmed] = useState(false);
+
+  const handleSubmitForm = async (e) => {
     e.preventDefault();
-    if (username === "chef" && password === "chef123") onLogin({ role: "chef", name: "Chef" });
-    else if (username === "employe" && password === "employe123") onLogin({ role: "employe", name: "Employé" });
-    else setError("Identifiants incorrects. Essayez chef/chef123 ou employe/employe123");
+    setError("");
+    if (!restaurantName.trim()) { setError("Le nom du restaurant est obligatoire."); return; }
+    if (!chefEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(chefEmail.trim())) { setError("Veuillez entrer une adresse email valide pour le compte chef."); return; }
+    if (chefPassword.length < 6) { setError("Le mot de passe Chef doit contenir au moins 6 caractères."); return; }
+    if (chefPassword !== chefPasswordConfirm) { setError("Les deux mots de passe Chef ne correspondent pas."); return; }
+    if (employePassword.length < 6) { setError("Le mot de passe Employé doit contenir au moins 6 caractères."); return; }
+    if (employePassword !== employePasswordConfirm) { setError("Les deux mots de passe Employé ne correspondent pas."); return; }
+    setLoading(true);
+    try {
+      const code = generateRecoveryCode();
+      const [chefHash, employeHash, recoveryHash] = await Promise.all([
+        hashPassword(chefPassword),
+        hashPassword(employePassword),
+        hashPassword(normalizeRecoveryCode(code)),
+      ]);
+      setPendingConfig({ restaurantName: restaurantName.trim(), chefEmail: chefEmail.trim().toLowerCase(), chefPasswordHash: chefHash, employePasswordHash: employeHash, recoveryCodeHash: recoveryHash });
+      setRecoveryCode(code);
+      setStep("recovery");
+    } catch {
+      setError("Une erreur est survenue. Réessayez.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleFinalizeSetup = () => {
+    if (!pendingConfig || !recoveryConfirmed) return;
+    saveConfig(pendingConfig);
+    onComplete(pendingConfig);
+  };
+
+  if (step === "recovery") return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg fade-in border border-slate-100">
+        <div className="text-center mb-6">
+          <FormulaLogo className="mb-4" />
+          <h2 className="text-xl font-bold text-[#1A3A4A]">Votre code de secours</h2>
+          <p className="text-sm text-gray-500 mt-2">
+            Ce code vous permettra de réinitialiser votre mot de passe chef si vous l'oubliez.
+          </p>
+        </div>
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6 mb-6 text-center">
+          <p className="text-xs text-amber-700 font-medium mb-3 uppercase tracking-wider">Code de secours</p>
+          <p className="text-3xl font-mono font-bold text-[#1A3A4A] tracking-widest">{recoveryCode}</p>
+          <p className="text-xs text-amber-600 mt-3">⚠ Notez-le maintenant — il ne sera plus affiché.</p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer mb-6 p-3 rounded-lg hover:bg-gray-50">
+          <input type="checkbox" checked={recoveryConfirmed} onChange={(e) => setRecoveryConfirmed(e.target.checked)}
+            className="mt-0.5 accent-[#C8956C] w-4 h-4 shrink-0" />
+          <span className="text-sm text-gray-700">J'ai noté ce code en lieu sûr (cahier, coffre, gestionnaire de mots de passe…)</span>
+        </label>
+        <button onClick={handleFinalizeSetup} disabled={!recoveryConfirmed}
+          className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-40">
+          Accéder à mon espace →
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg fade-in border border-slate-100">
         <div className="text-center mb-8">
-          <FormulaLogo className="mb-6" />
+          <FormulaLogo className="mb-4" />
+          <h2 className="text-xl font-bold text-[#1A3A4A]">Bienvenue ! Configurez votre espace</h2>
+          <p className="text-sm text-gray-500 mt-2">Cette étape n'a lieu qu'une seule fois.</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmitForm} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Identifiant</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent" placeholder="chef ou employe" />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Nom du restaurant *</label>
+            <input type="text" value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
+              placeholder="Ex : Le Petit Bistro" autoFocus />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent" placeholder="••••••••" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email du chef *</label>
+            <p className="text-xs text-gray-400 mb-2">Utilisé pour recevoir le code de récupération en cas d'oubli du mot de passe.</p>
+            <input type="email" value={chefEmail} onChange={(e) => setChefEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
+              placeholder="chef@monrestaurant.fr" />
+          </div>
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-sm font-semibold text-[#1A3A4A] mb-3">👨‍🍳 Compte Chef — accès complet</p>
+            <div className="space-y-3">
+              <input type="password" value={chefPassword} onChange={(e) => setChefPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                placeholder="Mot de passe chef (min. 6 caractères)" />
+              <input type="password" value={chefPasswordConfirm} onChange={(e) => setChefPasswordConfirm(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                placeholder="Confirmer le mot de passe chef" />
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#1A3A4A] mb-3">👤 Compte Employé — accès limité</p>
+            <div className="space-y-3">
+              <input type="password" value={employePassword} onChange={(e) => setEmployePassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                placeholder="Mot de passe employé (min. 6 caractères)" />
+              <input type="password" value={employePasswordConfirm} onChange={(e) => setEmployePasswordConfirm(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                placeholder="Confirmer le mot de passe employé" />
+            </div>
           </div>
           {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
-          <button type="submit" className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all">Se connecter</button>
+          <button type="submit" disabled={loading}
+            className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+            {loading ? "Génération du code de secours…" : "Continuer →"}
+          </button>
         </form>
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Comptes de démo :</p><p className="mt-1">Chef: chef / chef123</p><p>Employé: employe / employe123</p>
-        </div>
       </div>
     </div>
   );
 };
 
-const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo }) => {
+// ─── Écran de connexion ───────────────────────────────────────────────────────
+const Login = ({ onLogin, restaurantName }) => {
+  const [mode, setMode] = useState("login"); // "login" | "forgot-code" | "forgot-reset"
+  const [role, setRole] = useState("chef");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  // Flux "mot de passe oublié"
+  const [recoveryInput, setRecoveryInput] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const config = getConfig();
+      if (!config) { setError("Configuration introuvable. Rechargez la page."); return; }
+      const hash = await hashPassword(password);
+      if (role === "chef" && hash === config.chefPasswordHash) onLogin({ role: "chef", name: "Chef" });
+      else if (role === "employe" && hash === config.employePasswordHash) onLogin({ role: "employe", name: "Employé" });
+      else setError("Mot de passe incorrect.");
+    } catch { setError("Erreur lors de la connexion. Réessayez."); }
+    finally { setLoading(false); }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(""); setEmailSent(false); setRecoveryInput(""); setLoading(true);
+    setMode("forgot-code");
+    try {
+      const config = getConfig();
+      if (!config?.chefEmail) { setError("Aucun email n'est enregistré pour ce compte. Contactez votre administrateur."); return; }
+      // Générer un nouveau code et le sauvegarder haché
+      const code = generateRecoveryCode();
+      const hash = await hashPassword(normalizeRecoveryCode(code));
+      saveConfig({ ...config, recoveryCodeHash: hash });
+      // Envoyer l'email via EmailJS
+      await emailjs.send("service_ahhkkys", "template_ozfybad", {
+        recovery_code: code,
+        to_email: config.chefEmail,
+      }, "iNShFqmc3XcxXBnyU");
+      // Masquer partiellement l'email pour l'affichage
+      const [local, domain] = config.chefEmail.split("@");
+      setMaskedEmail(local.substring(0, 2) + "***@" + domain);
+      setEmailSent(true);
+    } catch { setError("Impossible d'envoyer l'email. Vérifiez votre connexion internet et réessayez."); }
+    finally { setLoading(false); }
+  };
+
+  const handleVerifyRecoveryCode = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const config = getConfig();
+      if (!config?.recoveryCodeHash) { setError("Aucun code de secours configuré pour ce compte."); return; }
+      const normalized = normalizeRecoveryCode(recoveryInput);
+      if (!isValidRecoveryCodeFormat(normalized)) { setError("Format invalide. Le code ressemble à XXXX-XXXX-XXXX."); return; }
+      const hash = await hashPassword(normalized);
+      if (hash !== config.recoveryCodeHash) { setError("Code incorrect. Vérifiez l'email reçu."); return; }
+      setMode("forgot-reset");
+    } catch { setError("Erreur. Réessayez."); }
+    finally { setLoading(false); }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      if (newPassword.length < 6) { setError("Le nouveau mot de passe doit contenir au moins 6 caractères."); return; }
+      if (newPassword !== newPasswordConfirm) { setError("Les deux mots de passe ne correspondent pas."); return; }
+      const newHash = await hashPassword(newPassword);
+      const config = getConfig();
+      saveConfig({ ...config, chefPasswordHash: newHash });
+      setResetSuccess(true);
+      setTimeout(() => { setMode("login"); setResetSuccess(false); setNewPassword(""); setNewPasswordConfirm(""); }, 2500);
+    } catch { setError("Erreur. Réessayez."); }
+    finally { setLoading(false); }
+  };
+
+  const goBack = () => { setMode("login"); setError(""); setRecoveryInput(""); setNewPassword(""); setNewPasswordConfirm(""); setEmailSent(false); setMaskedEmail(""); };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in border border-slate-100">
+        <div className="text-center mb-8">
+          <FormulaLogo className="mb-4" />
+          {restaurantName && <p className="text-lg font-semibold text-[#1A3A4A] mt-2">{restaurantName}</p>}
+        </div>
+
+        {/* Connexion normale */}
+        {mode === "login" && (
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setRole("chef")}
+                  className={`flex-1 py-3 rounded-lg font-medium transition-all ${role === "chef" ? "bg-[#1A3A4A] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  👨‍🍳 Chef
+                </button>
+                <button type="button" onClick={() => setRole("employe")}
+                  className={`flex-1 py-3 rounded-lg font-medium transition-all ${role === "employe" ? "bg-[#1A3A4A] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  👤 Employé
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
+                placeholder="••••••••" required autoFocus />
+            </div>
+            {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
+            <button type="submit" disabled={loading}
+              className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
+              {loading ? "Connexion…" : "Se connecter"}
+            </button>
+            <p className="text-center">
+              <button type="button" onClick={handleForgotPassword}
+                className="text-sm text-gray-400 hover:text-[#C8956C] transition-colors underline">
+                Mot de passe chef oublié ?
+              </button>
+            </p>
+          </form>
+        )}
+
+        {/* Réinitialisation par email */}
+        {mode === "forgot-code" && (
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-base font-semibold text-[#1A3A4A] mb-1">Réinitialisation du mot de passe</h3>
+            </div>
+
+            {/* En cours d'envoi */}
+            {loading && (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                📨 Envoi de l'email en cours…
+              </div>
+            )}
+
+            {/* Email envoyé avec succès */}
+            {!loading && emailSent && (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+                  ✉️ Un email avec votre code de récupération a été envoyé à <strong>{maskedEmail}</strong>.<br />
+                  <span className="text-xs text-green-600 mt-1 block">Vérifiez aussi vos spams si vous ne le trouvez pas.</span>
+                </div>
+                <form onSubmit={handleVerifyRecoveryCode} className="space-y-3">
+                  <label className="block text-sm text-gray-600">Saisissez le code reçu par email :</label>
+                  <input type="text" value={recoveryInput} onChange={(e) => setRecoveryInput(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] font-mono text-center tracking-widest text-lg uppercase"
+                    placeholder="XXXX-XXXX-XXXX" autoFocus />
+                  {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
+                  <button type="submit" disabled={loading}
+                    className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg font-semibold hover:bg-[#2A4A5A] transition-all disabled:opacity-50">
+                    {loading ? "Vérification…" : "Vérifier le code"}
+                  </button>
+                </form>
+                <p className="text-center text-xs text-gray-400">
+                  Vous n'avez pas reçu l'email ?{" "}
+                  <button type="button" onClick={handleForgotPassword} className="underline hover:text-gray-600">
+                    Renvoyer
+                  </button>
+                </p>
+              </>
+            )}
+
+            {/* Erreur d'envoi */}
+            {!loading && !emailSent && error && (
+              <>
+                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>
+                <button type="button" onClick={handleForgotPassword}
+                  className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg font-semibold hover:bg-[#2A4A5A] transition-all">
+                  Réessayer
+                </button>
+              </>
+            )}
+
+            <p className="text-center">
+              <button type="button" onClick={goBack} className="text-sm text-gray-400 hover:text-gray-600 underline">
+                ← Retour à la connexion
+              </button>
+            </p>
+          </div>
+        )}
+
+        {/* Étape 2 : nouveau mot de passe */}
+        {mode === "forgot-reset" && (
+          <form onSubmit={handleResetPassword} className="space-y-5">
+            <div>
+              <h3 className="text-base font-semibold text-[#1A3A4A] mb-1">Nouveau mot de passe chef</h3>
+              <p className="text-sm text-gray-500 mb-4">Code de secours validé ✓ Choisissez un nouveau mot de passe.</p>
+              <div className="space-y-3">
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                  placeholder="Nouveau mot de passe (min. 6 caractères)" autoFocus />
+                <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+                  placeholder="Confirmer le nouveau mot de passe" />
+              </div>
+            </div>
+            {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
+            {resetSuccess && <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm">✓ Mot de passe mis à jour. Redirection…</div>}
+            <button type="submit" disabled={loading || resetSuccess}
+              className="w-full bg-[#1A3A4A] text-white py-3 rounded-lg font-semibold hover:bg-[#2A4A5A] transition-all disabled:opacity-50">
+              {loading ? "Mise à jour…" : "Enregistrer le nouveau mot de passe"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo, restaurantName }) => {
   const tabs = [
     { id: "ingredients", label: "Ingrédients", roles: ["chef", "employe"] },
     { id: "baseRecipes", label: "Recettes de base", roles: ["chef", "employe"] },
@@ -409,7 +782,7 @@ const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo }) => 
     <header className="bg-white shadow-md border-b border-slate-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
-          <LogoRestaurant size="small" restaurantLogo={restaurantLogo} />
+          <LogoRestaurant size="small" restaurantLogo={restaurantLogo} restaurantName={restaurantName} />
           <nav className="hidden md:flex flex-wrap gap-2 justify-center px-4">
             {visibleTabs.map(tab => (
               <button
@@ -2643,18 +3016,155 @@ const CostsView = ({ recipes, ingredients }) => {
   );
 };
 
-const ParametresView = ({ restaurantLogo, onLogoChange }) => {
+// ─── Section Export / Import ─────────────────────────────────────────────────
+const ExportImportSection = ({ config, ingredients, recipes, suppliers, onImport }) => {
+  const [importStep, setImportStep] = useState("idle"); // idle | preview | error
+  const [importPreview, setImportPreview] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+
+  // Télécharge un fichier JSON contenant toutes les données du restaurant.
+  const handleExport = () => {
+    const payload = buildExportPayload({
+      restaurantName: config?.restaurantName || "",
+      ingredients,
+      recipes,
+      suppliers,
+    });
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    const name = (config?.restaurantName || "restaurant").replace(/\s+/g, "-").toLowerCase();
+    a.href = url;
+    a.download = `sauvegarde-${name}-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Lit le fichier sélectionné, le valide, et affiche un aperçu avant confirmation.
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    e.target.value = ""; // reset pour pouvoir re-sélectionner le même fichier
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = parseImportPayload(ev.target.result);
+      if (!result.valid) {
+        setImportErrors(result.errors);
+        setImportPreview(null);
+        setImportStep("error");
+      } else {
+        setImportPreview(result.data);
+        setImportErrors([]);
+        setImportStep("preview");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Applique l'import après confirmation explicite de l'utilisateur.
+  const handleConfirmImport = () => {
+    if (!importPreview) return;
+    onImport(importPreview);
+    setImportStep("idle");
+    setImportPreview(null);
+  };
+
+  const handleCancelImport = () => {
+    setImportStep("idle");
+    setImportPreview(null);
+    setImportErrors([]);
+  };
+
+  const formatDate = (iso) => {
+    if (!iso) return "date inconnue";
+    try { return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }); }
+    catch { return iso; }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">💾 Sauvegarde des données</h3>
+      <p className="text-sm text-gray-500 mb-6">
+        Vos données sont stockées dans ce navigateur. Téléchargez régulièrement une copie pour ne rien perdre.
+      </p>
+
+      {/* Export */}
+      <div className="mb-6 pb-6 border-b border-gray-100">
+        <p className="text-sm font-medium text-gray-700 mb-1">Télécharger une sauvegarde</p>
+        <p className="text-xs text-gray-500 mb-3">
+          {ingredients.length} ingrédient{ingredients.length !== 1 ? "s" : ""} · {recipes.length} recette{recipes.length !== 1 ? "s" : ""} · {suppliers.length} fournisseur{suppliers.length !== 1 ? "s" : ""}
+        </p>
+        <button onClick={handleExport}
+          className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors">
+          ⬇ Télécharger la sauvegarde
+        </button>
+      </div>
+
+      {/* Import */}
+      <div>
+        <p className="text-sm font-medium text-gray-700 mb-1">Restaurer une sauvegarde</p>
+        <p className="text-xs text-gray-500 mb-3">
+          ⚠ Cette action remplacera <strong>toutes vos données actuelles</strong>. Elle est irréversible.
+        </p>
+
+        {importStep === "idle" && (
+          <label className="cursor-pointer inline-block px-5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            ⬆ Choisir un fichier de sauvegarde
+            <input type="file" accept=".json,application/json" onChange={handleFileSelect} className="hidden" />
+          </label>
+        )}
+
+        {importStep === "error" && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm font-semibold text-red-700 mb-2">Fichier invalide</p>
+            <ul className="list-disc list-inside space-y-1">
+              {importErrors.map((err, i) => (
+                <li key={i} className="text-sm text-red-600">{err}</li>
+              ))}
+            </ul>
+            <button onClick={handleCancelImport} className="mt-3 text-sm text-gray-500 hover:text-gray-700 underline">
+              Réessayer
+            </button>
+          </div>
+        )}
+
+        {importStep === "preview" && importPreview && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm font-semibold text-amber-800 mb-2">Confirmer la restauration ?</p>
+            <div className="text-sm text-amber-700 space-y-1 mb-4">
+              {importPreview.restaurantName && (
+                <p>🍽 Restaurant : <strong>{importPreview.restaurantName}</strong></p>
+              )}
+              <p>📅 Sauvegarde du : <strong>{formatDate(importPreview.exportedAt)}</strong></p>
+              <p>Contient : <strong>{importPreview.ingredients.length}</strong> ingrédients · <strong>{importPreview.recipes.length}</strong> recettes · <strong>{importPreview.suppliers.length}</strong> fournisseurs</p>
+              <p className="text-xs text-amber-600 mt-2">Vos données actuelles seront définitivement remplacées.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleConfirmImport}
+                className="px-5 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors">
+                Oui, restaurer ces données
+              </button>
+              <button onClick={handleCancelImport}
+                className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, ingredients, recipes, suppliers, onImport }) => {
+  // --- Logo ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("Veuillez sélectionner un fichier image (JPG, PNG, SVG, WebP).");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Image trop grande. Taille maximum : 2 Mo.");
-      return;
-    }
+    if (!file.type.startsWith("image/")) { alert("Veuillez sélectionner un fichier image (JPG, PNG, SVG, WebP)."); return; }
+    if (file.size > 2 * 1024 * 1024) { alert("Image trop grande. Taille maximum : 2 Mo."); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target.result;
@@ -2663,24 +3173,135 @@ const ParametresView = ({ restaurantLogo, onLogoChange }) => {
     };
     reader.readAsDataURL(file);
   };
+  const handleReset = () => { window.localStorage.removeItem("arpege_restaurant_logo"); onLogoChange(null); };
 
-  const handleReset = () => {
-    window.localStorage.removeItem("arpege_restaurant_logo");
-    onLogoChange(null);
+  // --- Nom du restaurant ---
+  const [restaurantName, setRestaurantName] = useState(config?.restaurantName || "");
+  const [nameSuccess, setNameSuccess] = useState(false);
+  const handleSaveName = () => {
+    if (!restaurantName.trim()) return;
+    const newConfig = { ...config, restaurantName: restaurantName.trim() };
+    saveConfig(newConfig);
+    onConfigChange(newConfig);
+    setNameSuccess(true);
+    setTimeout(() => setNameSuccess(false), 3000);
+  };
+
+  // --- Email chef ---
+  const [chefEmail, setChefEmail] = useState(config?.chefEmail || "");
+  const [emailError, setEmailError] = useState("");
+  const [emailSuccess, setEmailSuccess] = useState(false);
+  const handleSaveEmail = () => {
+    setEmailError("");
+    if (!chefEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(chefEmail.trim())) {
+      setEmailError("Veuillez entrer une adresse email valide.");
+      return;
+    }
+    const newConfig = { ...config, chefEmail: chefEmail.trim().toLowerCase() };
+    saveConfig(newConfig);
+    onConfigChange(newConfig);
+    setEmailSuccess(true);
+    setTimeout(() => setEmailSuccess(false), 3000);
+  };
+
+  // --- Mot de passe Chef ---
+  const [chefCurrent, setChefCurrent] = useState("");
+  const [chefNew, setChefNew] = useState("");
+  const [chefConfirm, setChefConfirm] = useState("");
+  const [chefError, setChefError] = useState("");
+  const [chefSuccess, setChefSuccess] = useState(false);
+  const [chefLoading, setChefLoading] = useState(false);
+  const handleChangeChefPassword = async (e) => {
+    e.preventDefault();
+    setChefError(""); setChefSuccess(false);
+    if (chefNew.length < 6) { setChefError("Le nouveau mot de passe doit contenir au moins 6 caractères."); return; }
+    if (chefNew !== chefConfirm) { setChefError("Les deux mots de passe ne correspondent pas."); return; }
+    setChefLoading(true);
+    try {
+      const currentHash = await hashPassword(chefCurrent);
+      if (currentHash !== config.chefPasswordHash) { setChefError("Mot de passe actuel incorrect."); setChefLoading(false); return; }
+      const newHash = await hashPassword(chefNew);
+      const newConfig = { ...config, chefPasswordHash: newHash };
+      saveConfig(newConfig); onConfigChange(newConfig);
+      setChefCurrent(""); setChefNew(""); setChefConfirm("");
+      setChefSuccess(true); setTimeout(() => setChefSuccess(false), 3000);
+    } catch { setChefError("Erreur lors du changement. Réessayez."); }
+    finally { setChefLoading(false); }
+  };
+
+  // --- Mot de passe Employé ---
+  const [employeNew, setEmployeNew] = useState("");
+  const [employeConfirm, setEmployeConfirm] = useState("");
+  const [employeError, setEmployeError] = useState("");
+  const [employeSuccess, setEmployeSuccess] = useState(false);
+  const [employeLoading, setEmployeLoading] = useState(false);
+  const handleChangeEmployePassword = async (e) => {
+    e.preventDefault();
+    setEmployeError(""); setEmployeSuccess(false);
+    if (employeNew.length < 6) { setEmployeError("Le nouveau mot de passe doit contenir au moins 6 caractères."); return; }
+    if (employeNew !== employeConfirm) { setEmployeError("Les deux mots de passe ne correspondent pas."); return; }
+    setEmployeLoading(true);
+    try {
+      const newHash = await hashPassword(employeNew);
+      const newConfig = { ...config, employePasswordHash: newHash };
+      saveConfig(newConfig); onConfigChange(newConfig);
+      setEmployeNew(""); setEmployeConfirm("");
+      setEmployeSuccess(true); setTimeout(() => setEmployeSuccess(false), 3000);
+    } catch { setEmployeError("Erreur lors du changement. Réessayez."); }
+    finally { setEmployeLoading(false); }
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-[#1A3A4A] mb-8">Paramètres</h2>
+    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+      <h2 className="text-2xl font-bold text-[#1A3A4A]">Paramètres</h2>
+
+      {/* Nom du restaurant */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-2">Logo du restaurant</h3>
-        <p className="text-sm text-gray-500 mb-6">Ce logo s'affiche dans l'application une fois connecté. Formats acceptés : JPG, PNG, SVG, WebP — max 2 Mo.</p>
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">Nom du restaurant</h3>
+        <p className="text-sm text-gray-500 mb-4">Affiché sur l'écran de connexion et dans la barre de navigation.</p>
+        <div className="flex gap-3">
+          <input type="text" value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)}
+            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
+            placeholder="Nom du restaurant" />
+          <button onClick={handleSaveName} disabled={!restaurantName.trim()}
+            className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] disabled:opacity-40 transition-colors">
+            Enregistrer
+          </button>
+        </div>
+        {nameSuccess && <p className="text-sm text-green-600 mt-2">✓ Nom mis à jour.</p>}
+      </div>
+
+      {/* Email chef */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">📧 Email du chef</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Utilisé pour recevoir votre code de récupération en cas d'oubli du mot de passe.
+          {!config?.chefEmail && (
+            <span className="block mt-1 text-amber-600 font-medium">⚠ Aucun email enregistré — la récupération de mot de passe ne fonctionnera pas sans ça.</span>
+          )}
+        </p>
+        <div className="flex gap-3">
+          <input type="email" value={chefEmail} onChange={(e) => setChefEmail(e.target.value)}
+            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
+            placeholder="chef@monrestaurant.fr" />
+          <button onClick={handleSaveEmail}
+            className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors">
+            Enregistrer
+          </button>
+        </div>
+        {emailError && <p className="text-sm text-red-600 mt-2">{emailError}</p>}
+        {emailSuccess && <p className="text-sm text-green-600 mt-2">✓ Email enregistré.</p>}
+      </div>
+
+      {/* Logo du restaurant */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">Logo du restaurant</h3>
+        <p className="text-sm text-gray-500 mb-6">Formats acceptés : JPG, PNG, SVG, WebP — max 2 Mo.</p>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
           <div className="w-36 h-24 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50 shrink-0">
             {restaurantLogo
               ? <img src={restaurantLogo} alt="Logo actuel" className="w-full h-full object-contain p-2" />
-              : <span className="text-xs text-gray-400 text-center px-2">Logo par défaut</span>
-            }
+              : <span className="text-xs text-gray-400 text-center px-2">Aucun logo</span>}
           </div>
           <div className="flex flex-col gap-3">
             <label className="cursor-pointer bg-[#1A3A4A] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors inline-block text-center">
@@ -2689,18 +3310,81 @@ const ParametresView = ({ restaurantLogo, onLogoChange }) => {
             </label>
             {restaurantLogo && (
               <button onClick={handleReset} className="text-sm text-red-500 hover:text-red-700 transition-colors text-left">
-                Réinitialiser (logo par défaut)
+                Supprimer le logo
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Changer mot de passe Chef */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">👨‍🍳 Mot de passe Chef</h3>
+        <p className="text-sm text-gray-500 mb-4">Saisissez votre mot de passe actuel pour le modifier.</p>
+        <form onSubmit={handleChangeChefPassword} className="space-y-3">
+          <input type="password" value={chefCurrent} onChange={(e) => setChefCurrent(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+            placeholder="Mot de passe actuel" required />
+          <input type="password" value={chefNew} onChange={(e) => setChefNew(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+            placeholder="Nouveau mot de passe (min. 6 caractères)" required />
+          <input type="password" value={chefConfirm} onChange={(e) => setChefConfirm(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+            placeholder="Confirmer le nouveau mot de passe" required />
+          {chefError && <p className="text-sm text-red-600">{chefError}</p>}
+          {chefSuccess && <p className="text-sm text-green-600">✓ Mot de passe Chef mis à jour.</p>}
+          <button type="submit" disabled={chefLoading}
+            className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] disabled:opacity-40 transition-colors">
+            {chefLoading ? "Mise à jour…" : "Changer le mot de passe"}
+          </button>
+        </form>
+      </div>
+
+      {/* Changer mot de passe Employé */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">👤 Mot de passe Employé</h3>
+        <p className="text-sm text-gray-500 mb-4">En tant que chef, vous pouvez redéfinir le mot de passe employé sans connaître l'ancien.</p>
+        <form onSubmit={handleChangeEmployePassword} className="space-y-3">
+          <input type="password" value={employeNew} onChange={(e) => setEmployeNew(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+            placeholder="Nouveau mot de passe employé (min. 6 caractères)" required />
+          <input type="password" value={employeConfirm} onChange={(e) => setEmployeConfirm(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]"
+            placeholder="Confirmer le nouveau mot de passe" required />
+          {employeError && <p className="text-sm text-red-600">{employeError}</p>}
+          {employeSuccess && <p className="text-sm text-green-600">✓ Mot de passe Employé mis à jour.</p>}
+          <button type="submit" disabled={employeLoading}
+            className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] disabled:opacity-40 transition-colors">
+            {employeLoading ? "Mise à jour…" : "Changer le mot de passe employé"}
+          </button>
+        </form>
+      </div>
+
+      {/* Sauvegarde & restauration */}
+      <ExportImportSection config={config} ingredients={ingredients} recipes={recipes} suppliers={suppliers}
+        onImport={onImport} />
     </div>
   );
 };
 
 const App = () => {
+  const [config, setConfig] = useState(() => getConfig());
   const [user, setUser] = useLocalStorage("arpege_user", null);
+  // Consentement RGPD : null = pas encore choisi, "accepted" ou "declined"
+  const [consent, setConsent] = useState(() => window.localStorage.getItem(CONSENT_KEY));
+
+  useEffect(() => {
+    if (consent === "accepted") loadGoogleAnalytics();
+  }, [consent]);
+
+  const handleAcceptConsent = () => {
+    window.localStorage.setItem(CONSENT_KEY, "accepted");
+    setConsent("accepted");
+  };
+  const handleDeclineConsent = () => {
+    window.localStorage.setItem(CONSENT_KEY, "declined");
+    setConsent("declined");
+  };
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
@@ -2752,7 +3436,10 @@ const App = () => {
     }
   }, [ingredients, recipes]);
 
-  if (!user) return <Login onLogin={setUser} />;
+  // Premier lancement : aucune configuration trouvée → écran de setup
+  if (!config) return <SetupScreen onComplete={(newConfig) => { setConfig(newConfig); setUser(null); }} />;
+  // Configuration présente mais pas connecté → écran de login
+  if (!user) return <Login onLogin={setUser} restaurantName={config.restaurantName} />;
   const isChef = user.role === "chef";
   const suppliersRuntime = window.ArpegeRuntimeDataSource
     ? window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
@@ -2764,14 +3451,26 @@ const App = () => {
     : { source: "legacy", canaryActive: false, reason: "RUNTIME_DATA_SOURCE_UNAVAILABLE", data: [] };
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} restaurantLogo={restaurantLogo} />
+      {consent === null && <ConsentBanner onAccept={handleAcceptConsent} onDecline={handleDeclineConsent} />}
+      <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} restaurantLogo={restaurantLogo} restaurantName={config?.restaurantName} />
       <main className="pb-12">
         {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
         {activeTab === "producers" && <ProducersView ingredients={ingredients} setIngredients={setIngredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
         {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
-        {activeTab === "parametres" && isChef && <ParametresView restaurantLogo={restaurantLogo} onLogoChange={setRestaurantLogo} />}
+        {activeTab === "parametres" && isChef && (
+          <ParametresView
+            restaurantLogo={restaurantLogo} onLogoChange={setRestaurantLogo}
+            config={config} onConfigChange={setConfig}
+            ingredients={ingredients} recipes={recipes} suppliers={suppliers}
+            onImport={(data) => {
+              setIngredients(data.ingredients);
+              setRecipes(data.recipes);
+              setSuppliers(data.suppliers);
+            }}
+          />
+        )}
       </main>
     </div>
   );

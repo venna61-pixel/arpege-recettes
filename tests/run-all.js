@@ -9,6 +9,8 @@ const tests = [
   "recipe-builder.test.js",
   "recipe-filters.test.js",
   "migration-coherence.test.js",
+  "data-export.test.js",
+  "auth-helpers.test.js",
 ];
 
 let passed = 0;
