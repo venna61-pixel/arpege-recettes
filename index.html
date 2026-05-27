@@ -417,10 +417,9 @@ const ConsentBanner = ({ onAccept, onDecline }) => (
 );
 
 // ─── Écran de premier lancement ─────────────────────────────────────────────
-// Étape 1 : formulaire de configuration (nom + mots de passe)
-// Étape 2 : affichage du code de secours (à noter avant de continuer)
+// Formulaire de configuration initiale (nom, email, mots de passe)
+// Le code de récupération est généré à la demande et envoyé par email — plus besoin de l'afficher ici.
 const SetupScreen = ({ onComplete }) => {
-  const [step, setStep] = useState("form"); // "form" | "recovery"
   const [restaurantName, setRestaurantName] = useState("");
   const [chefEmail, setChefEmail] = useState("");
   const [chefPassword, setChefPassword] = useState("");
@@ -429,10 +428,6 @@ const SetupScreen = ({ onComplete }) => {
   const [employePasswordConfirm, setEmployePasswordConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  // Données en attente entre les deux étapes
-  const [pendingConfig, setPendingConfig] = useState(null);
-  const [recoveryCode, setRecoveryCode] = useState("");
-  const [recoveryConfirmed, setRecoveryConfirmed] = useState(false);
 
   const handleSubmitForm = async (e) => {
     e.preventDefault();
@@ -445,55 +440,19 @@ const SetupScreen = ({ onComplete }) => {
     if (employePassword !== employePasswordConfirm) { setError("Les deux mots de passe Employé ne correspondent pas."); return; }
     setLoading(true);
     try {
-      const code = generateRecoveryCode();
-      const [chefHash, employeHash, recoveryHash] = await Promise.all([
+      const [chefHash, employeHash] = await Promise.all([
         hashPassword(chefPassword),
         hashPassword(employePassword),
-        hashPassword(normalizeRecoveryCode(code)),
       ]);
-      setPendingConfig({ restaurantName: restaurantName.trim(), chefEmail: chefEmail.trim().toLowerCase(), chefPasswordHash: chefHash, employePasswordHash: employeHash, recoveryCodeHash: recoveryHash });
-      setRecoveryCode(code);
-      setStep("recovery");
+      const newConfig = { restaurantName: restaurantName.trim(), chefEmail: chefEmail.trim().toLowerCase(), chefPasswordHash: chefHash, employePasswordHash: employeHash };
+      saveConfig(newConfig);
+      onComplete(newConfig);
     } catch {
       setError("Une erreur est survenue. Réessayez.");
     } finally {
       setLoading(false);
     }
   };
-
-  const handleFinalizeSetup = () => {
-    if (!pendingConfig || !recoveryConfirmed) return;
-    saveConfig(pendingConfig);
-    onComplete(pendingConfig);
-  };
-
-  if (step === "recovery") return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg fade-in border border-slate-100">
-        <div className="text-center mb-6">
-          <FormulaLogo className="mb-4" />
-          <h2 className="text-xl font-bold text-[#1A3A4A]">Votre code de secours</h2>
-          <p className="text-sm text-gray-500 mt-2">
-            Ce code vous permettra de réinitialiser votre mot de passe chef si vous l'oubliez.
-          </p>
-        </div>
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6 mb-6 text-center">
-          <p className="text-xs text-amber-700 font-medium mb-3 uppercase tracking-wider">Code de secours</p>
-          <p className="text-3xl font-mono font-bold text-[#1A3A4A] tracking-widest">{recoveryCode}</p>
-          <p className="text-xs text-amber-600 mt-3">⚠ Notez-le maintenant — il ne sera plus affiché.</p>
-        </div>
-        <label className="flex items-start gap-3 cursor-pointer mb-6 p-3 rounded-lg hover:bg-gray-50">
-          <input type="checkbox" checked={recoveryConfirmed} onChange={(e) => setRecoveryConfirmed(e.target.checked)}
-            className="mt-0.5 accent-[#C8956C] w-4 h-4 shrink-0" />
-          <span className="text-sm text-gray-700">J'ai noté ce code en lieu sûr (cahier, coffre, gestionnaire de mots de passe…)</span>
-        </label>
-        <button onClick={handleFinalizeSetup} disabled={!recoveryConfirmed}
-          className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-40">
-          Accéder à mon espace →
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 flex items-center justify-center p-4">
@@ -542,7 +501,7 @@ const SetupScreen = ({ onComplete }) => {
           {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>}
           <button type="submit" disabled={loading}
             className="w-full bg-gradient-to-r from-[#1A3A4A] to-[#2A4A5A] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50">
-            {loading ? "Génération du code de secours…" : "Continuer →"}
+            {loading ? "Création en cours…" : "Créer mon espace →"}
           </button>
         </form>
       </div>
