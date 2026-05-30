@@ -2155,6 +2155,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [formData, setFormData] = useState(emptyForm);
   const [currentIng, setCurrentIng] = useState({ ingredientId: "", quantity: "", unit: "Gramme", wasteCoeff: 0, searchText: "" });
   const [currentBase, setCurrentBase] = useState({ baseRecipeId: "", quantity: "", unit: "Gramme", usageMode: "quantity", portionCount: "", searchText: "", categoryFilter: "Tous" });
+  const [ingHighlightIdx, setIngHighlightIdx] = useState(-1);
+  const [baseHighlightIdx, setBaseHighlightIdx] = useState(-1);
 
   const filteredBaseRecipesForPicker = filterBaseRecipesForPicker({
     recipes: normalizedRecipes,
@@ -2626,11 +2628,21 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             <h4 className="font-medium text-gray-700 mb-3">Ingrédients directs</h4>
             <div className="relative mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher un ingrédient</label>
-              <input type="text" value={currentIng.searchText} onChange={(e) => setCurrentIng({ ...currentIng, searchText: e.target.value, ingredientId: "" })} placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
+              <input type="text" value={currentIng.searchText}
+                onChange={(e) => { setCurrentIng({ ...currentIng, searchText: e.target.value, ingredientId: "" }); setIngHighlightIdx(-1); }}
+                onKeyDown={(e) => {
+                  if (!currentIng.searchText || currentIng.ingredientId) return;
+                  const list = filteredIngredientsForSearch;
+                  if (e.key === "ArrowDown") { e.preventDefault(); setIngHighlightIdx(i => Math.min(i + 1, list.length - 1)); }
+                  else if (e.key === "ArrowUp") { e.preventDefault(); setIngHighlightIdx(i => Math.max(i - 1, 0)); }
+                  else if (e.key === "Enter" && ingHighlightIdx >= 0 && list[ingHighlightIdx]) { e.preventDefault(); const ing = list[ingHighlightIdx]; setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name }); setIngHighlightIdx(-1); }
+                  else if (e.key === "Escape") { setCurrentIng({ ...currentIng, searchText: "", ingredientId: "" }); setIngHighlightIdx(-1); }
+                }}
+                placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
               {currentIng.searchText && !currentIng.ingredientId && (
                 <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
-                  {filteredIngredientsForSearch.length > 0 ? filteredIngredientsForSearch.map(ing => (
-                    <button key={ing.id} type="button" onClick={() => setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name })} className="w-full text-left px-4 py-2 hover:bg-amber-50 flex justify-between"><span>{ing.name}</span><span className="text-sm text-gray-500">{Number.isFinite(Number(ing.price)) && Number(ing.price) > 0 ? `${formatDecimal(ing.price)}€/${ing.unit}` : `Prix inconnu/${ing.unit}`}</span></button>
+                  {filteredIngredientsForSearch.length > 0 ? filteredIngredientsForSearch.map((ing, i) => (
+                    <button key={ing.id} type="button" onClick={() => { setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name }); setIngHighlightIdx(-1); }} className={`w-full text-left px-4 py-2 flex justify-between ${i === ingHighlightIdx ? "bg-amber-100" : "hover:bg-amber-50"}`}><span>{ing.name}</span><span className="text-sm text-gray-500">{Number.isFinite(Number(ing.price)) && Number(ing.price) > 0 ? `${formatDecimal(ing.price)}€/${ing.unit}` : `Prix inconnu/${ing.unit}`}</span></button>
                   )) : <div className="p-4 text-center"><p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p><button type="button" onClick={() => setShowAddIngredientModal(true)} className="text-[#1A3A4A] font-medium text-sm">Créer "{currentIng.searchText}"</button></div>}
                 </div>
               )}
@@ -2657,11 +2669,21 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Rechercher une recette de base</label>
                   <div className="relative">
-                    <input type="text" value={currentBase.searchText} onChange={(e) => setCurrentBase({ ...currentBase, searchText: e.target.value, baseRecipeId: "" })} placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
+                    <input type="text" value={currentBase.searchText}
+                      onChange={(e) => { setCurrentBase({ ...currentBase, searchText: e.target.value, baseRecipeId: "" }); setBaseHighlightIdx(-1); }}
+                      onKeyDown={(e) => {
+                        if (!currentBase.searchText || currentBase.baseRecipeId) return;
+                        const list = filteredBaseRecipesForPicker;
+                        if (e.key === "ArrowDown") { e.preventDefault(); setBaseHighlightIdx(i => Math.min(i + 1, list.length - 1)); }
+                        else if (e.key === "ArrowUp") { e.preventDefault(); setBaseHighlightIdx(i => Math.max(i - 1, 0)); }
+                        else if (e.key === "Enter" && baseHighlightIdx >= 0 && list[baseHighlightIdx]) { e.preventDefault(); const rec = list[baseHighlightIdx]; setCurrentBase({ ...currentBase, baseRecipeId: rec.id, searchText: rec.name, unit: rec.outputUnit || currentBase.unit }); setBaseHighlightIdx(-1); }
+                        else if (e.key === "Escape") { setCurrentBase({ ...currentBase, searchText: "", baseRecipeId: "" }); setBaseHighlightIdx(-1); }
+                      }}
+                      placeholder="Tapez pour chercher..." className="w-full px-3 py-2 rounded-lg border border-gray-300" />
                     {currentBase.searchText && !currentBase.baseRecipeId && (
                       <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
-                        {filteredBaseRecipesForPicker.length > 0 ? filteredBaseRecipesForPicker.map(rec => (
-                          <button key={rec.id} type="button" onClick={() => setCurrentBase({ ...currentBase, baseRecipeId: rec.id, searchText: rec.name, unit: rec.outputUnit || currentBase.unit })} className="w-full text-left px-4 py-2 hover:bg-slate-50 flex justify-between"><span>{rec.name}</span><span className="text-sm text-gray-500">{rec.categories.join(", ")}</span></button>
+                        {filteredBaseRecipesForPicker.length > 0 ? filteredBaseRecipesForPicker.map((rec, i) => (
+                          <button key={rec.id} type="button" onClick={() => { setCurrentBase({ ...currentBase, baseRecipeId: rec.id, searchText: rec.name, unit: rec.outputUnit || currentBase.unit }); setBaseHighlightIdx(-1); }} className={`w-full text-left px-4 py-2 flex justify-between ${i === baseHighlightIdx ? "bg-slate-100" : "hover:bg-slate-50"}`}><span>{rec.name}</span><span className="text-sm text-gray-500">{rec.categories.join(", ")}</span></button>
                         )) : <div className="p-4 text-sm text-gray-500">Aucune recette de base trouvée</div>}
                       </div>
                     )}
