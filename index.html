@@ -1986,7 +1986,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type de pivot</label>
-                <select value={pivotType} onChange={(e) => { const t = e.target.value; setPivotType(t); setPivotValue(String(t === "covers" ? normalized.covers || 1 : t === "globalQuantity" ? totalDirectQty || 1 : t === "budget" ? baseCost || 1 : ingredientPivotSource?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                <select value={pivotType} onChange={(e) => { const t = e.target.value; setPivotType(t); setPivotValue(String(t === "covers" ? normalized.covers || 1 : t === "globalQuantity" ? totalDirectQty || 1 : t === "budget" ? (baseCost || "") : ingredientPivotSource?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
                   <option value="covers">Nombre de couverts</option>
                   <option value="globalQuantity">Quantité globale</option>
                   <option value="budget">Budget cible</option>
@@ -2005,11 +2005,15 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Valeur cible</label><input type="number" step="0.01" min="0.01" value={pivotValue} onChange={(e) => setPivotValue(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
           </div>
           <div className="bg-[#C8956C] bg-opacity-10 rounded-xl p-4 border border-[#C8956C] border-opacity-30">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coefficient :</span><span>{multiplier.toFixed(4)}</span></div>
-              <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span><span>{(normalized.covers * multiplier).toFixed(2)}</span></div>
-              {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}</span></div>}
-            </div>
+            {scaling.reason === "BUDGET_COST_UNKNOWN" ? (
+              <p className="text-sm text-amber-700 font-medium">⚠ Pivot par budget indisponible — le coût de cette recette est inconnu car certains prix d'ingrédients ne sont pas renseignés.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coefficient :</span><span>{multiplier.toFixed(4)}</span></div>
+                <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span><span>{(normalized.covers * multiplier).toFixed(2)}</span></div>
+                {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}</span></div>}
+              </div>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={handlePrintAdaptedSheet} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche adaptée (PDF)</button>
               {normalized.recipeType !== "base" && (

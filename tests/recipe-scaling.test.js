@@ -93,6 +93,28 @@ function testCasInvalideValeurAbsente() {
   assert.strictEqual(result.valid, false);
 }
 
+function testPivotBudgetCoutInconnuRetourneInvalide() {
+  const normalizedRecipe = sampleRecipe();
+  const result = computePivotMultiplier({ pivotType: 'budget', pivotValue: '150', normalizedRecipe, baseCost: null, selectedIngredientIndex: 0 });
+  assert.strictEqual(result.valid, false);
+  assert.strictEqual(result.reason, 'BUDGET_COST_UNKNOWN');
+  assert.strictEqual(result.multiplier, 1);
+}
+
+function testPivotBudgetCoutZeroRetourneInvalide() {
+  const normalizedRecipe = sampleRecipe();
+  const result = computePivotMultiplier({ pivotType: 'budget', pivotValue: '150', normalizedRecipe, baseCost: 0, selectedIngredientIndex: 0 });
+  assert.strictEqual(result.valid, false);
+  assert.strictEqual(result.reason, 'BUDGET_COST_UNKNOWN');
+}
+
+function testPivotBudgetCoutConnuFonctionneNormalement() {
+  const normalizedRecipe = sampleRecipe();
+  const result = computePivotMultiplier({ pivotType: 'budget', pivotValue: '50', normalizedRecipe, baseCost: 25, selectedIngredientIndex: 0 });
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.multiplier, 2);
+}
+
 function testRecalculRecetteAdapteeEtStatut() {
   const recipe = sampleRecipe();
   const base = sampleBaseRecipe();
@@ -151,6 +173,9 @@ function runAll() {
     testPivotParLignePivot,
     testPivotParLignePivotBaseComponent,
     testCasInvalideValeurAbsente,
+    testPivotBudgetCoutInconnuRetourneInvalide,
+    testPivotBudgetCoutZeroRetourneInvalide,
+    testPivotBudgetCoutConnuFonctionneNormalement,
     testRecalculRecetteAdapteeEtStatut,
     testAdaptationModePortionPourBaseComponent,
   ];

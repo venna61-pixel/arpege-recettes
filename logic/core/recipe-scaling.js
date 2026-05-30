@@ -40,7 +40,19 @@
     let ratio = null;
     if (pivotType === "covers") ratio = safeDivide(numericPivot, Number(normalizedRecipe.covers || 1));
     if (pivotType === "globalQuantity") ratio = safeDivide(numericPivot, Number(totalDirectQty || 1));
-    if (pivotType === "budget") ratio = safeDivide(numericPivot, Number(baseCost || 1));
+    if (pivotType === "budget") {
+      if (!baseCost) {
+        return {
+          multiplier: 1,
+          valid: false,
+          reason: "BUDGET_COST_UNKNOWN",
+          numericPivot,
+          ingredientPivotSource,
+          totalDirectQty,
+        };
+      }
+      ratio = safeDivide(numericPivot, Number(baseCost));
+    }
     if (pivotType === "ingredientQuantity") ratio = safeDivide(numericPivot, Number(ingredientPivotSource?.quantity || 1));
 
     if (ratio == null) {
