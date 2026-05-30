@@ -871,7 +871,7 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
     const allergenesValue = allergenesStep === "done" ? allergenesSelected : null;
     const normalized = { ...formData, supplier: normalizedSupplier, price: normalizeUnknownPrice(formData.price), allergenes: allergenesValue };
     if (editingId) setIngredients(ingredients.map(ing => ing.id === editingId ? { ...normalized, id: editingId } : ing));
-    else setIngredients([...ingredients, { ...normalized, id: Math.max(...ingredients.map(i => i.id), 0) + 1 }]);
+    else setIngredients([...ingredients, { ...normalized, id: ingredients.reduce((max, i) => Math.max(max, Number(i.id) || 0), 0) + 1 }]);
 
     if (normalizedSupplier) {
       const existingSuppliers = (Array.isArray(suppliers) ? suppliers : []).map((s, idx) => (
