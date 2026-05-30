@@ -95,6 +95,9 @@ if (!window.ArpegeDataExport) {
 }
 const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames } = window.ArpegeAllergenes;
 const { buildExportPayload, parseImportPayload } = window.ArpegeDataExport;
+if (!window.ArpegeAuthHelpers) {
+  throw new Error("Module requis manquant: logic/core/auth-helpers.js n'est pas chargé.");
+}
 const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode } = window.ArpegeAuthHelpers;
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
