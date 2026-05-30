@@ -584,7 +584,8 @@ const Login = ({ onLogin, restaurantName }) => {
       if (newPassword !== newPasswordConfirm) { setError("Les deux mots de passe ne correspondent pas."); return; }
       const newHash = await hashPassword(newPassword);
       const config = getConfig();
-      saveConfig({ ...config, chefPasswordHash: newHash });
+      const { recoveryCodeHash: _used, ...configWithoutCode } = config;
+      saveConfig({ ...configWithoutCode, chefPasswordHash: newHash });
       setResetSuccess(true);
       setTimeout(() => { setMode("login"); setResetSuccess(false); setNewPassword(""); setNewPasswordConfirm(""); }, 2500);
     } catch { setError("Erreur. Réessayez."); }
