@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./logic/core/constants.js"></script>
     <script src="./models/schema.js"></script>
     <script src="./logic/migration/legacy-to-v1.js"></script>
     <script src="./logic/migration/report.js"></script>
@@ -47,32 +48,16 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
-const LOGO_URL = "./logo/formula-logo.svg";
-const SERVICE_CATEGORIES = ["Entrée", "Plat", "Dessert", "Amuse-bouche", "Soupe", "Salade", "Boisson"];
-const RECIPE_TYPE_OPTIONS = [
-  { value: "base", label: "Recette de base" },
-  { value: "final", label: "Recette finale" }
-];
-
-const UNITS = [
-  "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8",
-  "Boîte 2/1", "Boîte 3/1", "Boîte 3/4", "Boîte 4/4", "Boîte 5/1", "Bombe", "Botte", "Bouteille",
-  "Brick", "Coffret", "Colis", "Distribute", "Étui", "Flacon", "Fut", "Kg", "Lot", "Litre", "Pack",
-  "Pain", "Paire", "Paquet", "Pièce", "Plaque", "Plateau", "Poche", "Pot", "Rouleau", "Sac", "Sachet",
-  "Seau", "Tablette", "Terrine", "Tube", "Tubo", "Unité", "Carton", "Cl", "Part", "Portion", "Gramme", "Ml"
-];
-const YIELD_UNITS = ["Gramme", "Kg", "Ml", "Cl", "Litre"];
-const PRIORITY_UNITS = ["Kg", "Gramme", "Litre", "Ml", "Cl", "Pièce", "Portion", "Part", "Unité"];
-const orderUnitsForDisplay = (units) => {
-  const list = Array.from(new Set((units || []).filter(Boolean)));
-  const priority = PRIORITY_UNITS.filter((u) => list.includes(u));
-  const rest = list.filter((u) => !priority.includes(u));
-  return [...priority, ...rest];
-};
-const DISPLAY_UNITS = orderUnitsForDisplay(UNITS);
-const DISPLAY_YIELD_UNITS = orderUnitsForDisplay(YIELD_UNITS);
-const BASE_QUANTITY_UNITS_MASS = ["Gramme", "Kg"];
-const BASE_QUANTITY_UNITS_VOLUME = ["Ml", "Cl", "Litre"];
+if (!window.ArpegeConstants) {
+  throw new Error("Module requis manquant: logic/core/constants.js n'est pas chargé.");
+}
+const {
+  LOGO_URL, SERVICE_CATEGORIES, RECIPE_TYPE_OPTIONS,
+  UNITS, YIELD_UNITS, PRIORITY_UNITS, orderUnitsForDisplay,
+  DISPLAY_UNITS, DISPLAY_YIELD_UNITS,
+  BASE_QUANTITY_UNITS_MASS, BASE_QUANTITY_UNITS_VOLUME,
+  CATEGORIES_ING, INITIAL_INGREDIENTS, INITIAL_RECIPES,
+} = window.ArpegeConstants;
 if (!window.ArpegeCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
 }
@@ -105,13 +90,6 @@ const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
 }
-
-const CATEGORIES_ING = ["Laitage", "Boucherie", "Charcuterie", "Poissonnerie", "Fruits", "Légumes", "Épicerie", "Boulangerie", "Boissons", "Condiments", "Herbes", "Épices"];
-
-// Aucune donnée pré-remplie : chaque restaurant commence avec un espace vide.
-// Ces tableaux ne servent que si localStorage ne contient encore rien (premier lancement).
-const INITIAL_INGREDIENTS = [];
-const INITIAL_RECIPES = [];
 
 const LogoArpege = ({ className = "", size = "large" }) => {
   const isSmall = size === "small";
