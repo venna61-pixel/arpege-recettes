@@ -297,6 +297,89 @@ function testApplyMergePasDeDuplicats() {
   assert.strictEqual(result.suppliers.length, 1);
 }
 
+// ─── Recalibrage des références après fusion ──────────────────────────────────
+
+function testRecalibrageIngredientIdDansNouvelleRecette() {
+  // Appareil A : Beurre id=99. Appareil B : Beurre id=1 (même ingrédient, même prix).
+  // La recette importée référence ingredientId=99, mais sur B Beurre est à id=1.
+  // Après fusion, la recette doit référencer id=1.
+  const importedRecette = {
+    id: 50, name: "Tarte importée", recipeType: "final",
+    directIngredients: [{ ingredientId: 99, name: "Beurre", quantity: 1, unit: "Kg" }],
+    baseComponents: [],
+  };
+  const analysis = {
+    newIngredients: [],
+    ingredientConflicts: [],
+    newRecipes: [importedRecette],
+    recipeConflicts: [],
+    newSuppliers: [],
+  };
+  const result = applyMerge({
+    analysis,
+    selectedRecipeNames: [],
+    selectedIngredientNames: [],
+    existingIngredients: [ING_BEURRE], // ING_BEURRE.id = 1
+    existingRecipes: [],
+    existingSuppliers: [],
+  });
+  assert.strictEqual(result.recipes[0].directIngredients[0].ingredientId, ING_BEURRE.id,
+    "ingredientId doit être recalibré vers l'ID local");
+}
+
+function testRecalibrageIngredientIdDansRecetteRemplacee() {
+  // Même scénario mais via un conflit de recette sélectionné pour remplacement.
+  const importedTarte = {
+    id: 99, name: "Tarte aux pommes", recipeType: "final",
+    directIngredients: [{ ingredientId: 99, name: "Beurre", quantity: 0.5, unit: "Kg" }],
+    baseComponents: [],
+  };
+  const analysis = {
+    newIngredients: [],
+    ingredientConflicts: [],
+    newRecipes: [],
+    recipeConflicts: [{ imported: importedTarte, existing: REC_TARTE }],
+    newSuppliers: [],
+  };
+  const result = applyMerge({
+    analysis,
+    selectedRecipeNames: ["Tarte aux pommes"],
+    selectedIngredientNames: [],
+    existingIngredients: [ING_BEURRE], // id=1
+    existingRecipes: [REC_TARTE],      // id=10
+    existingSuppliers: [],
+  });
+  assert.strictEqual(result.recipes[0].directIngredients[0].ingredientId, ING_BEURRE.id,
+    "ingredientId recalibré même après remplacement de recette");
+}
+
+function testRecalibrageBaseRecipeIdDansRecettefinale() {
+  // La recette finale importée référence baseRecipeId=99 (Sauce tomate sur appareil A).
+  // Sur appareil B, Sauce tomate est à id=11. Doit être recalibré.
+  const importedFinale = {
+    id: 60, name: "Plat importé", recipeType: "final",
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 99, name: "Sauce tomate", quantity: 1, unit: "Kg" }],
+  };
+  const analysis = {
+    newIngredients: [],
+    ingredientConflicts: [],
+    newRecipes: [importedFinale],
+    recipeConflicts: [],
+    newSuppliers: [],
+  };
+  const result = applyMerge({
+    analysis,
+    selectedRecipeNames: [],
+    selectedIngredientNames: [],
+    existingIngredients: [],
+    existingRecipes: [REC_SAUCE], // REC_SAUCE = { id: 11, name: "Sauce tomate" }
+    existingSuppliers: [],
+  });
+  assert.strictEqual(result.recipes.find(r => r.name === "Plat importé").baseComponents[0].baseRecipeId, REC_SAUCE.id,
+    "baseRecipeId doit être recalibré vers l'ID local de la recette de base");
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -322,6 +405,9 @@ function runAll() {
     testApplyMergeRemplaceRecetteSelectionnee,
     testApplyMergeConserveIDExistantMemeAvecAccents,
     testApplyMergePasDeDuplicats,
+    testRecalibrageIngredientIdDansNouvelleRecette,
+    testRecalibrageIngredientIdDansRecetteRemplacee,
+    testRecalibrageBaseRecipeIdDansRecettefinale,
   ];
 
   for (const testFn of tests) {

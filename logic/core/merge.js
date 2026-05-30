@@ -98,9 +98,31 @@
 
     const mergedSuppliers = existingSuppliers.concat(analysis.newSuppliers);
 
+    // Recalibrage des références par nom : après fusion, les recettes importées
+    // peuvent pointer vers des IDs qui n'existent pas sur cet appareil.
+    // On corrige ingredientId et baseRecipeId en cherchant par nom.
+    const ingredientNameToId = new Map(mergedIngredients.map(function (i) {
+      return [normalizeMergeName(i.name), i.id];
+    }));
+    const recipeNameToId = new Map(mergedRecipes.map(function (r) {
+      return [normalizeMergeName(r.name), r.id];
+    }));
+
+    const remappedRecipes = mergedRecipes.map(function (recipe) {
+      const directIngredients = (recipe.directIngredients || []).map(function (ing) {
+        const localId = ingredientNameToId.get(normalizeMergeName(ing.name));
+        return localId !== undefined ? Object.assign({}, ing, { ingredientId: localId }) : ing;
+      });
+      const baseComponents = (recipe.baseComponents || []).map(function (comp) {
+        const localId = recipeNameToId.get(normalizeMergeName(comp.name));
+        return localId !== undefined ? Object.assign({}, comp, { baseRecipeId: localId }) : comp;
+      });
+      return Object.assign({}, recipe, { directIngredients: directIngredients, baseComponents: baseComponents });
+    });
+
     return {
       ingredients: mergedIngredients,
-      recipes: mergedRecipes,
+      recipes: remappedRecipes,
       suppliers: mergedSuppliers,
     };
   }
