@@ -11,6 +11,7 @@ const tests = [
   "migration-coherence.test.js",
   "data-export.test.js",
   "auth-helpers.test.js",
+  "merge.test.js",
 ];
 
 let passed = 0;
