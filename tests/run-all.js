@@ -12,6 +12,7 @@ const tests = [
   "data-export.test.js",
   "auth-helpers.test.js",
   "merge.test.js",
+  "utils.test.js",
 ];
 
 let passed = 0;

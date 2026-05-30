@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="./logic/core/constants.js"></script>
+    <script src="./logic/core/utils.js"></script>
     <script src="./models/schema.js"></script>
     <script src="./logic/migration/legacy-to-v1.js"></script>
     <script src="./logic/migration/report.js"></script>
@@ -58,6 +59,13 @@ const {
   BASE_QUANTITY_UNITS_MASS, BASE_QUANTITY_UNITS_VOLUME,
   CATEGORIES_ING, INITIAL_INGREDIENTS, INITIAL_RECIPES,
 } = window.ArpegeConstants;
+if (!window.ArpegeUtils) {
+  throw new Error("Module requis manquant: logic/core/utils.js n'est pas chargé.");
+}
+const {
+  roundTo, formatDecimal, normalizeUnknownPrice, formatPriceDisplay,
+  formatProcedureLine, migrateProcedureMarkdownToHtml,
+} = window.ArpegeUtils;
 if (!window.ArpegeCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
 }
@@ -144,24 +152,6 @@ const LogoRestaurant = ({ restaurantLogo, restaurantName, className = "", size =
   return <LogoArpege className={className} size={size} />;
 };
 
-const roundTo = (value, decimals = 2) => Number((value || 0).toFixed(decimals));
-const formatDecimal = (value, maxDigits = 6) => {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "0";
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: maxDigits, useGrouping: false });
-};
-const normalizeUnknownPrice = (rawPrice) => {
-  const raw = String(rawPrice ?? "").trim();
-  if (!raw) return null;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-};
-const formatPriceDisplay = (price) => {
-  const n = Number(price);
-  if (!Number.isFinite(n) || n <= 0) return "Prix inconnu";
-  return `${formatDecimal(n)} €`;
-};
 const {
   convertQuantity,
   calculateIngredientCost,
@@ -1088,23 +1078,6 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
       </div>
     </div>
   );
-};
-
-const formatProcedureLine = (rawLine) => {
-  let html = String(rawLine || "")
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  html = html.replace(/__(.+?)__/g, "<u>$1</u>");
-  html = html.replace(/\[red\](.+?)\[\/red\]/g, '<span style="color:#dc2626">$1</span>');
-  if (html.startsWith("- ")) html = "• " + html.slice(2);
-  return html;
-};
-
-const migrateProcedureMarkdownToHtml = (text) => {
-  if (!text) return "";
-  if (/<[a-z][\s\S]*>/i.test(text)) return text;
-  return text.split("\n").map(line => `<p>${formatProcedureLine(line) || "<br>"}</p>`).join("");
 };
 
 const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient, isOpen, onClose, isChef }) => {

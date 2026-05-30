@@ -142,8 +142,17 @@ function testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue() {
   assert.strictEqual(cost, 9);
 }
 
-function testIdMismatchAvecFallbackLegacy() {
+function testIdMismatchAvecFallbackNom() {
+  // ID 999 n'existe pas dans le catalogue, mais le nom "Tomate" correspond → prix catalogue (9) utilisé
   const line = { ingredientId: 999, name: 'Tomate', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 };
+  const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
+  const cost = calculateIngredientCost(line, catalog);
+  assert.strictEqual(cost, 9);
+}
+
+function testIdMismatchSansNomCorrespondantFallbackLegacy() {
+  // ID inconnu ET nom introuvable dans le catalogue → prix legacy (2) utilisé
+  const line = { ingredientId: 999, name: 'Ingrédient inconnu', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 2, wasteCoeff: 0 };
   const catalog = [{ id: 77, name: 'Tomate', price: 9, unit: 'Kg' }];
   const cost = calculateIngredientCost(line, catalog);
   assert.strictEqual(cost, 2);
@@ -385,6 +394,49 @@ function testCompatAncienneRecetteSansUsageMode() {
   assert.strictEqual(cost, 4);
 }
 
+function testBaseRecipeIdMismatchFallbackNom() {
+  // baseRecipeId: 999 n'existe pas — trouvée par nom "Base fusionnée"
+  const baseRecipe = {
+    id: 201,
+    name: 'Base fusionnée',
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
+    baseComponents: [],
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    covers: 2,
+    wasteCoeff: 0,
+  };
+  const finalRecipe = {
+    id: 202,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 999, name: 'Base fusionnée', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 0,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(cost, 5);
+}
+
+function testBaseRecipeIntrouvableRetourneNull() {
+  // baseRecipeId inconnu ET nom absent du catalogue → null → N/A
+  const finalRecipe = {
+    id: 202,
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 999, name: 'Recette supprimée', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 0,
+  };
+  const cost = calculateRecipeTotalCost(finalRecipe, [finalRecipe]);
+  assert.strictEqual(cost, null);
+}
+
 function runAll() {
   const tests = [
     testConversionCompatible,
@@ -400,7 +452,8 @@ function runAll() {
     testCoutInvalideSiIngredientIntrouvableSansFallback,
     testCompatibiliteAppelsSansCatalogue,
     testSansIngredientIdMaisNomCorrespondantUtiliseCatalogue,
-    testIdMismatchAvecFallbackLegacy,
+    testIdMismatchAvecFallbackNom,
+    testIdMismatchSansNomCorrespondantFallbackLegacy,
     testPrixZeroTraiteCommeInconnu,
     testStatusPrixManquantExplicite,
     testRendementTheoriqueCalculable,
@@ -414,6 +467,8 @@ function runAll() {
     testModePortionIgnoreOutputQuantityUnit,
     testCasInvalideModePortion,
     testCompatAncienneRecetteSansUsageMode,
+    testBaseRecipeIdMismatchFallbackNom,
+    testBaseRecipeIntrouvableRetourneNull,
   ];
 
   for (const testFn of tests) {

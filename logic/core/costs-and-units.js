@@ -62,16 +62,16 @@
       logPricingPath("id mismatch", { ingredientId, name: ingredientLine?.name });
     } else {
       logPricingPath("missing ingredientId", { name: ingredientLine?.name });
-      const sourceByName = getIngredientByName(ingredientsCatalog, ingredientLine?.name);
-      if (sourceByName) {
-        const parsedPrice = Number(sourceByName.price);
-        logPricingPath("catalog", { ingredientId: sourceByName.id, name: ingredientLine?.name, via: "name" });
-        return {
-          pricePerUnit: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null,
-          pricingUnit: String(sourceByName.unit || "").trim() || null,
-          source: "catalog",
-        };
-      }
+    }
+    const sourceByName = getIngredientByName(ingredientsCatalog, ingredientLine?.name);
+    if (sourceByName) {
+      const parsedPrice = Number(sourceByName.price);
+      logPricingPath("catalog", { ingredientId: sourceByName.id, name: ingredientLine?.name, via: "name" });
+      return {
+        pricePerUnit: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null,
+        pricingUnit: String(sourceByName.unit || "").trim() || null,
+        source: "catalog",
+      };
     }
 
     const legacyPrice = ingredientLine?.pricePerUnit;
@@ -216,6 +216,13 @@
 
   const getRecipeById = (recipes, id) => recipes.find(r => Number(r.id) === Number(id));
 
+  const getRecipeByName = (recipes, name) => {
+    if (!Array.isArray(recipes)) return null;
+    const expected = String(name || "").trim().toLowerCase();
+    if (!expected) return null;
+    return recipes.find(r => String(r?.name || "").trim().toLowerCase() === expected) || null;
+  };
+
   // Entrées: recette cible, référentiel des recettes, set anti-cycle, catalogue ingrédients optionnel.
   // Sortie: coût total numérique (avec pertes) ou null si données insuffisantes/inconvertibles/cycle détecté.
   // Cas null/fallback: fallback prix legacy géré en amont; ici toute conversion/référence invalide coupe le calcul.
@@ -234,7 +241,8 @@
     }
 
     for (const component of current.baseComponents || []) {
-      const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
+      const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId)
+        || getRecipeByName(allRecipes, component.name);
       if (!baseRecipe) return null;
       const normalizedBase = normalizeRecipe(baseRecipe);
       const baseCost = calculateRecipeTotalCost(normalizedBase, allRecipes, nextVisited, ingredientsCatalog);
@@ -267,7 +275,8 @@
     }
 
     for (const component of current.baseComponents || []) {
-      const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId);
+      const baseRecipe = getRecipeById(allRecipes, component.baseRecipeId)
+        || getRecipeByName(allRecipes, component.name);
       if (!baseRecipe) {
         return { valid: false, message: `Recette de base introuvable : ${component.name}` };
       }
