@@ -20,7 +20,7 @@ let passed = 0;
 let failed = 0;
 const failures = [];
 
-console.log("\n=== Tests Arpège ===\n");
+console.log("\n=== Tests Formula ===\n");
 
 for (const file of tests) {
   const filePath = path.join(__dirname, file);
