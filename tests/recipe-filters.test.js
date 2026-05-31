@@ -204,6 +204,55 @@ function testSortRecipesNeModifiePasOriginal() {
   assert.strictEqual(recipes[0].name, "Z");
 }
 
+function testSortRecipesParCoutAsc() {
+  const costMap = new Map([[1, 5.00], [2, 2.50], [3, 8.00]]);
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 3, name: "C", createdAt: "2024-01-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "cost", sortDir: "asc", costMap });
+  assert.strictEqual(result[0].id, 2); // 2.50€ le moins cher
+  assert.strictEqual(result[1].id, 1); // 5.00€
+  assert.strictEqual(result[2].id, 3); // 8.00€ le plus cher
+}
+
+function testSortRecipesParCoutDesc() {
+  const costMap = new Map([[1, 5.00], [2, 2.50], [3, 8.00]]);
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 3, name: "C", createdAt: "2024-01-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "cost", sortDir: "desc", costMap });
+  assert.strictEqual(result[0].id, 3); // 8.00€ le plus cher
+  assert.strictEqual(result[1].id, 1); // 5.00€
+  assert.strictEqual(result[2].id, 2); // 2.50€ le moins cher
+}
+
+function testSortRecipesParCoutSansCoutEnFin() {
+  const costMap = new Map([[1, 3.00]]); // id 2 n'a pas de coût calculable
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-01-01T00:00:00.000Z" },
+  ];
+  const resultAsc = sortRecipes({ recipes, sortBy: "cost", sortDir: "asc", costMap });
+  assert.strictEqual(resultAsc[0].id, 1); // coût connu → en tête
+  assert.strictEqual(resultAsc[1].id, 2); // pas de coût → en fin
+  const resultDesc = sortRecipes({ recipes, sortBy: "cost", sortDir: "desc", costMap });
+  assert.strictEqual(resultDesc[0].id, 1); // coût connu → en tête
+  assert.strictEqual(resultDesc[1].id, 2); // pas de coût → en fin
+}
+
+function testSortRecipesParCoutSansCostMap() {
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-01-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "cost", sortDir: "asc" });
+  assert.strictEqual(result.length, 2); // ne plante pas, renvoie les 2 recettes
+}
+
 function runAll() {
   const tests = [
     testRechercheParNomRecette,
@@ -218,6 +267,10 @@ function runAll() {
     testSortRecipesParDateDesc,
     testSortRecipesParDateAsc,
     testSortRecipesNeModifiePasOriginal,
+    testSortRecipesParCoutAsc,
+    testSortRecipesParCoutDesc,
+    testSortRecipesParCoutSansCoutEnFin,
+    testSortRecipesParCoutSansCostMap,
   ];
   for (const testFn of tests) {
     testFn();

@@ -31,17 +31,25 @@
     });
   }
 
-  function sortRecipes({ recipes, sortBy, sortDir }) {
+  function sortRecipes({ recipes, sortBy, sortDir, costMap }) {
     const arr = [...recipes];
     arr.sort((a, b) => {
-      let cmp = 0;
       if (sortBy === "name") {
-        cmp = toLowerText(a.name).localeCompare(toLowerText(b.name), "fr");
-      } else {
-        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        cmp = da - db;
+        const cmp = toLowerText(a.name).localeCompare(toLowerText(b.name), "fr");
+        return sortDir === "asc" ? cmp : -cmp;
       }
+      if (sortBy === "cost") {
+        const ca = (costMap && costMap.has(a.id)) ? costMap.get(a.id) : null;
+        const cb = (costMap && costMap.has(b.id)) ? costMap.get(b.id) : null;
+        if (ca === null && cb === null) return 0;
+        if (ca === null) return 1;
+        if (cb === null) return -1;
+        return sortDir === "asc" ? ca - cb : cb - ca;
+      }
+      // tri par date (défaut)
+      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      const cmp = da - db;
       return sortDir === "asc" ? cmp : -cmp;
     });
     return arr;

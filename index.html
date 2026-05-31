@@ -1969,6 +1969,18 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
 
 const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base" }) => {
   const normalizedRecipes = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
+  const costMap = useMemo(() => {
+    if (!isChef) return new Map();
+    const map = new Map();
+    normalizedRecipes.forEach(r => {
+      const cs = getCostStatus(r, normalizedRecipes, ingredients);
+      if (cs.valid) {
+        const total = calculateRecipeTotalCost(r, normalizedRecipes, new Set(), ingredients);
+        if (r.covers > 0) map.set(r.id, total / r.covers);
+      }
+    });
+    return map;
+  }, [normalizedRecipes, ingredients, isChef]);
   const editorRef = React.useRef(null);
   const [activeFormats, setActiveFormats] = useState(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -2054,7 +2066,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       categoryFilter,
     })
     : [];
-  const displayRecipes = (typeof sortRecipes === "function") ? sortRecipes({ recipes: filteredRecipes, sortBy, sortDir }) : filteredRecipes;
+  const displayRecipes = (typeof sortRecipes === "function") ? sortRecipes({ recipes: filteredRecipes, sortBy, sortDir, costMap }) : filteredRecipes;
   const safeViewMode = ["grande", "petite", "liste"].includes(viewMode) ? viewMode : "grande";
   const theoreticalYield = useMemo(
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
@@ -2749,6 +2761,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 <div className="flex gap-1">
                   <button onClick={() => { if (sortBy === "name") setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortDir("asc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "name" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Nom {sortBy === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</button>
                   <button onClick={() => { if (sortBy === "date") setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortBy("date"); setSortDir("desc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "date" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Date {sortBy === "date" ? (sortDir === "desc" ? "↓" : "↑") : ""}</button>
+                  {isChef && sectionType === "final" && <button onClick={() => { if (sortBy === "cost") setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy("cost"); setSortDir("asc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "cost" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Coût/cvt {sortBy === "cost" ? (sortDir === "asc" ? "▲" : "▼") : ""}</button>}
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
