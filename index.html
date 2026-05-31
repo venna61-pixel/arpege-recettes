@@ -64,7 +64,7 @@ if (!window.ArpegeUtils) {
 }
 const {
   roundTo, formatDecimal, normalizeUnknownPrice, formatPriceDisplay,
-  formatProcedureLine, migrateProcedureMarkdownToHtml,
+  formatProcedureLine, migrateProcedureMarkdownToHtml, sanitizePrintTitle,
 } = window.ArpegeUtils;
 if (!window.ArpegeCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
@@ -1102,16 +1102,6 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-  const sanitizePrintTitle = (value, suffix) => {
-    const invalidChars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"];
-    let cleanedName = String(value || "Recette");
-    invalidChars.forEach((char) => {
-      cleanedName = cleanedName.split(char).join(" ");
-    });
-    cleanedName = cleanedName.replace(/\s+/g, " ").trim();
-    return `${cleanedName || "Recette"} - ${suffix}`;
-  };
-
   const handlePrintPdf = () => {
     const printTitle = sanitizePrintTitle(normalized.name, "Fiche");
     const { allergens: pdfAllergens, hasIncomplete: pdfAllergenesIncomplete } = computeRecipeAllergeneSummary(normalized, ingredients, allRecipes);
@@ -1277,9 +1267,12 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
     iframeWindow.document.write(content);
     iframeWindow.document.close();
     iframeWindow.document.title = printTitle;
+    const originalTitle = document.title;
+    document.title = printTitle;
     setTimeout(() => {
       iframeWindow.focus();
       iframeWindow.print();
+      document.title = originalTitle;
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };
@@ -1437,9 +1430,12 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
     iframeWindow.document.write(content);
     iframeWindow.document.close();
     iframeWindow.document.title = printTitle;
+    const originalTitle = document.title;
+    document.title = printTitle;
     setTimeout(() => {
       iframeWindow.focus();
       iframeWindow.print();
+      document.title = originalTitle;
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };
@@ -1582,16 +1578,6 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-  const sanitizePrintTitle = (value, suffix) => {
-    const invalidChars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"];
-    let cleanedName = String(value || "Recette");
-    invalidChars.forEach((char) => {
-      cleanedName = cleanedName.split(char).join(" ");
-    });
-    cleanedName = cleanedName.replace(/\s+/g, " ").trim();
-    return `${cleanedName || "Recette"} - ${suffix}`;
-  };
-
   const detectProcedureWarnings = (procedureText) => {
     const text = String(procedureText || "");
     const unique = (items) => [...new Set(items.map((item) => item.trim()).filter(Boolean))];
@@ -1799,9 +1785,12 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     iframeWindow.document.write(content);
     iframeWindow.document.close();
     iframeWindow.document.title = printTitle;
+    const originalTitle = document.title;
+    document.title = printTitle;
     setTimeout(() => {
       iframeWindow.focus();
       iframeWindow.print();
+      document.title = originalTitle;
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };
@@ -1962,9 +1951,12 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     iframeWindow.document.write(content);
     iframeWindow.document.close();
     iframeWindow.document.title = printTitle;
+    const originalTitle = document.title;
+    document.title = printTitle;
     setTimeout(() => {
       iframeWindow.focus();
       iframeWindow.print();
+      document.title = originalTitle;
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };
@@ -2478,9 +2470,12 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     iframeWindow.document.write(content);
     iframeWindow.document.close();
     iframeWindow.document.title = "Recettes - Export PDF";
+    const originalTitleMulti = document.title;
+    document.title = "Recettes - Export PDF";
     setTimeout(() => {
       iframeWindow.focus();
       iframeWindow.print();
+      document.title = originalTitleMulti;
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };

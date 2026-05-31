@@ -16,6 +16,7 @@ const {
   formatPriceDisplay,
   formatProcedureLine,
   migrateProcedureMarkdownToHtml,
+  sanitizePrintTitle,
 } = global.ArpegeUtils;
 
 // ─── roundTo ─────────────────────────────────────────────────────────────────
@@ -146,6 +147,28 @@ function testMigrateMarkdownVideRetourneVide() {
   assert.strictEqual(migrateProcedureMarkdownToHtml(null), "");
 }
 
+// ─── sanitizePrintTitle ──────────────────────────────────────────────────────
+
+function testSanitizePrintTitleNomNormal() {
+  assert.strictEqual(sanitizePrintTitle("Soupe au pistou", "Fiche"), "Soupe au pistou - Fiche");
+}
+
+function testSanitizePrintTitleCaracteresInterdits() {
+  assert.strictEqual(sanitizePrintTitle("Recette/test:nom*spécial", "Fiche"), "Recette test nom spécial - Fiche");
+}
+
+function testSanitizePrintTitleValeurVide() {
+  assert.strictEqual(sanitizePrintTitle("", "Fiche"), "Recette - Fiche");
+}
+
+function testSanitizePrintTitleValeurNull() {
+  assert.strictEqual(sanitizePrintTitle(null, "Fiche adaptée"), "Recette - Fiche adaptée");
+}
+
+function testSanitizePrintTitleEspacesMultiples() {
+  assert.strictEqual(sanitizePrintTitle("Nom   avec   espaces", "Fiche"), "Nom avec espaces - Fiche");
+}
+
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -174,6 +197,11 @@ function runAll() {
     testMigrateMarkdownEnHtml,
     testMigrateMarkdownDejaHtmlPasseThrough,
     testMigrateMarkdownVideRetourneVide,
+    testSanitizePrintTitleNomNormal,
+    testSanitizePrintTitleCaracteresInterdits,
+    testSanitizePrintTitleValeurVide,
+    testSanitizePrintTitleValeurNull,
+    testSanitizePrintTitleEspacesMultiples,
   ];
 
   for (const testFn of tests) {

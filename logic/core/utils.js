@@ -51,6 +51,16 @@
     }).join("");
   }
 
+  function sanitizePrintTitle(value, suffix) {
+    var invalidChars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"];
+    var cleanedName = String(value || "Recette");
+    invalidChars.forEach(function (char) {
+      cleanedName = cleanedName.split(char).join(" ");
+    });
+    cleanedName = cleanedName.replace(/\s+/g, " ").trim();
+    return (cleanedName || "Recette") + " - " + suffix;
+  }
+
   global.ArpegeUtils = {
     roundTo,
     formatDecimal,
@@ -58,5 +68,6 @@
     formatPriceDisplay,
     formatProcedureLine,
     migrateProcedureMarkdownToHtml,
+    sanitizePrintTitle,
   };
 })(typeof window !== "undefined" ? window : global);
