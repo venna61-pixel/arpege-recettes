@@ -2733,10 +2733,10 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       )}
 
       {!showForm && hasCategorySelection && (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           {!selectionMode ? (
             <>
-              <div className="relative" ref={exportMenuRef}>
+              <div className="relative flex-shrink-0" ref={exportMenuRef}>
                 <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">⬇ Exporter les recettes ▾</button>
                 {showExportMenu && (
                   <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[220px]">
@@ -2745,24 +2745,22 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex gap-1">
-                  <button onClick={() => { if (sortBy === "name") setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortDir("asc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "name" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Nom {sortBy === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</button>
-                  <button onClick={() => { if (sortBy === "date") setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortBy("date"); setSortDir("desc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "date" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Date {sortBy === "date" ? (sortDir === "desc" ? "↓" : "↑") : ""}</button>
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
-                  <button onClick={() => setViewMode("petite")} title="Petite grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "petite" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>▦</button>
-                  <button onClick={() => setViewMode("liste")} title="Liste" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "liste" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>≡</button>
-                </div>
+              <div className="flex flex-shrink-0 gap-1">
+                <button onClick={() => { if (sortBy === "name") setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortDir("asc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "name" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Nom {sortBy === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</button>
+                <button onClick={() => { if (sortBy === "date") setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortBy("date"); setSortDir("desc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "date" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Date {sortBy === "date" ? (sortDir === "desc" ? "↓" : "↑") : ""}</button>
+              </div>
+              <div className="flex flex-shrink-0 gap-1">
+                <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
+                <button onClick={() => setViewMode("petite")} title="Petite grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "petite" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>▦</button>
+                <button onClick={() => setViewMode("liste")} title="Liste" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "liste" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>≡</button>
               </div>
             </>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <button onClick={() => handleExportRecipesPdf(displayRecipes.filter(r => selectedForExport.has(r.id)))} disabled={selectedForExport.size === 0} className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedForExport.size > 0 ? "bg-[#C8956C] text-white hover:bg-[#b8825c]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>⬇ Exporter la sélection ({selectedForExport.size})</button>
-              <button onClick={() => { const all = new Set(displayRecipes.map(r => r.id)); setSelectedForExport(selectedForExport.size === displayRecipes.length ? new Set() : all); }} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">{selectedForExport.size === displayRecipes.length ? "Tout désélectionner" : "Tout sélectionner"}</button>
-              <button onClick={() => { setSelectionMode(false); setSelectedForExport(new Set()); }} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Annuler</button>
-            </div>
+            <>
+              <button onClick={() => handleExportRecipesPdf(displayRecipes.filter(r => selectedForExport.has(r.id)))} disabled={selectedForExport.size === 0} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium ${selectedForExport.size > 0 ? "bg-[#C8956C] text-white hover:bg-[#b8825c]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>⬇ Exporter la sélection ({selectedForExport.size})</button>
+              <button onClick={() => { const all = new Set(displayRecipes.map(r => r.id)); setSelectedForExport(selectedForExport.size === displayRecipes.length ? new Set() : all); }} className="flex-shrink-0 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">{selectedForExport.size === displayRecipes.length ? "Tout désélectionner" : "Tout sélectionner"}</button>
+              <button onClick={() => { setSelectionMode(false); setSelectedForExport(new Set()); }} className="flex-shrink-0 px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Annuler</button>
+            </>
           )}
         </div>
       )}
