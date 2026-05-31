@@ -2054,7 +2054,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       categoryFilter,
     })
     : [];
-  const displayRecipes = sortRecipes({ recipes: filteredRecipes, sortBy, sortDir });
+  const displayRecipes = (typeof sortRecipes === "function") ? sortRecipes({ recipes: filteredRecipes, sortBy, sortDir }) : filteredRecipes;
+  const safeViewMode = ["grande", "petite", "liste"].includes(viewMode) ? viewMode : "grande";
   const theoreticalYield = useMemo(
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
     [formData.directIngredients]
@@ -2750,9 +2751,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   <button onClick={() => { if (sortBy === "date") setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortBy("date"); setSortDir("desc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "date" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Date {sortBy === "date" ? (sortDir === "desc" ? "↓" : "↑") : ""}</button>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
-                  <button onClick={() => setViewMode("petite")} title="Petite grille" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "petite" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>▦</button>
-                  <button onClick={() => setViewMode("liste")} title="Liste" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "liste" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>≡</button>
+                  <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
+                  <button onClick={() => setViewMode("petite")} title="Petite grille" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "petite" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>▦</button>
+                  <button onClick={() => setViewMode("liste")} title="Liste" className={`px-3 py-1.5 rounded-lg border text-sm ${safeViewMode === "liste" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>≡</button>
                 </div>
               </div>
             </>
@@ -2766,7 +2767,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </div>
       )}
 
-      {!showForm && hasCategorySelection && viewMode === "grande" && (
+      {!showForm && hasCategorySelection && safeViewMode !== "petite" && safeViewMode !== "liste" && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {displayRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
@@ -2805,7 +2806,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </div>
       )}
 
-      {!showForm && hasCategorySelection && viewMode === "petite" && (
+      {!showForm && hasCategorySelection && safeViewMode === "petite" && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {displayRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
@@ -2835,7 +2836,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         </div>
       )}
 
-      {!showForm && hasCategorySelection && viewMode === "liste" && (
+      {!showForm && hasCategorySelection && safeViewMode === "liste" && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {displayRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
