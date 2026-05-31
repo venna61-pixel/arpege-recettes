@@ -93,7 +93,7 @@ const { analyzeMerge, applyMerge, normalizeMergeName } = window.ArpegeMerge;
 if (!window.ArpegeAuthHelpers) {
   throw new Error("Module requis manquant: logic/core/auth-helpers.js n'est pas chargé.");
 }
-const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode } = window.ArpegeAuthHelpers;
+const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } = window.ArpegeAuthHelpers;
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -237,15 +237,6 @@ const saveConfig = (config) => {
   window.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 };
 
-// Chiffrement SHA-256 via l'API Web Crypto du navigateur (pas de lib externe nécessaire).
-// Le mot de passe n'est jamais stocké en clair — seulement son empreinte irréversible.
-const hashPassword = async (password) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode("formula-arpege-2024:" + password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-};
 
 const computeRecipeAllergeneSummary = (recipe, allIngredients, allRecipes = []) => {
   const allergenSet = new Set();

@@ -1,7 +1,6 @@
 const fs = require("fs");
 const assert = require("assert");
 
-// Polyfill crypto.getRandomValues pour Node.js (disponible nativement en Node 16+)
 const nodeCrypto = require("crypto");
 global.crypto = {
   getRandomValues: (array) => {
@@ -9,6 +8,7 @@ global.crypto = {
     for (let i = 0; i < array.length; i++) array[i] = bytes[i];
     return array;
   },
+  subtle: nodeCrypto.webcrypto.subtle,
 };
 global.window = global;
 
@@ -18,7 +18,7 @@ function loadScript(path) {
 
 loadScript("logic/core/auth-helpers.js");
 
-const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode } =
+const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } =
   window.ArpegeAuthHelpers;
 
 // ─── generateRecoveryCode ─────────────────────────────────────────────────────
@@ -93,6 +93,27 @@ function testNormalizeRecoveryCodeValeurVide() {
   assert.strictEqual(normalizeRecoveryCode(undefined), "");
 }
 
+// ─── hashPassword ────────────────────────────────────────────────────────────
+
+async function testHashPasswordRetourneChainHex() {
+  const hash = await hashPassword("monMotDePasse");
+  assert.strictEqual(typeof hash, "string", "doit retourner une chaîne");
+  assert.strictEqual(hash.length, 64, "un hash SHA-256 fait toujours 64 caractères hex");
+  assert.match(hash, /^[a-f0-9]+$/, "doit contenir uniquement des caractères hexadécimaux");
+}
+
+async function testHashPasswordMemeEntreeMemeSortie() {
+  const hash1 = await hashPassword("identique");
+  const hash2 = await hashPassword("identique");
+  assert.strictEqual(hash1, hash2, "le même mot de passe doit toujours donner le même hash");
+}
+
+async function testHashPasswordEntreesDifferentesSortiesDifferentes() {
+  const hash1 = await hashPassword("motDePasse1");
+  const hash2 = await hashPassword("motDePasse2");
+  assert.notStrictEqual(hash1, hash2, "des mots de passe différents doivent donner des hashs différents");
+}
+
 // ─── Cohérence generateRecoveryCode → isValidRecoveryCodeFormat ──────────────
 
 function testToutCodeGenereEstValide() {
@@ -105,7 +126,7 @@ function testToutCodeGenereEstValide() {
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
-function runAll() {
+async function runAll() {
   const tests = [
     testGenerateRecoveryCodeFormat,
     testGenerateRecoveryCodeLongueur,
@@ -118,12 +139,15 @@ function runAll() {
     testNormalizeRecoveryCodeEspacesSupprimés,
     testNormalizeRecoveryCodeValeurVide,
     testToutCodeGenereEstValide,
+    testHashPasswordRetourneChainHex,
+    testHashPasswordMemeEntreeMemeSortie,
+    testHashPasswordEntreesDifferentesSortiesDifferentes,
   ];
 
   for (const testFn of tests) {
-    testFn();
+    await testFn();
     console.log(`PASS ${testFn.name}`);
   }
 }
 
-runAll();
+runAll().catch((err) => { console.error(err.message || err); process.exit(1); });

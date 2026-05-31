@@ -37,6 +37,16 @@
     return code.trim().toUpperCase().replace(/\s/g, "");
   }
 
+  // Chiffre un mot de passe avec SHA-256. Le mot de passe n'est jamais stocké en clair.
+  // Le préfixe "formula-arpege-2024:" évite les collisions avec des hashs génériques.
+  async function hashPassword(password) {
+    var encoder = new TextEncoder();
+    var data = encoder.encode("formula-arpege-2024:" + password);
+    var hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    var hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+
   global.ArpegeAuthHelpers = {
     RECOVERY_CODE_CHARS,
     RECOVERY_CODE_SEGMENT_LENGTH,
@@ -44,5 +54,6 @@
     generateRecoveryCode,
     isValidRecoveryCodeFormat,
     normalizeRecoveryCode,
+    hashPassword,
   };
 })(typeof window !== "undefined" ? window : global);
