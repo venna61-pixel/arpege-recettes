@@ -380,6 +380,39 @@ function testRecalibrageBaseRecipeIdDansRecettefinale() {
     "baseRecipeId doit être recalibré vers l'ID local de la recette de base");
 }
 
+// ─── Comparaison de prix robuste ─────────────────────────────────────────────
+
+function testPrixTexteEtNombreIdentiquesNeGenerentPasConflict() {
+  // "5.50" (string depuis un appareil) vs 5.5 (number depuis un autre) → même prix, pas de conflit
+  const existing = [{ id: 1, name: "Beurre", price: 5.5, supplier: "Metro" }];
+  const importedData = {
+    ingredients: [{ id: 99, name: "Beurre", price: "5.50", supplier: "Metro" }],
+    recipes: [], suppliers: [],
+  };
+  const result = analyzeMerge({ importedData, existingIngredients: existing, existingRecipes: [], existingSuppliers: [] });
+  assert.strictEqual(result.ingredientConflicts.length, 0, "5.5 et '5.50' ne doivent pas créer de conflit");
+}
+
+function testPrixReellementDifferentGenereBienConflict() {
+  const existing = [{ id: 1, name: "Beurre", price: 8.0, supplier: "Metro" }];
+  const importedData = {
+    ingredients: [{ id: 99, name: "Beurre", price: 9.5, supplier: "Metro" }],
+    recipes: [], suppliers: [],
+  };
+  const result = analyzeMerge({ importedData, existingIngredients: existing, existingRecipes: [], existingSuppliers: [] });
+  assert.strictEqual(result.ingredientConflicts.length, 1, "8.0 vs 9.5 doit créer un conflit");
+}
+
+function testPrixNullDesDeuxCotesNeGenerePasConflict() {
+  const existing = [{ id: 1, name: "Beurre", price: null, supplier: "Metro" }];
+  const importedData = {
+    ingredients: [{ id: 99, name: "Beurre", price: null, supplier: "Metro" }],
+    recipes: [], suppliers: [],
+  };
+  const result = analyzeMerge({ importedData, existingIngredients: existing, existingRecipes: [], existingSuppliers: [] });
+  assert.strictEqual(result.ingredientConflicts.length, 0, "null vs null ne doit pas créer de conflit");
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -408,6 +441,9 @@ function runAll() {
     testRecalibrageIngredientIdDansNouvelleRecette,
     testRecalibrageIngredientIdDansRecetteRemplacee,
     testRecalibrageBaseRecipeIdDansRecettefinale,
+    testPrixTexteEtNombreIdentiquesNeGenerentPasConflict,
+    testPrixReellementDifferentGenereBienConflict,
+    testPrixNullDesDeuxCotesNeGenerePasConflict,
   ];
 
   for (const testFn of tests) {

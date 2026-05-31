@@ -82,6 +82,15 @@ function testComparaisonRobusteIdStringEtNumber() {
   assert.deepStrictEqual(updated, [{ id: 1, name: "A" }, { id: "2", name: "B-string-id" }]);
 }
 
+function testUpsertRecipeGrandeListeSansPlantage() {
+  // Vérifie que reduce() ne plante pas avec beaucoup de recettes (Math.max spread plantait)
+  const recipes = Array.from({ length: 10000 }, (_, i) => ({ id: i + 1, name: `R${i + 1}` }));
+  const payload = { name: "Nouvelle" };
+  const updated = upsertRecipe(recipes, payload, null);
+  assert.strictEqual(updated.length, 10001);
+  assert.strictEqual(updated[10000].id, 10001);
+}
+
 function runAll() {
   const tests = [
     testBaseSansIngredientDirectInvalide,
@@ -92,6 +101,7 @@ function runAll() {
     testUpsertRecipeCreateMaxIdPlusUn,
     testUpsertRecipeMetAJourBonneRecette,
     testComparaisonRobusteIdStringEtNumber,
+    testUpsertRecipeGrandeListeSansPlantage,
   ];
 
   for (const testFn of tests) {

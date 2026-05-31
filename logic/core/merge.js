@@ -5,6 +5,12 @@
     return s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   }
 
+  function normalizePrice(price) {
+    if (price == null || price === "") return null;
+    var n = Number(price);
+    return Number.isFinite(n) ? n : null;
+  }
+
   // Analyse un fichier importé par rapport aux données existantes.
   // Entrée : { importedData, existingIngredients, existingRecipes, existingSuppliers }
   // Sortie : { newIngredients, ingredientConflicts, newRecipes, recipeConflicts, newSuppliers, exportedAt }
@@ -23,7 +29,7 @@
       if (!existing) {
         newIngredients.push(ing);
       } else {
-        const priceDiffers = String(ing.price ?? "") !== String(existing.price ?? "");
+        const priceDiffers = normalizePrice(ing.price) !== normalizePrice(existing.price);
         const supplierDiffers = normalizeMergeName(String(ing.supplier || "")) !== normalizeMergeName(String(existing.supplier || ""));
         if (priceDiffers || supplierDiffers) {
           ingredientConflicts.push({ imported: ing, existing });

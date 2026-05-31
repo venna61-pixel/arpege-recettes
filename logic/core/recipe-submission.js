@@ -18,7 +18,7 @@
     if (editingId) {
       return recipes.map((r) => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r);
     }
-    const nextId = Math.max(...recipes.map((r) => Number(r.id)), 0) + 1;
+    const nextId = recipes.reduce((max, r) => Math.max(max, Number(r.id)), 0) + 1;
     return [...recipes, { ...payload, id: nextId }];
   }
 
