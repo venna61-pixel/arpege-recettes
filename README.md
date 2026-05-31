@@ -87,7 +87,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `recipe-filters.js` | Filtres de liste et de recherche |
 | `recipe-submission.js` | Validation du formulaire recette, upsert |
 | `recipe-scaling.js` | Calcul du multiplicateur et des quantités adaptées |
-| `allergenes.js` | Dictionnaire des 14 allergènes, détection par nom d'ingrédient |
+| `allergenes.js` | Dictionnaire des 14 allergènes, détection par nom d'ingrédient, résumé complet pour une recette |
 | `data-export.js` | Sérialisation pour export JSON, validation à l'import |
 | `merge.js` | Comparaison et fusion de deux sauvegardes sans écrasement |
 | `config.js` | Lecture et écriture de la configuration restaurant (localStorage) |

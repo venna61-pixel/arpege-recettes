@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/allergenes.js");
 
-const { normalizeIngredientName, detectAllergenes, computeAllergenesFromNames } = window.ArpegeAllergenes;
+const { normalizeIngredientName, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.ArpegeAllergenes;
 
 // Normalisation : casse, accents, pluriels
 function testNormalisationCasse() {
@@ -164,6 +164,48 @@ function testCumulIngredientsSansAllergeneCumule() {
   assert.deepStrictEqual(result, [], "Aucun allergène pour ces ingrédients");
 }
 
+// computeRecipeAllergeneSummary
+function testSummaryRecetteSansIngredients() {
+  const result = computeRecipeAllergeneSummary({ directIngredients: [], baseComponents: [] }, [], []);
+  assert.deepStrictEqual(result.allergens, []);
+  assert.strictEqual(result.hasIncomplete, false);
+}
+
+function testSummaryIngredientAvecAllergenesManuel() {
+  // L'ingrédient a des allergènes saisis manuellement → on les utilise directement
+  const ingredients = [{ id: 1, name: "Beurre maison", allergenes: ["Lait/Lactose"] }];
+  const recipe = { directIngredients: [{ ingredientId: 1, name: "Beurre maison" }], baseComponents: [] };
+  const result = computeRecipeAllergeneSummary(recipe, ingredients, []);
+  assert.deepStrictEqual(result.allergens, ["Lait/Lactose"]);
+  assert.strictEqual(result.hasIncomplete, false);
+}
+
+function testSummaryIngredientSansAllergenesManuel() {
+  // Pas d'allergènes manuels → détection automatique par le nom
+  const ingredients = [{ id: 2, name: "Beurre", allergenes: null }];
+  const recipe = { directIngredients: [{ ingredientId: 2, name: "Beurre" }], baseComponents: [] };
+  const result = computeRecipeAllergeneSummary(recipe, ingredients, []);
+  assert.ok(result.allergens.includes("Lait/Lactose"), "détection auto doit trouver Lait/Lactose pour Beurre");
+  assert.strictEqual(result.hasIncomplete, true, "ingrédient sans allergènes manuels = incomplet");
+}
+
+function testSummaryAvecRecetteDeBase() {
+  // La recette finale contient une recette de base qui a du beurre → allergènes propagés
+  const ingredients = [{ id: 3, name: "Beurre", allergenes: ["Lait/Lactose"] }];
+  const baseRecipe = { id: 10, name: "Sauce beurre", directIngredients: [{ ingredientId: 3, name: "Beurre" }] };
+  const recipe = { directIngredients: [], baseComponents: [{ baseRecipeId: 10 }] };
+  const result = computeRecipeAllergeneSummary(recipe, ingredients, [baseRecipe]);
+  assert.ok(result.allergens.includes("Lait/Lactose"), "allergènes de la recette de base propagés");
+}
+
+function testSummaryIngredientInconnu() {
+  // Ingrédient inconnu (pas dans le catalogue) → marqué incomplet
+  const recipe = { directIngredients: [{ ingredientId: 99, name: "Herbe mystérieuse" }], baseComponents: [] };
+  const result = computeRecipeAllergeneSummary(recipe, [], []);
+  assert.strictEqual(result.hasIncomplete, true);
+  assert.strictEqual(result.incompleteIngredients.length, 1);
+}
+
 // ALLERGENES_14 : vérification du référentiel officiel
 function testAllergenes14Complet() {
   const list = window.ArpegeAllergenes.ALLERGENES_14;
@@ -205,6 +247,11 @@ function runAll() {
     testCumulArgInvalide,
     testCumulIngredientsSansAllergeneCumule,
     testAllergenes14Complet,
+    testSummaryRecetteSansIngredients,
+    testSummaryIngredientAvecAllergenesManuel,
+    testSummaryIngredientSansAllergenesManuel,
+    testSummaryAvecRecetteDeBase,
+    testSummaryIngredientInconnu,
   ];
 
   for (const testFn of tests) {

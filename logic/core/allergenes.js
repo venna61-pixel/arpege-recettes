@@ -252,11 +252,65 @@
     return Array.from(allergenSet).sort();
   }
 
+  // Calcule le résumé complet des allergènes d'une recette.
+  // Parcourt les ingrédients directs ET les ingrédients des recettes de base utilisées.
+  // Priorité : allergènes saisis manuellement sur l'ingrédient > détection automatique par nom.
+  // Retourne : { allergens, hasIncomplete, incompleteIngredients }
+  function computeRecipeAllergeneSummary(recipe, allIngredients, allRecipes) {
+    if (allRecipes === undefined) allRecipes = [];
+    var allergenSet = new Set();
+    var incompleteIngredients = [];
+
+    function normName(s) {
+      return (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    }
+
+    function processLine(line, fromBaseRecipe) {
+      if (fromBaseRecipe === undefined) fromBaseRecipe = null;
+      var ingredientId = line.ingredientId;
+      var name = line.name;
+      var ing = allIngredients.find(function (i) { return Number(i.id) === Number(ingredientId); });
+      if (!ing && name) {
+        var target = normName(name);
+        ing = allIngredients.find(function (i) { return normName(i.name) === target; });
+      }
+      if (ing && Array.isArray(ing.allergenes)) {
+        ing.allergenes.forEach(function (a) { allergenSet.add(a); });
+      } else {
+        detectAllergenes(name).forEach(function (a) { allergenSet.add(a); });
+        if (!ing || ing.allergenes == null) {
+          var entry = {
+            ingredientId: ing ? Number(ing.id) : Number(ingredientId),
+            name: (ing && ing.name) || name || "?",
+          };
+          if (fromBaseRecipe) entry.fromBaseRecipe = fromBaseRecipe;
+          incompleteIngredients.push(entry);
+        }
+      }
+    }
+
+    (recipe.directIngredients || []).forEach(function (line) { processLine(line, null); });
+
+    (recipe.baseComponents || []).forEach(function (comp) {
+      var base = allRecipes.find(function (r) { return Number(r.id) === Number(comp.baseRecipeId); });
+      if (base) {
+        (base.directIngredients || []).forEach(function (line) { processLine(line, base.name); });
+      }
+    });
+
+    return {
+      allergens: Array.from(allergenSet).sort(),
+      hasIncomplete: incompleteIngredients.length > 0,
+      incompleteIngredients: incompleteIngredients,
+    };
+  }
+
   global.ArpegeAllergenes = {
     ALLERGENES_14,
     INGREDIENTS_ALLERGENES_MAP,
     normalizeIngredientName,
     detectAllergenes,
     computeAllergenesFromNames,
+    computeRecipeAllergeneSummary,
   };
 })(typeof window !== "undefined" ? window : global);

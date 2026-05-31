@@ -88,7 +88,7 @@ if (!window.ArpegeAllergenes) {
 if (!window.ArpegeDataExport) {
   throw new Error("Module requis manquant: logic/core/data-export.js n'est pas chargé.");
 }
-const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames } = window.ArpegeAllergenes;
+const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.ArpegeAllergenes;
 const { buildExportPayload, parseImportPayload } = window.ArpegeDataExport;
 const { analyzeMerge, applyMerge, normalizeMergeName } = window.ArpegeMerge;
 if (!window.ArpegeAuthHelpers) {
@@ -227,38 +227,6 @@ const loadGoogleAnalytics = () => {
 
 
 
-const computeRecipeAllergeneSummary = (recipe, allIngredients, allRecipes = []) => {
-  const allergenSet = new Set();
-  const incompleteIngredients = [];
-
-  const normName = s => (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const processLine = ({ ingredientId, name }, fromBaseRecipe = null) => {
-    let ing = allIngredients.find(i => Number(i.id) === Number(ingredientId));
-    if (!ing && name) {
-      const target = normName(name);
-      ing = allIngredients.find(i => normName(i.name) === target);
-    }
-    if (ing && Array.isArray(ing.allergenes)) {
-      ing.allergenes.forEach(a => allergenSet.add(a));
-    } else {
-      detectAllergenes(name).forEach(a => allergenSet.add(a));
-      if (!ing || ing.allergenes == null) {
-        const entry = { ingredientId: ing ? Number(ing.id) : Number(ingredientId), name: (ing && ing.name) || name || "?" };
-        if (fromBaseRecipe) entry.fromBaseRecipe = fromBaseRecipe;
-        incompleteIngredients.push(entry);
-      }
-    }
-  };
-
-  (recipe.directIngredients || []).forEach(line => processLine(line, null));
-
-  (recipe.baseComponents || []).forEach(({ baseRecipeId }) => {
-    const base = allRecipes.find(r => Number(r.id) === Number(baseRecipeId));
-    if (base) (base.directIngredients || []).forEach(line => processLine(line, base.name));
-  });
-
-  return { allergens: Array.from(allergenSet).sort(), hasIncomplete: incompleteIngredients.length > 0, incompleteIngredients };
-};
 
 const AllergenesFormSection = ({ step, allergenesSelected, onStep, onToggle, onConfirm, onConfirmNone }) => {
   if (!step || step === "idle") return null;
