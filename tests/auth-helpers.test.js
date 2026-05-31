@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 const nodeCrypto = require("crypto");
@@ -19,7 +19,7 @@ function loadScript(path) {
 loadScript("logic/core/auth-helpers.js");
 
 const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } =
-  window.ArpegeAuthHelpers;
+  window.FormulaAuthHelpers;
 
 // ─── generateRecoveryCode ─────────────────────────────────────────────────────
 

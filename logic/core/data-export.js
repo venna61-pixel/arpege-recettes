@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   const APP_IDENTIFIER = "formula-arpege";
   const FORMAT_VERSION = "1";
 
@@ -79,7 +79,7 @@
     return validateImportPayload(parsed);
   }
 
-  global.ArpegeDataExport = {
+  global.FormulaDataExport = {
     APP_IDENTIFIER,
     FORMAT_VERSION,
     buildExportPayload,

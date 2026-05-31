@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   const MASS_UNITS = { "Kg": 1000, "Gramme": 1 };
   const VOLUME_UNITS = { "Litre": 1000, "Ml": 1, "Cl": 10 };
   const COUNT_UNITS = [
@@ -305,7 +305,7 @@
     return { valid: true, message: "" };
   };
 
-  global.ArpegeCostsAndUnits = {
+  global.FormulaCostsAndUnits = {
     MASS_UNITS,
     VOLUME_UNITS,
     COUNT_UNITS,

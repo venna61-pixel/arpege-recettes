@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -17,7 +17,7 @@ const {
   formatProcedureLine,
   migrateProcedureMarkdownToHtml,
   sanitizePrintTitle,
-} = global.ArpegeUtils;
+} = global.FormulaUtils;
 
 // ─── roundTo ─────────────────────────────────────────────────────────────────
 

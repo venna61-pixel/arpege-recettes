@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 // Faux localStorage pour les tests (Node.js n'en a pas)
@@ -21,7 +21,7 @@ function loadScript(path) {
 
 loadScript("logic/core/config.js");
 
-const { CONFIG_KEY, getConfig, saveConfig } = global.ArpegeConfig;
+const { CONFIG_KEY, getConfig, saveConfig } = global.FormulaConfig;
 
 // ─── getConfig ───────────────────────────────────────────────────────────────
 

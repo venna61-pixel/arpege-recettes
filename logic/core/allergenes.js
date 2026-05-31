@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   const ALLERGENES_14 = [
     "Gluten",
     "Crustacés",
@@ -305,7 +305,7 @@
     };
   }
 
-  global.ArpegeAllergenes = {
+  global.FormulaAllergenes = {
     ALLERGENES_14,
     INGREDIENTS_ALLERGENES_MAP,
     normalizeIngredientName,

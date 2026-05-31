@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -10,7 +10,7 @@ function loadScript(path) {
 loadScript("logic/core/data-export.js");
 
 const { buildExportPayload, validateImportPayload, parseImportPayload, APP_IDENTIFIER, FORMAT_VERSION } =
-  window.ArpegeDataExport;
+  window.FormulaDataExport;
 
 // ─── buildExportPayload ───────────────────────────────────────────────────────
 

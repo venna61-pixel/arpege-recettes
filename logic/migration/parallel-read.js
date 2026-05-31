@@ -1,5 +1,5 @@
-(function (global) {
-  const storageApi = global.ArpegeVersionedStorage;
+﻿(function (global) {
+  const storageApi = global.FormulaVersionedStorage;
 
   const FEATURE_FLAGS = {
     READ_V1_ENABLED: "arpege_feature_read_v1_enabled",
@@ -268,7 +268,7 @@
     };
   }
 
-  global.ArpegeParallelRead = {
+  global.FormulaParallelRead = {
     FEATURE_FLAGS,
     getFeatureFlags,
     readV1Data,

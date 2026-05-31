@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   // Normalise un nom pour la comparaison : minuscules, sans accents, sans espaces superflus.
   function normalizeMergeName(s) {
     if (!s || typeof s !== "string") return "";
@@ -127,7 +127,7 @@
     };
   }
 
-  global.ArpegeMerge = {
+  global.FormulaMerge = {
     normalizeMergeName,
     analyzeMerge,
     applyMerge,

@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -13,7 +13,7 @@ const {
   filterRecipesForList,
   filterIngredientsForPicker,
   filterBaseRecipesForPicker,
-} = window.ArpegeRecipeFilters;
+} = window.FormulaRecipeFilters;
 
 function recipesFixture() {
   return [

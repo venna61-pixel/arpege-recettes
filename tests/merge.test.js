@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/merge.js");
 
-const { normalizeMergeName, analyzeMerge, applyMerge } = window.ArpegeMerge;
+const { normalizeMergeName, analyzeMerge, applyMerge } = window.FormulaMerge;
 
 // Données de base réutilisées dans plusieurs tests
 const ING_BEURRE  = { id: 1, name: "Beurre",    price: 8.50, supplier: "Metro" };

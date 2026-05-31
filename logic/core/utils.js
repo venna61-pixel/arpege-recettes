@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function roundTo(value, decimals) {
     if (decimals === undefined) decimals = 2;
     return Number((value || 0).toFixed(decimals));
@@ -61,7 +61,7 @@
     return (cleanedName || "Recette") + " - " + suffix;
   }
 
-  global.ArpegeUtils = {
+  global.FormulaUtils = {
     roundTo,
     formatDecimal,
     normalizeUnknownPrice,

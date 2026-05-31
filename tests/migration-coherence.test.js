@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const assert = require('assert');
 
 global.window = global;
@@ -31,8 +31,8 @@ loadScript('logic/migration/parallel-read.js');
 loadScript('logic/runtime/data-source.js');
 
 function runMigration(legacy) {
-  const migrationResult = window.ArpegeLegacyMigration.migrateLegacyData(legacy);
-  const shadowReport = window.ArpegeMigrationReport.buildMigrationReport(migrationResult);
+  const migrationResult = window.FormulaLegacyMigration.migrateLegacyData(legacy);
+  const shadowReport = window.FormulaMigrationReport.buildMigrationReport(migrationResult);
   return { migrationResult, shadowReport };
 }
 
@@ -44,7 +44,7 @@ function testMigrationSimpleValide() {
 
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
   assert.strictEqual(persistResult.status, 'written');
   assert.ok(persistResult.writtenKeys.includes('arpege_v1_ingredients'));
@@ -57,7 +57,7 @@ function testReferenceIngredientManquante() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
   assert.strictEqual(persistResult.status, 'not_written');
   assert.ok(persistResult.decision.blockingWarnings.some((w) => w.type === 'MISSING_INGREDIENT_REFERENCE'));
@@ -70,7 +70,7 @@ function testReferenceSousRecetteManquante() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
   assert.strictEqual(persistResult.status, 'not_written');
   assert.ok(persistResult.decision.blockingWarnings.some((w) => w.type === 'MISSING_BASE_RECIPE_REFERENCE'));
@@ -130,8 +130,8 @@ function testV1Absente() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  const v1Data = window.ArpegeParallelRead.readV1Data(storage);
-  const report = window.ArpegeParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
+  const v1Data = window.FormulaParallelRead.readV1Data(storage);
+  const report = window.FormulaParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
 
   assert.strictEqual(report.status, 'v1_absent');
   assert.strictEqual(report.coherent, false);
@@ -144,10 +144,10 @@ function testV1PresenteEtCoherente() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
-  const v1Data = window.ArpegeParallelRead.readV1Data(storage);
-  const report = window.ArpegeParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
+  const v1Data = window.FormulaParallelRead.readV1Data(storage);
+  const report = window.FormulaParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
 
   assert.strictEqual(report.status, 'coherent');
   assert.strictEqual(report.coherent, true);
@@ -160,12 +160,12 @@ function testV1PresenteMaisIncoherente() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage();
-  window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
-  storage.setItem(window.ArpegeVersionedStorage.TARGET_KEYS.ingredients, JSON.stringify([]));
+  storage.setItem(window.FormulaVersionedStorage.TARGET_KEYS.ingredients, JSON.stringify([]));
 
-  const v1Data = window.ArpegeParallelRead.readV1Data(storage);
-  const report = window.ArpegeParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
+  const v1Data = window.FormulaParallelRead.readV1Data(storage);
+  const report = window.FormulaParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
 
   assert.strictEqual(report.status, 'not_coherent');
   assert.ok(report.discrepancies.some((d) => d.type === 'COUNT_MISMATCH'));
@@ -173,21 +173,21 @@ function testV1PresenteMaisIncoherente() {
 
 function testFeatureFlagDesactiveParDefaut() {
   const storage = new MemoryStorage();
-  const flags = window.ArpegeParallelRead.getFeatureFlags(storage);
+  const flags = window.FormulaParallelRead.getFeatureFlags(storage);
   assert.strictEqual(flags.readV1Enabled, false);
 }
 
 function testFeatureFlagActiveSansImpactVisible() {
   const storage = new MemoryStorage({
-    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
-  const flags = window.ArpegeParallelRead.getFeatureFlags(storage);
+  const flags = window.FormulaParallelRead.getFeatureFlags(storage);
   assert.strictEqual(flags.readV1Enabled, true);
 }
 
 function testCanaryFlagOffLegacyOnly() {
   const legacyIngredients = [{ supplier: 'Primeur' }];
-  const result = window.ArpegeParallelRead.resolveCanarySuppliersSource({
+  const result = window.FormulaParallelRead.resolveCanarySuppliersSource({
     legacyIngredients,
     v1Data: { exists: true, data: { fournisseurs: [{ nom: 'V1 Fournisseur' }] } },
     featureFlags: { readV1Enabled: false },
@@ -202,7 +202,7 @@ function testCanaryFlagOffLegacyOnly() {
 
 function testCanaryFlagOnV1Coherente() {
   const legacyIngredients = [{ supplier: 'Primeur' }];
-  const result = window.ArpegeParallelRead.resolveCanarySuppliersSource({
+  const result = window.FormulaParallelRead.resolveCanarySuppliersSource({
     legacyIngredients,
     v1Data: { exists: true, data: { fournisseurs: [{ nom: 'V1 Fournisseur' }] } },
     featureFlags: { readV1Enabled: true },
@@ -217,7 +217,7 @@ function testCanaryFlagOnV1Coherente() {
 
 function testCanaryFlagOnV1AbsenteFallbackLegacy() {
   const legacyIngredients = [{ supplier: 'Primeur' }];
-  const result = window.ArpegeParallelRead.resolveCanarySuppliersSource({
+  const result = window.FormulaParallelRead.resolveCanarySuppliersSource({
     legacyIngredients,
     v1Data: { exists: false, data: {} },
     featureFlags: { readV1Enabled: true },
@@ -232,7 +232,7 @@ function testCanaryFlagOnV1AbsenteFallbackLegacy() {
 
 function testCanaryFlagOnV1IncoherenteFallbackLegacy() {
   const legacyIngredients = [{ supplier: 'Primeur' }];
-  const result = window.ArpegeParallelRead.resolveCanarySuppliersSource({
+  const result = window.FormulaParallelRead.resolveCanarySuppliersSource({
     legacyIngredients,
     v1Data: { exists: true, data: { fournisseurs: [{ nom: 'V1 Fournisseur' }] } },
     featureFlags: { readV1Enabled: true },
@@ -251,16 +251,16 @@ function testCanarySansImpactEcritureExistante() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage({
-    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
-  const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult, storage });
+  const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
   assert.strictEqual(persistResult.status, 'written');
-  assert.ok(persistResult.writtenKeys.includes(window.ArpegeVersionedStorage.TARGET_KEYS.ingredients));
+  assert.ok(persistResult.writtenKeys.includes(window.FormulaVersionedStorage.TARGET_KEYS.ingredients));
 }
 
 function testRuntimeSourceLegacyParDefaut() {
   const storage = new MemoryStorage();
-  const runtime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const runtime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients: [{ supplier: 'Primeur' }],
     storage,
     crossCheckReport: null,
@@ -273,18 +273,18 @@ function testRuntimeSourceLegacyParDefaut() {
 
 function testRuntimeCanaryAutorise() {
   const storage = new MemoryStorage({
-    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
-    [window.ArpegeVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'V1 Fournisseur' }]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
+    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'V1 Fournisseur' }]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
   });
 
-  const runtime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const runtime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients: [{ supplier: 'Primeur' }],
     storage,
     crossCheckReport: { severity: 'info' },
@@ -297,9 +297,9 @@ function testRuntimeCanaryAutorise() {
 
 function testRuntimeCanaryRefuseEtFallbackAvecRaison() {
   const storage = new MemoryStorage({
-    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
-  const runtime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const runtime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients: [{ supplier: 'Primeur' }],
     storage,
     crossCheckReport: { severity: 'high' },
@@ -313,11 +313,11 @@ function testRuntimeCanaryRefuseEtFallbackAvecRaison() {
 
 function testReadLegacyDataJSONCorrompuRetourneSafeEmpty() {
   const storage = new MemoryStorage({
-    [window.ArpegeVersionedStorage.LEGACY_KEYS.ingredients]: '{bad-json',
-    [window.ArpegeVersionedStorage.LEGACY_KEYS.recipes]: 'not-json',
+    [window.FormulaVersionedStorage.LEGACY_KEYS.ingredients]: '{bad-json',
+    [window.FormulaVersionedStorage.LEGACY_KEYS.recipes]: 'not-json',
   });
 
-  const legacy = window.ArpegeVersionedStorage.readLegacyData(storage);
+  const legacy = window.FormulaVersionedStorage.readLegacyData(storage);
   assert.deepStrictEqual(legacy.ingredients, []);
   assert.deepStrictEqual(legacy.recipes, []);
   assert.ok(legacy.readError);
@@ -325,10 +325,10 @@ function testReadLegacyDataJSONCorrompuRetourneSafeEmpty() {
 
 function testReadV1DataJSONCorrompuNeCrashPas() {
   const storage = new MemoryStorage({
-    [window.ArpegeVersionedStorage.TARGET_KEYS.ingredients]: '{bad-json',
+    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: '{bad-json',
   });
 
-  const v1 = window.ArpegeParallelRead.readV1Data(storage);
+  const v1 = window.FormulaParallelRead.readV1Data(storage);
   assert.strictEqual(v1.exists, true);
   assert.deepStrictEqual(v1.data.ingredients, null);
 }
@@ -419,8 +419,8 @@ function testMigrationIdempotente() {
     recipes: [{ id: 100, recipeType: 'base', categories: ['Plat'], name: 'Base tomate', covers: 4, outputQuantity: 1, outputUnit: 'Kg', directIngredients: [{ ingredientId: 1, quantity: 0.5, unit: 'Kg' }], baseComponents: [] }],
   };
 
-  const first = window.ArpegeLegacyMigration.migrateLegacyData(legacy);
-  const second = window.ArpegeLegacyMigration.migrateLegacyData(legacy);
+  const first = window.FormulaLegacyMigration.migrateLegacyData(legacy);
+  const second = window.FormulaLegacyMigration.migrateLegacyData(legacy);
   assert.deepStrictEqual(second, first);
 }
 
@@ -432,18 +432,18 @@ function testFournisseursLegacyStringVsObjetModerne() {
   ];
 
   const storage = new MemoryStorage({
-    [window.ArpegeParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
-    [window.ArpegeVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'Fournisseur V1' }]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
-    [window.ArpegeVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
+    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'Fournisseur V1' }]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
+    [window.FormulaVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
   });
 
-  const legacyRuntime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const legacyRuntime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients,
     storage,
     crossCheckReport: { severity: 'info' },
@@ -452,7 +452,7 @@ function testFournisseursLegacyStringVsObjetModerne() {
   assert.strictEqual(legacyRuntime.suppliers.source, 'legacy');
   assert.deepStrictEqual(legacyRuntime.suppliers.data, ['Boucherie Martin', 'primeur', 'Primeur']);
 
-  const canaryRuntime = window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const canaryRuntime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients,
     storage,
     crossCheckReport: { severity: 'info' },

@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   var LOGO_URL = "./logo/formula-logo.svg";
 
   var SERVICE_CATEGORIES = ["Entrée", "Plat", "Dessert", "Amuse-bouche", "Soupe", "Salade", "Boisson"];
@@ -41,7 +41,7 @@
   var INITIAL_INGREDIENTS = [];
   var INITIAL_RECIPES = [];
 
-  global.ArpegeConstants = {
+  global.FormulaConstants = {
     LOGO_URL,
     SERVICE_CATEGORIES,
     RECIPE_TYPE_OPTIONS,

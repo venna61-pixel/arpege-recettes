@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   // Caractères sans ambiguïté : O/0 et I/1 exclus pour éviter les confusions à la lecture.
   const RECOVERY_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const RECOVERY_CODE_SEGMENT_LENGTH = 4;
@@ -47,7 +47,7 @@
     return hashArray.map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
   }
 
-  global.ArpegeAuthHelpers = {
+  global.FormulaAuthHelpers = {
     RECOVERY_CODE_CHARS,
     RECOVERY_CODE_SEGMENT_LENGTH,
     RECOVERY_CODE_SEGMENTS,

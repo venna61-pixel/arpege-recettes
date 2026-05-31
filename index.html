@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8" />
@@ -50,7 +50,7 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
-if (!window.ArpegeConstants) {
+if (!window.FormulaConstants) {
   throw new Error("Module requis manquant: logic/core/constants.js n'est pas chargé.");
 }
 const {
@@ -59,52 +59,52 @@ const {
   DISPLAY_UNITS, DISPLAY_YIELD_UNITS,
   BASE_QUANTITY_UNITS_MASS, BASE_QUANTITY_UNITS_VOLUME,
   CATEGORIES_ING, INITIAL_INGREDIENTS, INITIAL_RECIPES,
-} = window.ArpegeConstants;
-if (!window.ArpegeUtils) {
+} = window.FormulaConstants;
+if (!window.FormulaUtils) {
   throw new Error("Module requis manquant: logic/core/utils.js n'est pas chargé.");
 }
 const {
   roundTo, formatDecimal, normalizeUnknownPrice, formatPriceDisplay,
   formatProcedureLine, migrateProcedureMarkdownToHtml, sanitizePrintTitle,
-} = window.ArpegeUtils;
-if (!window.ArpegeCostsAndUnits) {
+} = window.FormulaUtils;
+if (!window.FormulaCostsAndUnits) {
   throw new Error("Module requis manquant: logic/core/costs-and-units.js n'est pas chargé.");
 }
-if (!window.ArpegeRecipeScaling) {
+if (!window.FormulaRecipeScaling) {
   throw new Error("Module requis manquant: logic/core/recipe-scaling.js n'est pas chargé.");
 }
-if (!window.ArpegeRecipeBuilder) {
+if (!window.FormulaRecipeBuilder) {
   throw new Error("Module requis manquant: logic/core/recipe-builder.js n'est pas chargé.");
 }
-if (!window.ArpegeRecipeFilters) {
+if (!window.FormulaRecipeFilters) {
   throw new Error("Module requis manquant: logic/core/recipe-filters.js n'est pas chargé.");
 }
-if (!window.ArpegeRecipeSubmission) {
+if (!window.FormulaRecipeSubmission) {
   throw new Error("Module requis manquant: logic/core/recipe-submission.js n'est pas chargé.");
 }
-if (!window.ArpegeAllergenes) {
+if (!window.FormulaAllergenes) {
   throw new Error("Module requis manquant: logic/core/allergenes.js n'est pas chargé.");
 }
-if (!window.ArpegeDataExport) {
+if (!window.FormulaDataExport) {
   throw new Error("Module requis manquant: logic/core/data-export.js n'est pas chargé.");
 }
-const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.ArpegeAllergenes;
-const { buildExportPayload, parseImportPayload } = window.ArpegeDataExport;
-const { analyzeMerge, applyMerge, normalizeMergeName } = window.ArpegeMerge;
-if (!window.ArpegeAuthHelpers) {
+const { ALLERGENES_14: ALLERGENES_LIST, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.FormulaAllergenes;
+const { buildExportPayload, parseImportPayload } = window.FormulaDataExport;
+const { analyzeMerge, applyMerge, normalizeMergeName } = window.FormulaMerge;
+if (!window.FormulaAuthHelpers) {
   throw new Error("Module requis manquant: logic/core/auth-helpers.js n'est pas chargé.");
 }
-const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } = window.ArpegeAuthHelpers;
-if (!window.ArpegeConfig) {
+const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } = window.FormulaAuthHelpers;
+if (!window.FormulaConfig) {
   throw new Error("Module requis manquant: logic/core/config.js n'est pas chargé.");
 }
-const { getConfig, saveConfig } = window.ArpegeConfig;
-const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
+const { getConfig, saveConfig } = window.FormulaConfig;
+const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
 }
 
-const LogoArpege = ({ className = "", size = "large" }) => {
+const LogoFormula = ({ className = "", size = "large" }) => {
   const isSmall = size === "small";
   return (
     <div className={`flex flex-col items-center ${className}`}>
@@ -154,7 +154,7 @@ const LogoRestaurant = ({ restaurantLogo, restaurantName, className = "", size =
       </div>
     );
   }
-  return <LogoArpege className={className} size={size} />;
+  return <LogoFormula className={className} size={size} />;
 };
 
 const {
@@ -168,21 +168,21 @@ const {
   getRecipeById,
   calculateRecipeTotalCost,
   getCostStatus
-} = window.ArpegeCostsAndUnits;
+} = window.FormulaCostsAndUnits;
 const {
   buildDirectIngredientLine,
   buildBaseComponentLine
-} = window.ArpegeRecipeBuilder;
+} = window.FormulaRecipeBuilder;
 const {
   filterRecipesForList,
   filterIngredientsForPicker,
   filterBaseRecipesForPicker
-} = window.ArpegeRecipeFilters;
+} = window.FormulaRecipeFilters;
 const {
   validateRecipeDraft,
   buildRecipePayload,
   upsertRecipe
-} = window.ArpegeRecipeSubmission;
+} = window.FormulaRecipeSubmission;
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
@@ -1499,7 +1499,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
   if (!isOpen || !normalized) return null;
 
   const baseCost = calculateRecipeTotalCost(normalized, recipes, new Set(), ingredients);
-  const scaling = window.ArpegeRecipeScaling.computePivotMultiplier({
+  const scaling = window.FormulaRecipeScaling.computePivotMultiplier({
     pivotType,
     pivotValue,
     normalizedRecipe: normalized,
@@ -1509,11 +1509,11 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
   const multiplier = scaling.multiplier;
   const ingredientPivotSource = scaling.ingredientPivotSource;
   const totalDirectQty = scaling.totalDirectQty;
-  const { adaptedDirectIngredients, adaptedBaseComponents, adaptedRecipe } = window.ArpegeRecipeScaling.buildAdaptedRecipe({
+  const { adaptedDirectIngredients, adaptedBaseComponents, adaptedRecipe } = window.FormulaRecipeScaling.buildAdaptedRecipe({
     normalizedRecipe: normalized,
     multiplier,
   });
-  const { adaptedCost, adaptedCostStatus } = window.ArpegeRecipeScaling.computeAdaptedMetrics({
+  const { adaptedCost, adaptedCostStatus } = window.FormulaRecipeScaling.computeAdaptedMetrics({
     adaptedRecipe,
     recipes,
     calculateRecipeTotalCost: (recipeInput, recipesInput) => calculateRecipeTotalCost(recipeInput, recipesInput, new Set(), ingredients),
@@ -1928,7 +1928,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
               {pivotType === "ingredientQuantity" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ligne pivot</label>
-                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = window.ArpegeRecipeScaling.getPivotSourceLine(normalized, idx); setPivotValue(String(source?.usageMode === "portion" ? source?.portionCount : source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+                  <select value={selectedIngredientIndex} onChange={(e) => { const idx = parseInt(e.target.value); setSelectedIngredientIndex(idx); const source = window.FormulaRecipeScaling.getPivotSourceLine(normalized, idx); setPivotValue(String(source?.usageMode === "portion" ? source?.portionCount : source?.quantity || 1)); }} className="w-full px-3 py-2 rounded-lg border border-gray-300">
                     {[...normalized.directIngredients, ...normalized.baseComponents].map((line, idx) => <option key={idx} value={idx}>{line.name} ({line.usageMode === "portion" ? `${line.portionCount} portions/couverts` : `${line.quantity} ${line.unit}`})</option>)}
                   </select>
                 </div>
@@ -3635,17 +3635,17 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!window.ArpegeLegacyMigration || !window.ArpegeMigrationReport || !window.ArpegeVersionedStorage || !window.ArpegeParallelRead) return;
+    if (!window.FormulaLegacyMigration || !window.FormulaMigrationReport || !window.FormulaVersionedStorage || !window.FormulaParallelRead) return;
     try {
-      const result = window.ArpegeLegacyMigration.migrateLegacyData({ ingredients, recipes });
-      const shadowReport = window.ArpegeMigrationReport.buildMigrationReport(result);
-      window.ArpegeMigrationReport.printMigrationReport(shadowReport);
-      const persistResult = window.ArpegeVersionedStorage.persistVersionedData({ migrationResult: result, storage: window.localStorage });
-      const writeReport = window.ArpegeVersionedStorage.buildWriteReport({ migrationResult: result, persistResult });
-      const v1Data = window.ArpegeParallelRead.readV1Data(window.localStorage);
-      const crossCheckReport = window.ArpegeParallelRead.buildCrossCheckReport({ legacyData: { ingredients, recipes }, migrationResult: result, v1Data });
-      const switchReadiness = window.ArpegeParallelRead.evaluateSwitchReadiness(crossCheckReport);
-      const featureFlags = window.ArpegeParallelRead.getFeatureFlags(window.localStorage);
+      const result = window.FormulaLegacyMigration.migrateLegacyData({ ingredients, recipes });
+      const shadowReport = window.FormulaMigrationReport.buildMigrationReport(result);
+      window.FormulaMigrationReport.printMigrationReport(shadowReport);
+      const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult: result, storage: window.localStorage });
+      const writeReport = window.FormulaVersionedStorage.buildWriteReport({ migrationResult: result, persistResult });
+      const v1Data = window.FormulaParallelRead.readV1Data(window.localStorage);
+      const crossCheckReport = window.FormulaParallelRead.buildCrossCheckReport({ legacyData: { ingredients, recipes }, migrationResult: result, v1Data });
+      const switchReadiness = window.FormulaParallelRead.evaluateSwitchReadiness(crossCheckReport);
+      const featureFlags = window.FormulaParallelRead.getFeatureFlags(window.localStorage);
       window.__ARPEGE_SHADOW_MIGRATION__ = { result, shadowReport };
       window.__ARPEGE_V1_WRITE_REPORT__ = writeReport;
       window.__ARPEGE_V1_CROSS_CHECK_REPORT__ = crossCheckReport;
@@ -3661,8 +3661,8 @@ const App = () => {
   // Configuration présente mais pas connecté → écran de login
   if (!user) return <Login onLogin={setUser} restaurantName={config.restaurantName} />;
   const isChef = user.role === "chef";
-  const suppliersRuntime = window.ArpegeRuntimeDataSource
-    ? window.ArpegeRuntimeDataSource.resolveDataSourcesRuntime({
+  const suppliersRuntime = window.FormulaRuntimeDataSource
+    ? window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
         legacyIngredients: ingredients,
         storage: window.localStorage,
         crossCheckReport: window.__ARPEGE_V1_CROSS_CHECK_REPORT__ || null,

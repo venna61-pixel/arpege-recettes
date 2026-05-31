@@ -1,7 +1,7 @@
-(function (global) {
+﻿(function (global) {
   function getDependencies() {
     return {
-      parallelRead: global.ArpegeParallelRead,
+      parallelRead: global.FormulaParallelRead,
     };
   }
 
@@ -59,7 +59,7 @@
     };
   }
 
-  global.ArpegeRuntimeDataSource = {
+  global.FormulaRuntimeDataSource = {
     buildLegacySuppliers,
     resolveDataSourcesRuntime,
   };

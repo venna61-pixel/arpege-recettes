@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   const ENTITY_DEFINITIONS = {
     Ingredient: {
       description: "quantite_reference_prix=1 signifie explicitement 1 unité de unite_par_defaut (convention legacy).",
@@ -119,5 +119,5 @@
     },
   };
 
-  global.ArpegeSchema = Schema;
+  global.FormulaSchema = Schema;
 })(window);

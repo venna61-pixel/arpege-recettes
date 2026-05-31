@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function countByType(items) {
     return (items || []).reduce((acc, item) => {
       acc[item.type] = (acc[item.type] || 0) + 1;
@@ -54,7 +54,7 @@
     console.groupEnd();
   }
 
-  global.ArpegeMigrationReport = {
+  global.FormulaMigrationReport = {
     buildMigrationReport,
     printMigrationReport,
   };

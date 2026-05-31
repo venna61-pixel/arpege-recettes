@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function toNumberOrDefault(value, fallback = 0) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -46,7 +46,7 @@
     return line;
   }
 
-  global.ArpegeRecipeBuilder = {
+  global.FormulaRecipeBuilder = {
     buildDirectIngredientLine,
     buildBaseComponentLine,
   };

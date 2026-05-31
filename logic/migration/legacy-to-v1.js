@@ -1,5 +1,5 @@
-(function (global) {
-  const schema = global.ArpegeSchema;
+﻿(function (global) {
+  const schema = global.FormulaSchema;
 
   const KNOWN_UNITS = new Set([
     "Bac", "Bib", "Barquette", "Bidon", "Bobine", "Bocal", "Boîte", "Boîte 1/4", "Boîte 1/8",
@@ -520,7 +520,7 @@
     };
   }
 
-  global.ArpegeLegacyMigration = {
+  global.FormulaLegacyMigration = {
     migrateLegacyData,
   };
 })(window);

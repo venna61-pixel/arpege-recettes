@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   var CONFIG_KEY = "arpege_restaurant_config";
 
   function getConfig() {
@@ -14,7 +14,7 @@
     global.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   }
 
-  global.ArpegeConfig = {
+  global.FormulaConfig = {
     CONFIG_KEY,
     getConfig,
     saveConfig,

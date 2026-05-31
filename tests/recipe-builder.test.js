@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const assert = require('assert');
 
 global.window = global;
@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript('logic/core/recipe-builder.js');
 
-const { buildDirectIngredientLine, buildBaseComponentLine } = window.ArpegeRecipeBuilder;
+const { buildDirectIngredientLine, buildBaseComponentLine } = window.FormulaRecipeBuilder;
 
 function testMappingIngredientComplet() {
   const ingredient = { id: 7, name: 'Farine', price: 2.4, unit: 'Kg' };

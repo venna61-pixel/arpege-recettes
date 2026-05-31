@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   const TARGET_KEYS = {
     fournisseurs: "arpege_v1_fournisseurs",
     ingredients: "arpege_v1_ingredients",
@@ -133,7 +133,7 @@
     };
   }
 
-  global.ArpegeVersionedStorage = {
+  global.FormulaVersionedStorage = {
     TARGET_KEYS,
     LEGACY_KEYS,
     BLOCKING_WARNING_TYPES,

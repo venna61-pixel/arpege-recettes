@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/recipe-submission.js");
 
-const { validateRecipeDraft, buildRecipePayload, upsertRecipe } = window.ArpegeRecipeSubmission;
+const { validateRecipeDraft, buildRecipePayload, upsertRecipe } = window.FormulaRecipeSubmission;
 
 function testBaseSansIngredientDirectInvalide() {
   const result = validateRecipeDraft({

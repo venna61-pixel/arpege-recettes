@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const assert = require('assert');
 
 global.window = global;
@@ -10,8 +10,8 @@ function loadScript(path) {
 loadScript('logic/core/costs-and-units.js');
 loadScript('logic/core/recipe-scaling.js');
 
-const { computePivotMultiplier, buildAdaptedRecipe, computeAdaptedMetrics } = window.ArpegeRecipeScaling;
-const { calculateRecipeTotalCost, getCostStatus } = window.ArpegeCostsAndUnits;
+const { computePivotMultiplier, buildAdaptedRecipe, computeAdaptedMetrics } = window.FormulaRecipeScaling;
+const { calculateRecipeTotalCost, getCostStatus } = window.FormulaCostsAndUnits;
 
 function sampleRecipe() {
   return {

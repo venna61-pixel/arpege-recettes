@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function getPivotSourceLine(normalizedRecipe, selectedIngredientIndex) {
     const direct = normalizedRecipe.directIngredients || [];
     const base = normalizedRecipe.baseComponents || [];
@@ -114,7 +114,7 @@
     return { adaptedCost, adaptedCostStatus };
   }
 
-  global.ArpegeRecipeScaling = {
+  global.FormulaRecipeScaling = {
     getPivotSourceLine,
     computeTotalDirectQty,
     computePivotMultiplier,

@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function toLowerText(value) {
     return String(value || "").toLowerCase();
   }
@@ -31,7 +31,7 @@
     });
   }
 
-  global.ArpegeRecipeFilters = {
+  global.FormulaRecipeFilters = {
     filterRecipesForList,
     filterIngredientsForPicker,
     filterBaseRecipesForPicker,

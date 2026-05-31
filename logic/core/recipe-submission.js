@@ -1,4 +1,4 @@
-(function (global) {
+﻿(function (global) {
   function validateRecipeDraft(formData) {
     const hasDirectIngredients = Array.isArray(formData?.directIngredients) && formData.directIngredients.length > 0;
     const hasBaseComponents = Array.isArray(formData?.baseComponents) && formData.baseComponents.length > 0;
@@ -22,7 +22,7 @@
     return [...recipes, { ...payload, id: nextId }];
   }
 
-  global.ArpegeRecipeSubmission = {
+  global.FormulaRecipeSubmission = {
     validateRecipeDraft,
     buildRecipePayload,
     upsertRecipe,

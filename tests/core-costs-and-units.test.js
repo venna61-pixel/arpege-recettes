@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const assert = require('assert');
 
 global.window = global;
@@ -18,7 +18,7 @@ const {
   computeTheoreticalYieldFromDirectIngredients,
   resolveEffectiveYield,
   checkUnitCatalogConsistency,
-} = window.ArpegeCostsAndUnits;
+} = window.FormulaCostsAndUnits;
 
 function testConversionCompatible() {
   const converted = convertQuantity(1, 'Kg', 'Gramme');

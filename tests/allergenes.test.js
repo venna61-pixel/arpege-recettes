@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/allergenes.js");
 
-const { normalizeIngredientName, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.ArpegeAllergenes;
+const { normalizeIngredientName, detectAllergenes, computeAllergenesFromNames, computeRecipeAllergeneSummary } = window.FormulaAllergenes;
 
 // Normalisation : casse, accents, pluriels
 function testNormalisationCasse() {
@@ -208,7 +208,7 @@ function testSummaryIngredientInconnu() {
 
 // ALLERGENES_14 : vérification du référentiel officiel
 function testAllergenes14Complet() {
-  const list = window.ArpegeAllergenes.ALLERGENES_14;
+  const list = window.FormulaAllergenes.ALLERGENES_14;
   assert.strictEqual(list.length, 14, "14 allergènes officiels");
   const expected = ["Gluten", "Crustacés", "Œufs", "Poisson", "Arachides", "Soja",
     "Lait/Lactose", "Fruits à coque", "Céleri", "Moutarde", "Sésame", "Sulfites", "Lupin", "Mollusques"];
