@@ -27,6 +27,7 @@
     <script src="./logic/core/auth-helpers.js"></script>
     <script src="./logic/core/config.js"></script>
     <script src="./logic/core/procedure.js"></script>
+    <script src="./logic/core/analytics.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -213,22 +214,10 @@ const useLocalStorage = (key, initialValue) => {
 };
 
 // ─── RGPD — consentement analytics ──────────────────────────────────────────
-const CONSENT_KEY = "arpege_consent_analytics";
-const GA_ID = "G-C1BC423NRZ";
-
-// Charge Google Analytics dynamiquement, uniquement si l'utilisateur a accepté.
-const loadGoogleAnalytics = () => {
-  if (window.__GA_LOADED__) return;
-  window.__GA_LOADED__ = true;
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  document.head.appendChild(script);
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function () { window.dataLayer.push(arguments); };
-  window.gtag("js", new Date());
-  window.gtag("config", GA_ID);
-};
+if (!window.FormulaAnalytics) {
+  throw new Error("Module requis manquant: logic/core/analytics.js n'est pas chargé.");
+}
+const { CONSENT_KEY, GA_ID, loadGoogleAnalytics } = window.FormulaAnalytics;
 
 
 

@@ -15,6 +15,7 @@ const tests = [
   "utils.test.js",
   "config.test.js",
   "procedure.test.js",
+  "analytics.test.js",
 ];
 
 let passed = 0;
