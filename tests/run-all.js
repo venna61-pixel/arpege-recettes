@@ -14,6 +14,7 @@ const tests = [
   "merge.test.js",
   "utils.test.js",
   "config.test.js",
+  "procedure.test.js",
 ];
 
 let passed = 0;

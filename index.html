@@ -26,6 +26,7 @@
     <script src="./logic/core/merge.js"></script>
     <script src="./logic/core/auth-helpers.js"></script>
     <script src="./logic/core/config.js"></script>
+    <script src="./logic/core/procedure.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -99,6 +100,10 @@ if (!window.FormulaConfig) {
   throw new Error("Module requis manquant: logic/core/config.js n'est pas chargé.");
 }
 const { getConfig, saveConfig } = window.FormulaConfig;
+if (!window.FormulaProcedure) {
+  throw new Error("Module requis manquant: logic/core/procedure.js n'est pas chargé.");
+}
+const { detectProcedureWarnings, buildProcedureWarningHtml } = window.FormulaProcedure;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -1526,43 +1531,6 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-  const detectProcedureWarnings = (procedureText) => {
-    const text = String(procedureText || "");
-    const unique = (items) => [...new Set(items.map((item) => item.trim()).filter(Boolean))];
-    const dimensionRegexes = [
-      /\b\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+(?:[.,]\d+)?)?(?:\s*(?:mm|cm|m))?\b/gi,
-      /\b\d+(?:[.,]\d+)?\s*(?:mm|cm|m|mm²|cm²|m²|mm2|cm2|m2)\b/gi,
-    ];
-    const timeRegexes = [
-      /\b\d+\s*h\s*\d{1,2}\b/gi,
-      /\b\d+\s*h\b/gi,
-      /\b\d+\s*(?:min|mins|minute|minutes)\b/gi,
-      /\b\d+\s*(?:heure|heures)\b/gi,
-    ];
-    const collectMatches = (regexes) => unique(regexes.flatMap((regex) => text.match(regex) || []));
-    const dimensions = collectMatches(dimensionRegexes);
-    const cookingTimes = collectMatches(timeRegexes);
-    return {
-      dimensions,
-      cookingTimes,
-      hasWarnings: dimensions.length > 0 || cookingTimes.length > 0,
-    };
-  };
-
-  const buildProcedureWarningHtml = ({ multiplierValue, dimensions, cookingTimes }) => {
-    if (((!dimensions || dimensions.length === 0) && (!cookingTimes || cookingTimes.length === 0)) || multiplierValue === 1) return "";
-    const dimensionsLine = dimensions.length > 0 ? `<p><strong>Dimensions détectées :</strong> ${escapeHtml(dimensions.join(", "))}</p>` : "";
-    const timesLine = cookingTimes.length > 0 ? `<p><strong>Temps de cuisson détectés :</strong> ${escapeHtml(cookingTimes.join(", "))}</p>` : "";
-    return `
-      <div class="warning-box">
-        <p><strong>⚠️ Vérification manuelle recommandée</strong></p>
-        <p>Cette recette a été adaptée avec un coefficient de x${escapeHtml(multiplierValue.toFixed(2))}</p>
-        <p>Les éléments suivants ne s'adaptent pas automatiquement :</p>
-        ${dimensionsLine}
-        ${timesLine}
-      </div>
-    `;
-  };
 
   const buildProcedureHtml = (procedure) => {
     if (!procedure) return "<p style='color:#6b7280;font-style:italic;'>Aucun procédé renseigné</p>";
@@ -1742,7 +1710,14 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
   };
-  const procedureWarnings = detectProcedureWarnings(adaptedRecipe.procedure);
+  const allProcedureTexts = [
+    adaptedRecipe.procedure || "",
+    ...(adaptedBaseComponents || []).map((component) => {
+      const baseRecipeRaw = getRecipeById(recipes, component.baseRecipeId);
+      return baseRecipeRaw ? (normalizeRecipe(baseRecipeRaw).procedure || "") : "";
+    }),
+  ].join("\n");
+  const procedureWarnings = detectProcedureWarnings(allProcedureTexts);
 
   const handlePrintAdaptedProductionSheet = () => {
     if (adaptedRecipe.recipeType === "base") return;
@@ -1835,6 +1810,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
                 <div>
                   <h3>Procédé</h3>
                   <div class="procedure">${buildProcedureHtml(baseRecipe.procedure)}</div>
+                  ${multiplierForBase != null ? buildProcedureWarningHtml({ multiplierValue: multiplierForBase, dimensions: detectProcedureWarnings(baseRecipe.procedure).dimensions, cookingTimes: detectProcedureWarnings(baseRecipe.procedure).cookingTimes }) : ""}
                 </div>
               </div>
             </section>
@@ -1863,6 +1839,9 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             th { background: #f9fafb; font-weight: 600; }
             tr { break-inside: avoid; page-break-inside: avoid; }
             .procedure { background: #fffbeb; border-left: 4px solid #C8956C; padding: 10px; min-height: 60px; }
+            .warning-box { margin-top: 10px; background: #fff7ed; border: 1px solid #fdba74; border-left: 4px solid #f97316; border-radius: 8px; padding: 10px; color: #9a3412; break-inside: avoid; page-break-inside: avoid; }
+            .warning-box p { margin: 0 0 5px 0; }
+            .warning-box p:last-child { margin-bottom: 0; }
             @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
           </style>
         </head>
@@ -1874,6 +1853,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           <section class="subrecipe-block">
             <h2>Montage / finition</h2>
             <div class="procedure">${buildProcedureHtml(adaptedRecipe.procedure)}</div>
+            ${buildProcedureWarningHtml({ multiplierValue: multiplier, dimensions: detectProcedureWarnings(adaptedRecipe.procedure).dimensions, cookingTimes: detectProcedureWarnings(adaptedRecipe.procedure).cookingTimes })}
           </section>
         </body>
       </html>
