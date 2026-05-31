@@ -28,6 +28,7 @@
     <script src="./logic/core/config.js"></script>
     <script src="./logic/core/procedure.js"></script>
     <script src="./logic/core/analytics.js"></script>
+    <script src="./logic/core/editor.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -105,6 +106,10 @@ if (!window.FormulaProcedure) {
   throw new Error("Module requis manquant: logic/core/procedure.js n'est pas chargé.");
 }
 const { detectProcedureWarnings, buildProcedureWarningHtml } = window.FormulaProcedure;
+if (!window.FormulaEditor) {
+  throw new Error("Module requis manquant: logic/core/editor.js n'est pas chargé.");
+}
+const { applyRichFormat, getActiveFormats } = window.FormulaEditor;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -1966,6 +1971,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
 const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base" }) => {
   const normalizedRecipes = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
   const editorRef = React.useRef(null);
+  const [activeFormats, setActiveFormats] = useState(new Set());
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2224,15 +2230,11 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   };
 
   const applyFormat = (command, value = null) => {
-    editorRef.current?.focus();
-    if (command === 'foreColor') {
-      const current = document.queryCommandValue('foreColor');
-      const isRed = current === 'rgb(220, 38, 38)' || current === '#dc2626';
-      document.execCommand('foreColor', false, isRed ? '#000000' : value);
-    } else {
-      document.execCommand(command, false, value);
+    applyRichFormat(editorRef.current, command, value);
+    if (editorRef.current) {
+      setFormData(prev => ({ ...prev, procedure: editorRef.current.innerHTML }));
+      setActiveFormats(getActiveFormats(editorRef.current));
     }
-    if (editorRef.current) setFormData(prev => ({ ...prev, procedure: editorRef.current.innerHTML }));
   };
 
   useEffect(() => {
@@ -2240,6 +2242,20 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       editorRef.current.innerHTML = migrateProcedureMarkdownToHtml(formData.procedure || "");
     }
   }, [showForm, editingId]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (!editorRef.current) return;
+      const sel = window.getSelection();
+      if (!sel || !editorRef.current.contains(sel.anchorNode)) {
+        setActiveFormats(new Set());
+        return;
+      }
+      setActiveFormats(getActiveFormats(editorRef.current));
+    };
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, []);
 
   const handleExportRecipesPdf = (recipesToExport) => {
     if (!recipesToExport || recipesToExport.length === 0) return;
@@ -2686,11 +2702,11 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           <div className="bg-amber-50 rounded-lg p-4 border-l-4 border-[#C8956C]">
             <h4 className="font-medium text-gray-700 mb-3">Procédé / Préparation</h4>
             <div className="flex flex-wrap gap-2 mb-3">
-              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('bold'); }} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50">G</button>
-              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('italic'); }} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm italic text-gray-700 hover:bg-gray-50">I</button>
-              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('underline'); }} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm underline text-gray-700 hover:bg-gray-50">S</button>
-              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('foreColor', '#dc2626'); }} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-bold text-red-600 hover:bg-red-50">A</button>
-              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('insertUnorderedList'); }} className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">• Liste</button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('bold'); }} className={`px-3 py-1.5 rounded-lg border text-sm font-bold ${activeFormats.has('bold') ? 'bg-[#1A3A4A] border-[#1A3A4A] text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>G</button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('italic'); }} className={`px-3 py-1.5 rounded-lg border text-sm italic ${activeFormats.has('italic') ? 'bg-[#1A3A4A] border-[#1A3A4A] text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>I</button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('underline'); }} className={`px-3 py-1.5 rounded-lg border text-sm underline ${activeFormats.has('underline') ? 'bg-[#1A3A4A] border-[#1A3A4A] text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>S</button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('foreColor', '#dc2626'); }} className={`px-3 py-1.5 rounded-lg border text-sm font-bold ${activeFormats.has('foreColor') ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-gray-300 text-red-600 hover:bg-red-50'}`}>A</button>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); applyFormat('insertUnorderedList'); }} className={`px-3 py-1.5 rounded-lg border text-sm ${activeFormats.has('insertUnorderedList') ? 'bg-[#1A3A4A] border-[#1A3A4A] text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}>• Liste</button>
             </div>
             <div
               ref={editorRef}

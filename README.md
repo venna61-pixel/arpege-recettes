@@ -24,7 +24,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── merge.js                   # Fusion intelligente de sauvegardes
 │   │   ├── config.js                  # Lecture/écriture de la configuration restaurant
 │   │   ├── procedure.js               # Détection des dimensions/temps dans les procédés, avertissements d'adaptation
-│   │   └── analytics.js               # Chargement conditionnel de Google Analytics (consentement RGPD)
+│   │   ├── analytics.js               # Chargement conditionnel de Google Analytics (consentement RGPD)
+│   │   └── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
 │   ├── migration/                     # Migration legacy → v1
 │   │   ├── legacy-to-v1.js            # Transformation des données historiques
 │   │   ├── report.js                  # Rapport de migration (warnings/erreurs)
@@ -47,7 +48,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   ├── utils.test.js
 │   ├── config.test.js
 │   ├── procedure.test.js
-│   └── analytics.test.js
+│   ├── analytics.test.js
+│   └── editor.test.js
 └── logo/
     ├── formula-logo.svg
     ├── formula-logo-clair.svg
@@ -97,6 +99,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `config.js` | Lecture et écriture de la configuration restaurant (localStorage) |
 | `procedure.js` | Détection des dimensions et temps de cuisson dans les procédés, construction des avertissements d'adaptation |
 | `analytics.js` | Chargement conditionnel de Google Analytics selon le consentement RGPD de l'utilisateur |
+| `editor.js` | Formatage riche du procédé (gras, italique, souligné, couleur, liste à puces) via Selection/Range, sans `execCommand` |
 
 ## Stockage localStorage
 
