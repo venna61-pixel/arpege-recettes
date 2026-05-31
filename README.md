@@ -21,7 +21,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── recipe-scaling.js          # Adaptation des quantités (scaling)
 │   │   ├── allergenes.js              # Détection des 14 allergènes réglementaires
 │   │   ├── data-export.js             # Export/import JSON des données
-│   │   └── merge.js                   # Fusion intelligente de sauvegardes
+│   │   ├── merge.js                   # Fusion intelligente de sauvegardes
+│   │   └── config.js                  # Lecture/écriture de la configuration restaurant
 │   ├── migration/                     # Migration legacy → v1
 │   │   ├── legacy-to-v1.js            # Transformation des données historiques
 │   │   ├── report.js                  # Rapport de migration (warnings/erreurs)
@@ -41,7 +42,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   ├── recipe-filters.test.js
 │   ├── recipe-scaling.test.js
 │   ├── recipe-submission.test.js
-│   └── utils.test.js
+│   ├── utils.test.js
+│   └── config.test.js
 └── logo/
     ├── formula-logo.svg
     ├── formula-logo-clair.svg
@@ -88,6 +90,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `allergenes.js` | Dictionnaire des 14 allergènes, détection par nom d'ingrédient |
 | `data-export.js` | Sérialisation pour export JSON, validation à l'import |
 | `merge.js` | Comparaison et fusion de deux sauvegardes sans écrasement |
+| `config.js` | Lecture et écriture de la configuration restaurant (localStorage) |
 
 ## Stockage localStorage
 

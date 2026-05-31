@@ -25,6 +25,7 @@
     <script src="./logic/core/data-export.js"></script>
     <script src="./logic/core/merge.js"></script>
     <script src="./logic/core/auth-helpers.js"></script>
+    <script src="./logic/core/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -94,6 +95,10 @@ if (!window.ArpegeAuthHelpers) {
   throw new Error("Module requis manquant: logic/core/auth-helpers.js n'est pas chargé.");
 }
 const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, hashPassword } = window.ArpegeAuthHelpers;
+if (!window.ArpegeConfig) {
+  throw new Error("Module requis manquant: logic/core/config.js n'est pas chargé.");
+}
+const { getConfig, saveConfig } = window.ArpegeConfig;
 const unitCatalogCheck = window.ArpegeCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -220,22 +225,6 @@ const loadGoogleAnalytics = () => {
   window.gtag("config", GA_ID);
 };
 
-// ─── Configuration restaurant ────────────────────────────────────────────────
-// Clé unique dans localStorage pour stocker le nom du restaurant + mots de passe chiffrés
-const CONFIG_KEY = "arpege_restaurant_config";
-
-const getConfig = () => {
-  try {
-    const raw = window.localStorage.getItem(CONFIG_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveConfig = (config) => {
-  window.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-};
 
 
 const computeRecipeAllergeneSummary = (recipe, allIngredients, allRecipes = []) => {
