@@ -91,6 +91,27 @@ function testUpsertRecipeGrandeListeSansPlantage() {
   assert.strictEqual(updated[10000].id, 10001);
 }
 
+function testUpsertRecipeCreatedAtGenereSiAbsent() {
+  const before = new Date().toISOString();
+  const updated = upsertRecipe([], { name: "Nouveau" }, null);
+  const after = new Date().toISOString();
+  assert.ok(updated[0].createdAt >= before);
+  assert.ok(updated[0].createdAt <= after);
+}
+
+function testUpsertRecipeCreatedAtPreserveSiPresent() {
+  const existingDate = "2023-01-01T00:00:00.000Z";
+  const updated = upsertRecipe([], { name: "Nouveau", createdAt: existingDate }, null);
+  assert.strictEqual(updated[0].createdAt, existingDate);
+}
+
+function testUpsertRecipeUpdateNeTouchesPasCreatedAt() {
+  const recipes = [{ id: 1, name: "A", createdAt: "2023-01-01T00:00:00.000Z" }];
+  const payload = { name: "A modifié", createdAt: "2023-01-01T00:00:00.000Z" };
+  const updated = upsertRecipe(recipes, payload, 1);
+  assert.strictEqual(updated[0].createdAt, "2023-01-01T00:00:00.000Z");
+}
+
 function runAll() {
   const tests = [
     testBaseSansIngredientDirectInvalide,
@@ -102,6 +123,9 @@ function runAll() {
     testUpsertRecipeMetAJourBonneRecette,
     testComparaisonRobusteIdStringEtNumber,
     testUpsertRecipeGrandeListeSansPlantage,
+    testUpsertRecipeCreatedAtGenereSiAbsent,
+    testUpsertRecipeCreatedAtPreserveSiPresent,
+    testUpsertRecipeUpdateNeTouchesPasCreatedAt,
   ];
 
   for (const testFn of tests) {

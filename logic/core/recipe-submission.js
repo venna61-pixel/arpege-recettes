@@ -19,7 +19,7 @@
       return recipes.map((r) => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r);
     }
     const nextId = recipes.reduce((max, r) => Math.max(max, Number(r.id)), 0) + 1;
-    return [...recipes, { ...payload, id: nextId }];
+    return [...recipes, { ...payload, id: nextId, createdAt: payload.createdAt || new Date().toISOString() }];
   }
 
   global.FormulaRecipeSubmission = {

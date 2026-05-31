@@ -187,7 +187,8 @@ const {
 const {
   filterRecipesForList,
   filterIngredientsForPicker,
-  filterBaseRecipesForPicker
+  filterBaseRecipesForPicker,
+  sortRecipes,
 } = window.FormulaRecipeFilters;
 const {
   validateRecipeDraft,
@@ -1981,6 +1982,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [selectedForExport, setSelectedForExport] = useState(new Set());
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = React.useRef(null);
+  const [sortBy, setSortBy] = useLocalStorage(`arpege_recipes_sortBy_${sectionType}`, "name");
+  const [sortDir, setSortDir] = useLocalStorage(`arpege_recipes_sortDir_${sectionType}`, "asc");
+  const [viewMode, setViewMode] = useLocalStorage(`arpege_recipes_viewMode_${sectionType}`, "grande");
   useEffect(() => {
     if (!showExportMenu) return;
     const handleClick = (e) => {
@@ -2050,6 +2054,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       categoryFilter,
     })
     : [];
+  const displayRecipes = sortRecipes({ recipes: filteredRecipes, sortBy, sortDir });
   const theoreticalYield = useMemo(
     () => computeTheoreticalYieldFromDirectIngredients({ directIngredients: formData.directIngredients || [] }),
     [formData.directIngredients]
@@ -2727,30 +2732,43 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       )}
 
       {!showForm && hasCategorySelection && (
-        <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           {!selectionMode ? (
-            <div className="relative" ref={exportMenuRef}>
-              <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">⬇ Exporter les recettes ▾</button>
-              {showExportMenu && (
-                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[220px]">
-                  <button onClick={() => { handleExportRecipesPdf(filteredRecipes); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">Toutes les recettes ({filteredRecipes.length})</button>
-                  <button onClick={() => { setSelectionMode(true); setSelectedForExport(new Set()); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Sélectionner des recettes</button>
-                </div>
-              )}
-            </div>
-          ) : (
             <>
-              <button onClick={() => handleExportRecipesPdf(filteredRecipes.filter(r => selectedForExport.has(r.id)))} disabled={selectedForExport.size === 0} className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedForExport.size > 0 ? "bg-[#C8956C] text-white hover:bg-[#b8825c]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>⬇ Exporter la sélection ({selectedForExport.size})</button>
-              <button onClick={() => { const all = new Set(filteredRecipes.map(r => r.id)); setSelectedForExport(selectedForExport.size === filteredRecipes.length ? new Set() : all); }} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">{selectedForExport.size === filteredRecipes.length ? "Tout désélectionner" : "Tout sélectionner"}</button>
-              <button onClick={() => { setSelectionMode(false); setSelectedForExport(new Set()); }} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Annuler</button>
+              <div className="relative" ref={exportMenuRef}>
+                <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">⬇ Exporter les recettes ▾</button>
+                {showExportMenu && (
+                  <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[220px]">
+                    <button onClick={() => { handleExportRecipesPdf(displayRecipes); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">Toutes les recettes ({displayRecipes.length})</button>
+                    <button onClick={() => { setSelectionMode(true); setSelectedForExport(new Set()); setShowExportMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Sélectionner des recettes</button>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex gap-1">
+                  <button onClick={() => { if (sortBy === "name") setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortDir("asc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "name" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Nom {sortBy === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}</button>
+                  <button onClick={() => { if (sortBy === "date") setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortBy("date"); setSortDir("desc"); } }} className={`px-3 py-1.5 rounded-lg border text-sm ${sortBy === "date" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Date {sortBy === "date" ? (sortDir === "desc" ? "↓" : "↑") : ""}</button>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => setViewMode("grande")} title="Grande grille" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "grande" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>⊞</button>
+                  <button onClick={() => setViewMode("petite")} title="Petite grille" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "petite" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>▦</button>
+                  <button onClick={() => setViewMode("liste")} title="Liste" className={`px-3 py-1.5 rounded-lg border text-sm ${viewMode === "liste" ? "bg-[#1A3A4A] border-[#1A3A4A] text-white" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"}`}>≡</button>
+                </div>
+              </div>
             </>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={() => handleExportRecipesPdf(displayRecipes.filter(r => selectedForExport.has(r.id)))} disabled={selectedForExport.size === 0} className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedForExport.size > 0 ? "bg-[#C8956C] text-white hover:bg-[#b8825c]" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>⬇ Exporter la sélection ({selectedForExport.size})</button>
+              <button onClick={() => { const all = new Set(displayRecipes.map(r => r.id)); setSelectedForExport(selectedForExport.size === displayRecipes.length ? new Set() : all); }} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">{selectedForExport.size === displayRecipes.length ? "Tout désélectionner" : "Tout sélectionner"}</button>
+              <button onClick={() => { setSelectionMode(false); setSelectedForExport(new Set()); }} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Annuler</button>
+            </div>
           )}
         </div>
       )}
 
-      {!showForm && hasCategorySelection && (
+      {!showForm && hasCategorySelection && viewMode === "grande" && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredRecipes.map(recipe => {
+          {displayRecipes.map(recipe => {
           const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
           const costStatus = getCostStatus(recipe, normalizedRecipes, ingredients);
           return (
@@ -2769,6 +2787,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   <p>{recipe.directIngredients.length} ingrédient(s) direct(s)</p>
                   {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
                   <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
+                  {recipe.createdAt && <p className="text-xs text-gray-400">Créé le {new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
                   {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                   {(() => { const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(recipe, ingredients, normalizedRecipes); return (<div className="mt-1">{allergens.length > 0 && <p className="text-red-800 font-medium text-xs">Allergènes : {allergens.join(" · ")}</p>}{hasIncomplete && <p className={`text-amber-500 text-xs italic ${selectionMode ? "" : "cursor-pointer hover:underline"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>⚠ Allergènes incomplets — cliquer pour compléter</p>}{!hasIncomplete && allergens.length === 0 && <p className="text-green-600 text-xs">Aucun allergène</p>}</div>); })()}
                 </div>
@@ -2780,6 +2799,65 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   </div>
                 )}
               </div>
+            </div>
+          );
+          })}
+        </div>
+      )}
+
+      {!showForm && hasCategorySelection && viewMode === "petite" && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          {displayRecipes.map(recipe => {
+          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
+          const costStatus = getCostStatus(recipe, normalizedRecipes, ingredients);
+          return (
+            <div key={recipe.id} onClick={selectionMode ? () => setSelectedForExport(prev => { const s = new Set(prev); s.has(recipe.id) ? s.delete(recipe.id) : s.add(recipe.id); return s; }) : undefined} className={`bg-white rounded-xl border overflow-hidden hover:shadow-md transition-shadow ${selectionMode ? "cursor-pointer" : ""} ${selectionMode && selectedForExport.has(recipe.id) ? "border-[#C8956C] ring-2 ring-[#C8956C]" : "border-gray-200"}`}>
+              <div className="p-3">
+                {selectionMode && <input type="checkbox" readOnly checked={selectedForExport.has(recipe.id)} className="mb-2 h-4 w-4 accent-[#C8956C]" />}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${recipe.recipeType === "base" ? "bg-slate-700 text-white" : "bg-[#1A3A4A] text-white"}`}>{recipe.recipeType === "base" ? "Base" : "Finale"}</span>
+                  {recipe.categories.slice(0, 1).map(cat => <span key={cat} className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
+                </div>
+                <h3 className={`text-sm font-bold text-[#1A3A4A] leading-tight mb-1 ${selectionMode ? "" : "cursor-pointer hover:text-[#C8956C]"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>{recipe.name}</h3>
+                {recipe.createdAt && <p className="text-xs text-gray-400 mb-2">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                {isChef && costStatus.valid && <p className="text-sm font-bold text-[#C8956C] mb-2">{Number(totalCost || 0).toFixed(2)}€</p>}
+                {!selectionMode && (
+                  <div className="flex gap-1">
+                    <button onClick={() => setDetailRecipe(recipe)} className="flex-1 bg-gray-100 text-gray-600 py-1 rounded text-xs">Détail</button>
+                    <button onClick={() => setAdaptRecipe(recipe)} className="flex-1 bg-[#C8956C]/10 text-[#C8956C] py-1 rounded text-xs">Adapter</button>
+                    {isChef && <><button onClick={() => handleEdit(recipe)} className="p-1 text-gray-600 bg-gray-50 rounded text-xs">✎</button><button onClick={() => window.confirm("Supprimer cette recette ?") && setRecipes(recipes.filter(r => Number(r.id) !== Number(recipe.id)))} className="p-1 text-gray-600 bg-gray-50 rounded text-xs">🗑</button></>}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+          })}
+        </div>
+      )}
+
+      {!showForm && hasCategorySelection && viewMode === "liste" && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {displayRecipes.map(recipe => {
+          const totalCost = calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients);
+          const costStatus = getCostStatus(recipe, normalizedRecipes, ingredients);
+          return (
+            <div key={recipe.id} onClick={selectionMode ? () => setSelectedForExport(prev => { const s = new Set(prev); s.has(recipe.id) ? s.delete(recipe.id) : s.add(recipe.id); return s; }) : undefined} className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors ${selectionMode ? "cursor-pointer" : ""} ${selectionMode && selectedForExport.has(recipe.id) ? "bg-amber-50" : ""}`}>
+              {selectionMode && <input type="checkbox" readOnly checked={selectedForExport.has(recipe.id)} className="h-4 w-4 accent-[#C8956C] flex-shrink-0" />}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${recipe.recipeType === "base" ? "bg-slate-700 text-white" : "bg-[#1A3A4A] text-white"}`}>{recipe.recipeType === "base" ? "Base" : "Finale"}</span>
+              <div className="flex-1 min-w-0">
+                <span className={`font-semibold text-[#1A3A4A] text-sm ${selectionMode ? "" : "cursor-pointer hover:text-[#C8956C]"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>{recipe.name}</span>
+                {recipe.categories.length > 0 && <span className="text-xs text-gray-400 ml-2 hidden sm:inline">{recipe.categories.join(" · ")}</span>}
+              </div>
+              <span className="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">{recipe.covers} cvt</span>
+              {recipe.createdAt && <span className="text-xs text-gray-400 flex-shrink-0 hidden md:inline">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>}
+              {isChef && <span className="text-sm font-medium text-[#C8956C] flex-shrink-0 hidden sm:inline">{costStatus.valid ? `${Number(totalCost || 0).toFixed(2)}€` : "—"}</span>}
+              {!selectionMode && (
+                <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => setDetailRecipe(recipe)} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Détail</button>
+                  <button onClick={() => setAdaptRecipe(recipe)} className="px-2 py-1 bg-[#C8956C]/10 text-[#C8956C] rounded text-xs hidden sm:block">Adapter</button>
+                  {isChef && <><button onClick={() => handleEdit(recipe)} className="p-1 text-gray-600 bg-gray-50 rounded text-xs">✎</button><button onClick={() => window.confirm("Supprimer cette recette ?") && setRecipes(recipes.filter(r => Number(r.id) !== Number(recipe.id)))} className="p-1 text-gray-600 bg-gray-50 rounded text-xs">🗑</button></>}
+                </div>
+              )}
             </div>
           );
           })}

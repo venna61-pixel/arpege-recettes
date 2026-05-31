@@ -13,6 +13,7 @@ const {
   filterRecipesForList,
   filterIngredientsForPicker,
   filterBaseRecipesForPicker,
+  sortRecipes,
 } = window.FormulaRecipeFilters;
 
 function recipesFixture() {
@@ -150,6 +151,59 @@ function testBasePickerExclutFinalesFiltreCategorieTexteEtCombinaison() {
   assert.strictEqual(combined[0].name, "Fond brun");
 }
 
+function testSortRecipesParNomAZ() {
+  const recipes = [
+    { id: 1, name: "Zucchini", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "Abricot", createdAt: "2024-06-01T00:00:00.000Z" },
+    { id: 3, name: "Melon", createdAt: "2024-03-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "name", sortDir: "asc" });
+  assert.strictEqual(result[0].name, "Abricot");
+  assert.strictEqual(result[1].name, "Melon");
+  assert.strictEqual(result[2].name, "Zucchini");
+}
+
+function testSortRecipesParNomZA() {
+  const recipes = [
+    { id: 1, name: "Abricot", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "Zucchini", createdAt: "2024-06-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "name", sortDir: "desc" });
+  assert.strictEqual(result[0].name, "Zucchini");
+  assert.strictEqual(result[1].name, "Abricot");
+}
+
+function testSortRecipesParDateDesc() {
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-06-01T00:00:00.000Z" },
+    { id: 3, name: "C", createdAt: "2024-03-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "date", sortDir: "desc" });
+  assert.strictEqual(result[0].id, 2);
+  assert.strictEqual(result[1].id, 3);
+  assert.strictEqual(result[2].id, 1);
+}
+
+function testSortRecipesParDateAsc() {
+  const recipes = [
+    { id: 1, name: "A", createdAt: "2024-06-01T00:00:00.000Z" },
+    { id: 2, name: "B", createdAt: "2024-01-01T00:00:00.000Z" },
+  ];
+  const result = sortRecipes({ recipes, sortBy: "date", sortDir: "asc" });
+  assert.strictEqual(result[0].id, 2);
+  assert.strictEqual(result[1].id, 1);
+}
+
+function testSortRecipesNeModifiePasOriginal() {
+  const recipes = [
+    { id: 1, name: "Z", createdAt: "2024-01-01T00:00:00.000Z" },
+    { id: 2, name: "A", createdAt: "2024-06-01T00:00:00.000Z" },
+  ];
+  sortRecipes({ recipes, sortBy: "name", sortDir: "asc" });
+  assert.strictEqual(recipes[0].name, "Z");
+}
+
 function runAll() {
   const tests = [
     testRechercheParNomRecette,
@@ -159,6 +213,11 @@ function runAll() {
     testCumulRechercheTypeCategorie,
     testIngredientsPickerMatchPartielCaseInsensitiveEtVide,
     testBasePickerExclutFinalesFiltreCategorieTexteEtCombinaison,
+    testSortRecipesParNomAZ,
+    testSortRecipesParNomZA,
+    testSortRecipesParDateDesc,
+    testSortRecipesParDateAsc,
+    testSortRecipesNeModifiePasOriginal,
   ];
   for (const testFn of tests) {
     testFn();
