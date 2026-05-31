@@ -822,11 +822,9 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
         {isChef && <button onClick={() => setShowForm(!showForm)} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg">+ Nouvel ingrédient</button>}
       </div>
       {!showForm && (
-        <div className="mb-6"><input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" /></div>
-      )}
-      {!showForm && (
-        <div className="mb-6 overflow-x-auto">
-          <div className="flex gap-2 min-w-max">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-4">
+          <input type="text" placeholder="Rechercher un ingrédient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" />
+          <div className="flex flex-wrap gap-2">
             {availableCategories.map((category) => (
               <button
                 key={category}
