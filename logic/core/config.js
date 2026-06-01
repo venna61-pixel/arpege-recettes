@@ -14,9 +14,21 @@
     global.localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   }
 
+  function getCurrencySymbol() {
+    var config = getConfig();
+    return (config && config.currencySymbol) ? config.currencySymbol : "€";
+  }
+
+  function getCountryCode() {
+    var config = getConfig();
+    return (config && config.countryCode) ? config.countryCode : "FR";
+  }
+
   global.FormulaConfig = {
     CONFIG_KEY,
     getConfig,
     saveConfig,
+    getCurrencySymbol,
+    getCountryCode,
   };
 })(typeof window !== "undefined" ? window : global);
