@@ -3250,16 +3250,27 @@ const PrixActuelsTab = ({ finalRecipes, allNormalized, ingredients, prixRecettes
   const fmtPct = (n) => n != null ? n.toFixed(2) + " %" : "—";
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString("fr-FR"); } catch { return "—"; } };
 
-  const currentPrices = {};
-  prixRecettes.filter(p => p.isCurrent).forEach(p => { currentPrices[p.recipeId] = p; });
+  const costMap = useMemo(() => {
+    const map = {};
+    finalRecipes.forEach(recipe => {
+      const ct = calculateRecipeTotalCost(recipe, allNormalized, new Set(), ingredients);
+      map[recipe.id] = { ct, cpp: (ct != null && recipe.covers > 0) ? ct / recipe.covers : null };
+    });
+    return map;
+  }, [finalRecipes, allNormalized, ingredients]);
+
+  const currentPrices = useMemo(() => {
+    const map = {};
+    prixRecettes.filter(p => p.isCurrent).forEach(p => { map[p.recipeId] = p; });
+    return map;
+  }, [prixRecettes]);
 
   return (
     <div>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
         <div className="block md:hidden p-4 space-y-3">
           {finalRecipes.map(recipe => {
-            const ct   = calculateRecipeTotalCost(recipe, allNormalized, new Set(), ingredients);
-            const cpp  = (ct != null && recipe.covers > 0) ? ct / recipe.covers : null;
+            const { ct, cpp } = costMap[recipe.id] || {};
             const prix = currentPrices[recipe.id];
             return (
               <div key={recipe.id} className="bg-gray-50 rounded-lg p-4">
@@ -3294,8 +3305,7 @@ const PrixActuelsTab = ({ finalRecipes, allNormalized, ingredients, prixRecettes
             </tr></thead>
             <tbody className="divide-y divide-gray-200">
               {finalRecipes.map(recipe => {
-                const ct   = calculateRecipeTotalCost(recipe, allNormalized, new Set(), ingredients);
-                const cpp  = (ct != null && recipe.covers > 0) ? ct / recipe.covers : null;
+                const { ct, cpp } = costMap[recipe.id] || {};
                 const prix = currentPrices[recipe.id];
                 return (
                   <tr key={recipe.id} className="hover:bg-gray-50">
@@ -3392,7 +3402,10 @@ const HistoriqueTab = ({ prixRecettes, setPrixRecettes, finalRecipes, currencySy
 
 // ─── Rentabilité — sous-onglet Statistiques ───────────────────────────────────
 const StatistiquesTab = ({ allNormalized, ingredients, currencySymbol, legal }) => {
-  const enriched = allNormalized.map(r => ({ ...r, totalCost: calculateRecipeTotalCost(r, allNormalized, new Set(), ingredients), status: getCostStatus(r, allNormalized, ingredients) }));
+  const enriched = useMemo(
+    () => allNormalized.map(r => ({ ...r, totalCost: calculateRecipeTotalCost(r, allNormalized, new Set(), ingredients), status: getCostStatus(r, allNormalized, ingredients) })),
+    [allNormalized, ingredients]
+  );
   const valid    = enriched.filter(r => r.status.valid && r.totalCost != null);
   const avgCost  = valid.length ? valid.reduce((s, r) => s + Number(r.totalCost), 0) / valid.length : 0;
   const mostExp  = valid.length ? valid.reduce((mx, r) => Number(r.totalCost) > Number(mx.totalCost) ? r : mx, valid[0]) : null;
