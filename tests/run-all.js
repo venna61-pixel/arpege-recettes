@@ -17,6 +17,9 @@ const tests = [
   "procedure.test.js",
   "analytics.test.js",
   "editor.test.js",
+  "constants.test.js",
+  "schema.test.js",
+  "rentabilite.test.js",
 ];
 
 let passed = 0;

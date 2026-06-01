@@ -5,16 +5,17 @@
   // Entrée: données de l'application (nom restaurant + 3 listes).
   // Sortie: objet structuré prêt à être sérialisé en JSON pour téléchargement.
   // Limite: ne valide pas le contenu des listes, seulement leur présence.
-  function buildExportPayload({ restaurantName, ingredients, recipes, suppliers }) {
+  function buildExportPayload({ restaurantName, ingredients, recipes, suppliers, prixRecettes }) {
     return {
       formatVersion: FORMAT_VERSION,
       app: APP_IDENTIFIER,
       exportedAt: new Date().toISOString(),
       restaurantName: String(restaurantName || "").trim(),
       data: {
-        ingredients: Array.isArray(ingredients) ? ingredients : [],
-        recipes: Array.isArray(recipes) ? recipes : [],
-        suppliers: Array.isArray(suppliers) ? suppliers : [],
+        ingredients:   Array.isArray(ingredients)   ? ingredients   : [],
+        recipes:       Array.isArray(recipes)       ? recipes       : [],
+        suppliers:     Array.isArray(suppliers)     ? suppliers     : [],
+        prixRecettes:  Array.isArray(prixRecettes)  ? prixRecettes  : [],
       },
     };
   }
@@ -42,7 +43,7 @@
       return { valid: false, errors, data: null };
     }
 
-    const { ingredients, recipes, suppliers } = parsed.data;
+    const { ingredients, recipes, suppliers, prixRecettes } = parsed.data;
 
     if (!Array.isArray(ingredients)) errors.push("La liste des ingrédients est invalide ou absente.");
     if (!Array.isArray(recipes))     errors.push("La liste des recettes est invalide ou absente.");
@@ -58,6 +59,7 @@
         ingredients,
         recipes,
         suppliers,
+        prixRecettes: Array.isArray(prixRecettes) ? prixRecettes : [],
         exportedAt: parsed.exportedAt || null,
       },
     };

@@ -29,6 +29,7 @@
     <script src="./logic/core/procedure.js"></script>
     <script src="./logic/core/analytics.js"></script>
     <script src="./logic/core/editor.js"></script>
+    <script src="./logic/core/pricing.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -58,10 +59,12 @@ if (!window.FormulaConstants) {
 }
 const {
   LOGO_URL, SERVICE_CATEGORIES, RECIPE_TYPE_OPTIONS,
-  UNITS, YIELD_UNITS, PRIORITY_UNITS, orderUnitsForDisplay,
+  UNITS, orderUnitsForDisplay,
   DISPLAY_UNITS, DISPLAY_YIELD_UNITS,
   BASE_QUANTITY_UNITS_MASS, BASE_QUANTITY_UNITS_VOLUME,
   CATEGORIES_ING, INITIAL_INGREDIENTS, INITIAL_RECIPES,
+  COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode,
+  getTVARates, getDefaultTVARate,
 } = window.FormulaConstants;
 if (!window.FormulaUtils) {
   throw new Error("Module requis manquant: logic/core/utils.js n'est pas chargé.");
@@ -101,7 +104,7 @@ const { generateRecoveryCode, isValidRecoveryCodeFormat, normalizeRecoveryCode, 
 if (!window.FormulaConfig) {
   throw new Error("Module requis manquant: logic/core/config.js n'est pas chargé.");
 }
-const { getConfig, saveConfig } = window.FormulaConfig;
+const { getConfig, saveConfig, getCurrencySymbol } = window.FormulaConfig;
 if (!window.FormulaProcedure) {
   throw new Error("Module requis manquant: logic/core/procedure.js n'est pas chargé.");
 }
@@ -110,6 +113,10 @@ if (!window.FormulaEditor) {
   throw new Error("Module requis manquant: logic/core/editor.js n'est pas chargé.");
 }
 const { applyRichFormat, getActiveFormats } = window.FormulaEditor;
+if (!window.FormulaPricing) {
+  throw new Error("Module requis manquant: logic/core/pricing.js n'est pas chargé.");
+}
+const { calcByCoefficient, calcByMargeBruteHT, calcByMargeNetteTTC, calcByPrixTTC } = window.FormulaPricing;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -347,6 +354,7 @@ const ConsentBanner = ({ onAccept, onDecline }) => (
 // Le code de récupération est généré à la demande et envoyé par email — plus besoin de l'afficher ici.
 const SetupScreen = ({ onComplete }) => {
   const [restaurantName, setRestaurantName] = useState("");
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE);
   const [chefEmail, setChefEmail] = useState("");
   const [chefPassword, setChefPassword] = useState("");
   const [chefPasswordConfirm, setChefPasswordConfirm] = useState("");
@@ -370,7 +378,15 @@ const SetupScreen = ({ onComplete }) => {
         hashPassword(chefPassword),
         hashPassword(employePassword),
       ]);
-      const newConfig = { restaurantName: restaurantName.trim(), chefEmail: chefEmail.trim().toLowerCase(), chefPasswordHash: chefHash, employePasswordHash: employeHash };
+      const selectedCountry = getCountryByCode(countryCode);
+      const newConfig = {
+        restaurantName: restaurantName.trim(),
+        chefEmail: chefEmail.trim().toLowerCase(),
+        chefPasswordHash: chefHash,
+        employePasswordHash: employeHash,
+        countryCode,
+        currencySymbol: selectedCountry ? selectedCountry.currencySymbol : "€",
+      };
       saveConfig(newConfig);
       onComplete(newConfig);
     } catch {
@@ -394,6 +410,15 @@ const SetupScreen = ({ onComplete }) => {
             <input type="text" value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent"
               placeholder="Ex : Le Petit Bistro" autoFocus />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Pays *</label>
+            <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent bg-white">
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.name} ({c.currencySymbol})</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email du chef *</label>
@@ -658,7 +683,7 @@ const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo, resta
     { id: "baseRecipes", label: "Recettes de base", roles: ["chef", "employe"] },
     { id: "finalRecipes", label: "Recettes finales", roles: ["chef", "employe"] },
     { id: "producers", label: "Fournisseurs", roles: ["chef", "employe"] },
-    { id: "couts", label: "Coûts", roles: ["chef"] },
+    { id: "rentabilite", label: "Rentabilité", roles: ["chef"] },
     { id: "parametres", label: "Paramètres", roles: ["chef"] },
   ];
 
@@ -707,7 +732,7 @@ const Header = ({ user, onLogout, activeTab, setActiveTab, restaurantLogo, resta
   );
 };
 
-const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSuppliers, isChef }) => {
+const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSuppliers, isChef, currencySymbol = "€" }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -845,7 +870,7 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label><select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{CATEGORIES_ING.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix ({currencySymbol})</label><input type="number" step="any" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300">{DISPLAY_UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
             <div className="relative"><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" />{filteredSupplierSuggestions.length > 0 && (<div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">{filteredSupplierSuggestions.map((supplierName) => (<button key={supplierName} type="button" onClick={() => setFormData({ ...formData, supplier: supplierName })} className="w-full text-left px-4 py-2 hover:bg-amber-50">{supplierName}</button>))}</div>)}</div>
           </div>
@@ -999,7 +1024,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix (€)</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix ({currencySymbol})</label><input type="number" step="any" min="0" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité d'achat *</label><select value={formData.unit} onChange={(e) => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" required>{DISPLAY_UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
           </div>
           <div className="relative"><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur</label><input type="text" value={formData.supplier} onChange={(e) => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Choisir ou saisir un fournisseur" />{filteredSupplierSuggestions.length > 0 && (<div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">{filteredSupplierSuggestions.map((supplierName) => (<button key={supplierName} type="button" onClick={() => setFormData({ ...formData, supplier: supplierName })} className="w-full text-left px-4 py-2 hover:bg-amber-50">{supplierName}</button>))}</div>)}</div>
@@ -1026,7 +1051,7 @@ const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSug
   );
 };
 
-const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient, isOpen, onClose, isChef }) => {
+const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient, isOpen, onClose, isChef, currencySymbol = "€" }) => {
   const [allergenesIngId, setAllergenesIngId] = useState(null);
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
@@ -1069,7 +1094,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
             <tr>
               <td>${escapeHtml(ing.name)}</td>
               <td>${escapeHtml(ing.quantity)} ${escapeHtml(ing.unit)}</td>
-              ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>` : ""}
+              ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}${currencySymbol}`}</td>` : ""}
             </tr>
           `;
         }).join("");
@@ -1089,7 +1114,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
             <tr>
               <td>${escapeHtml(component.name)}</td>
               <td>${usageLabel}</td>
-              ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
+              ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}${currencySymbol}`}</td>` : ""}
             </tr>
           `;
         }).join("");
@@ -1117,8 +1142,8 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
           !costStatus.valid
             ? `<p style="color:#991b1b;font-weight:600;">${escapeHtml(costStatus.message)}</p>`
             : `
-              <p><strong>Coût total :</strong> ${Number(totalCost || 0).toFixed(2)}€</p>
-              <p><strong>Coût par couvert :</strong> ${normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}€</p>
+              <p><strong>Coût total :</strong> ${Number(totalCost || 0).toFixed(2)}${currencySymbol}</p>
+              <p><strong>Coût par couvert :</strong> ${normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}${currencySymbol}</p>
             `
         }
       </section>
@@ -1409,7 +1434,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
             <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Ingrédients directs ({normalized.directIngredients.length})</h4>
             <div className="bg-gray-50 rounded-lg p-4">
               {normalized.directIngredients.length === 0 ? <p className="text-sm text-gray-500 italic">Aucun ingrédient direct</p> : (
-                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing, ingredients); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Ingrédient</th><th className="pb-2">Quantité</th>{isChef && <th className="pb-2 text-right">Coût</th>}</tr></thead><tbody>{normalized.directIngredients.map((ing, idx) => { const ingredientCost = calculateIngredientCost(ing, ingredients); return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{ing.name}</td><td className="py-3 text-gray-600">{ing.quantity} {ing.unit}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}${currencySymbol}`}</td>}</tr>; })}</tbody></table>
               )}
             </div>
           </div>
@@ -1419,7 +1444,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
               <h4 className="text-lg font-semibold text-[#1A3A4A] mb-3">Recettes de base utilisées ({normalized.baseComponents.length})</h4>
               <div className="bg-gray-50 rounded-lg p-4">
                 {normalized.baseComponents.length === 0 ? <p className="text-sm text-gray-500 italic">Aucune recette de base liée</p> : (
-                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null; const prorated = (baseCost != null && baseRecipe.id) ? computeBaseComponentCost({ component, baseRecipe, baseCost }) : null; const usageLabel = component.usageMode === "portion" ? `${component.portionCount} portions/couverts` : `${component.quantity} ${component.unit}`; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{usageLabel}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>}</tr>; })}</tbody></table>
+                  <table className="w-full"><thead><tr className="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-200"><th className="pb-2">Recette de base</th><th className="pb-2">Quantité utilisée</th>{isChef && <th className="pb-2 text-right">Coût proratisé</th>}</tr></thead><tbody>{normalized.baseComponents.map((component, idx) => { const baseRecipe = normalizeRecipe(getRecipeById(allRecipes, component.baseRecipeId) || {}); const baseCost = baseRecipe.id ? calculateRecipeTotalCost(baseRecipe, allRecipes, new Set(), ingredients) : null; const prorated = (baseCost != null && baseRecipe.id) ? computeBaseComponentCost({ component, baseRecipe, baseCost }) : null; const usageLabel = component.usageMode === "portion" ? `${component.portionCount} portions/couverts` : `${component.quantity} ${component.unit}`; return <tr key={idx} className="border-b border-gray-100 last:border-0"><td className="py-3 font-medium">{component.name}</td><td className="py-3 text-gray-600">{usageLabel}</td>{isChef && <td className="py-3 text-right text-[#C8956C] font-medium">{prorated == null ? "N/A" : `${prorated.toFixed(2)}${currencySymbol}`}</td>}</tr>; })}</tbody></table>
                 )}
               </div>
             </div>
@@ -1432,7 +1457,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
 
           {isChef && (
             <div className="bg-[#C8956C] bg-opacity-10 rounded-lg p-4 border border-[#C8956C] border-opacity-30">
-              {!costStatus.valid ? <div className="text-sm text-red-700 font-medium">{costStatus.message}</div> : <><div className="flex justify-between items-center mb-2"><span className="font-semibold text-[#1A3A4A]">Coût total :</span><span className="text-2xl font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€</span></div><div className="flex justify-between items-center text-sm text-[#1A3A4A]"><span>Coût par couvert :</span><span>{normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}€</span></div></>}
+              {!costStatus.valid ? <div className="text-sm text-red-700 font-medium">{costStatus.message}</div> : <><div className="flex justify-between items-center mb-2"><span className="font-semibold text-[#1A3A4A]">Coût total :</span><span className="text-2xl font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}{currencySymbol}</span></div><div className="flex justify-between items-center text-sm text-[#1A3A4A]"><span>Coût par couvert :</span><span>{normalized.covers > 0 ? (Number(totalCost || 0) / normalized.covers).toFixed(2) : "0.00"}{currencySymbol}</span></div></>}
             </div>
           )}
           <div>
@@ -1478,7 +1503,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
   );
 };
 
-const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) => {
+const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef, currencySymbol = "€" }) => {
   const normalized = recipe ? normalizeRecipe(recipe) : null;
   const [pivotType, setPivotType] = useState("covers");
   const [pivotValue, setPivotValue] = useState("");
@@ -1551,7 +1576,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             <tr>
               <td>${escapeHtml(ing.name)}</td>
               <td>${escapeHtml(ing.adaptedQuantity.toFixed(2))} ${escapeHtml(ing.unit)}</td>
-              ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}€`}</td>` : ""}
+              ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}${currencySymbol}`}</td>` : ""}
             </tr>
           `;
         }).join("");
@@ -1575,7 +1600,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
             <tr>
               <td>${escapeHtml(component.name)}</td>
               <td>${escapeHtml(adaptedLabel)}</td>
-              ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}€`}</td>` : ""}
+              ${isChef ? `<td style="text-align:right;">${prorated == null ? "N/A" : `${prorated.toFixed(2)}${currencySymbol}`}</td>` : ""}
             </tr>
           `;
         }).join("");
@@ -1603,8 +1628,8 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
           !adaptedCostStatus.valid
             ? `<p style="color:#991b1b;font-weight:600;">${escapeHtml(adaptedCostStatus.message)}</p>`
             : `
-              <p><strong>Coût total adapté :</strong> ${Number(adaptedCost || 0).toFixed(2)}€</p>
-              <p><strong>Coût par couvert :</strong> ${adaptedRecipe.covers > 0 ? (Number(adaptedCost || 0) / adaptedRecipe.covers).toFixed(2) : "0.00"}€</p>
+              <p><strong>Coût total adapté :</strong> ${Number(adaptedCost || 0).toFixed(2)}${currencySymbol}</p>
+              <p><strong>Coût par couvert :</strong> ${adaptedRecipe.covers > 0 ? (Number(adaptedCost || 0) / adaptedRecipe.covers).toFixed(2) : "0.00"}${currencySymbol}</p>
             `
         }
       </section>
@@ -1916,7 +1941,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coefficient :</span><span>{multiplier.toFixed(4)}</span></div>
                 <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Couverts recalculés :</span><span>{(normalized.covers * multiplier).toFixed(2)}</span></div>
-                {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}€`}</span></div>}
+                {isChef && <div className="flex justify-between"><span className="font-medium text-[#1A3A4A]">Coût recalculé :</span><span>{adaptedCost == null ? "N/A" : `${adaptedCost.toFixed(2)}${currencySymbol}`}</span></div>}
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
@@ -1967,7 +1992,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef }) =
   );
 };
 
-const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base" }) => {
+const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isChef, sectionType = "base", currencySymbol = "€" }) => {
   const normalizedRecipes = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
   const costMap = useMemo(() => {
     if (!isChef) return new Map();
@@ -2287,7 +2312,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:10px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
         : r.directIngredients.map(ing => {
             const c = calculateIngredientCost(ing, ingredients);
-            return `<tr><td>${esc(ing.name)}</td><td>${esc(ing.quantity)} ${esc(ing.unit)}</td>${isChef ? `<td style="text-align:right;">${c == null ? "N/A" : `${c.toFixed(2)}€`}</td>` : ""}</tr>`;
+            return `<tr><td>${esc(ing.name)}</td><td>${esc(ing.quantity)} ${esc(ing.unit)}</td>${isChef ? `<td style="text-align:right;">${c == null ? "N/A" : `${c.toFixed(2)}${currencySymbol}`}</td>` : ""}</tr>`;
           }).join("");
       const allergenesHtml = `<section><h2>Allergènes</h2>${allergens.length > 0 ? `<p style="color:#991b1b;font-weight:600;">${esc(allergens.join(" · "))}</p>` : `<p style="color:#166534;font-weight:500;">Aucun allergène</p>`}${hasIncomplete ? `<p style="color:#b45309;font-size:12px;font-style:italic;">&#9888; Liste potentiellement incomplète</p>` : ""}</section>`;
       return `
@@ -2299,7 +2324,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             <table><thead><tr><th>Ingrédient</th><th>Quantité</th>${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}</tr></thead><tbody>${directRows}</tbody></table></section>
           <section><h2>Procédé</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
           ${allergenesHtml}
-          ${isChef ? `<section><h2>Coûts</h2>${!costStatus.valid ? `<p style="color:#991b1b;font-weight:600;">${esc(costStatus.message)}</p>` : `<p><strong>Total :</strong> ${Number(totalCost||0).toFixed(2)}€ • <strong>Par couvert :</strong> ${r.covers > 0 ? (Number(totalCost||0)/r.covers).toFixed(2) : "0.00"}€</p>`}</section>` : ""}
+          ${isChef ? `<section><h2>Coûts</h2>${!costStatus.valid ? `<p style="color:#991b1b;font-weight:600;">${esc(costStatus.message)}</p>` : `<p><strong>Total :</strong> ${Number(totalCost||0).toFixed(2)}${currencySymbol} • <strong>Par couvert :</strong> ${r.covers > 0 ? (Number(totalCost||0)/r.covers).toFixed(2) : "0.00"}${currencySymbol}</p>`}</section>` : ""}
         </article>`;
     };
 
@@ -2313,7 +2338,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         ? `<tr><td colspan="${isChef ? 3 : 2}" style="padding:8px;color:#6b7280;font-style:italic;">Aucun ingrédient direct</td></tr>`
         : r.directIngredients.map(ing => {
             const c = calculateIngredientCost(ing, ingredients);
-            return `<tr><td>${esc(ing.name)}</td><td>${esc(ing.quantity)} ${esc(ing.unit)}</td>${isChef ? `<td style="text-align:right;">${c == null ? "N/A" : `${c.toFixed(2)}€`}</td>` : ""}</tr>`;
+            return `<tr><td>${esc(ing.name)}</td><td>${esc(ing.quantity)} ${esc(ing.unit)}</td>${isChef ? `<td style="text-align:right;">${c == null ? "N/A" : `${c.toFixed(2)}${currencySymbol}`}</td>` : ""}</tr>`;
           }).join("");
 
       const subrecipeBlocks = r.baseComponents.length === 0
@@ -2359,7 +2384,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             return `
               <section class="subrecipe-block">
                 <h2>${idx + 1}. ${esc(base.name)}</h2>
-                <p class="meta"><strong>Utilisation :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:#991b1b;">${invalidReason}</span>` : ""}${isChef && pr != null ? ` • <strong>Coût proratisé :</strong> ${pr.toFixed(2)}€` : ""}</p>
+                <p class="meta"><strong>Utilisation :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:#991b1b;">${invalidReason}</span>` : ""}${isChef && pr != null ? ` • <strong>Coût proratisé :</strong> ${pr.toFixed(2)}${currencySymbol}` : ""}</p>
                 <div class="grid">
                   <div><h3>Ingrédients adaptés</h3>
                     <table><thead><tr><th>Ingrédient</th><th>Quantité adaptée</th></tr></thead><tbody>${ingredientsRows}</tbody></table>
@@ -2381,7 +2406,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           ${subrecipeBlocks}
           <section class="subrecipe-block"><h2>Montage / finition</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
           <section><h2>Allergènes</h2>${allergenesHtml}</section>
-          ${isChef ? `<section><h2>Coûts</h2>${!costStatus.valid ? `<p style="color:#991b1b;font-weight:600;">${esc(costStatus.message)}</p>` : `<p><strong>Total :</strong> ${Number(totalCost||0).toFixed(2)}€ • <strong>Par couvert :</strong> ${r.covers > 0 ? (Number(totalCost||0)/r.covers).toFixed(2) : "0.00"}€</p>`}</section>` : ""}
+          ${isChef ? `<section><h2>Coûts</h2>${!costStatus.valid ? `<p style="color:#991b1b;font-weight:600;">${esc(costStatus.message)}</p>` : `<p><strong>Total :</strong> ${Number(totalCost||0).toFixed(2)}${currencySymbol} • <strong>Par couvert :</strong> ${r.covers > 0 ? (Number(totalCost||0)/r.covers).toFixed(2) : "0.00"}${currencySymbol}</p>`}</section>` : ""}
         </article>`;
     };
 
@@ -2432,8 +2457,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   return (
     <div className="p-6 max-w-7xl mx-auto fade-in">
       <AddIngredientModal isOpen={showAddIngredientModal} onClose={() => setShowAddIngredientModal(false)} onAdd={handleAddNewIngredient} suggestedName={currentIng.searchText} supplierSuggestions={supplierSuggestions} />
-      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} onUpdateIngredient={(updated) => setIngredients(ingredients.map(i => i.id === updated.id ? updated : i))} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} />
-      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} />
+      <RecipeDetailModal recipe={detailRecipe} allRecipes={normalizedRecipes} ingredients={ingredients} onUpdateIngredient={(updated) => setIngredients(ingredients.map(i => i.id === updated.id ? updated : i))} isOpen={!!detailRecipe} onClose={() => setDetailRecipe(null)} isChef={isChef} currencySymbol={currencySymbol} />
+      <AdaptModal recipe={adaptRecipe} recipes={normalizedRecipes} ingredients={ingredients} isOpen={!!adaptRecipe} onClose={() => setAdaptRecipe(null)} isChef={isChef} currencySymbol={currencySymbol} />
       <IngredientAllergenesModal
         ingredient={ingredients.find(i => i.id === allergenesModalIngId) || null}
         isOpen={allergenesModalIngId !== null}
@@ -2537,7 +2562,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               {currentIng.searchText && !currentIng.ingredientId && (
                 <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
                   {filteredIngredientsForSearch.length > 0 ? filteredIngredientsForSearch.map((ing, i) => (
-                    <button key={ing.id} type="button" onClick={() => { setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name }); setIngHighlightIdx(-1); }} className={`w-full text-left px-4 py-2 flex justify-between ${i === ingHighlightIdx ? "bg-amber-100" : "hover:bg-amber-50"}`}><span>{ing.name}</span><span className="text-sm text-gray-500">{Number.isFinite(Number(ing.price)) && Number(ing.price) > 0 ? `${formatDecimal(ing.price)}€/${ing.unit}` : `Prix inconnu/${ing.unit}`}</span></button>
+                    <button key={ing.id} type="button" onClick={() => { setCurrentIng({ ...currentIng, ingredientId: ing.id, searchText: ing.name }); setIngHighlightIdx(-1); }} className={`w-full text-left px-4 py-2 flex justify-between ${i === ingHighlightIdx ? "bg-amber-100" : "hover:bg-amber-50"}`}><span>{ing.name}</span><span className="text-sm text-gray-500">{Number.isFinite(Number(ing.price)) && Number(ing.price) > 0 ? `${formatDecimal(ing.price)}${currencySymbol}/${ing.unit}` : `Prix inconnu/${ing.unit}`}</span></button>
                   )) : <div className="p-4 text-center"><p className="text-gray-500 text-sm mb-2">Aucun ingrédient trouvé</p><button type="button" onClick={() => setShowAddIngredientModal(true)} className="text-[#1A3A4A] font-medium text-sm">Créer "{currentIng.searchText}"</button></div>}
                 </div>
               )}
@@ -2802,7 +2827,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   {recipe.recipeType === "final" && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
                   <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
                   {recipe.createdAt && <p className="text-xs text-gray-400">Créé le {new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
-                  {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}€ <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}€/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
+                  {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}{currencySymbol} <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}{currencySymbol}/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                   {(() => { const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(recipe, ingredients, normalizedRecipes); return (<div className="mt-1">{allergens.length > 0 && <p className="text-red-800 font-medium text-xs">Allergènes : {allergens.join(" · ")}</p>}{hasIncomplete && <p className={`text-amber-500 text-xs italic ${selectionMode ? "" : "cursor-pointer hover:underline"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>⚠ Allergènes incomplets — cliquer pour compléter</p>}{!hasIncomplete && allergens.length === 0 && <p className="text-green-600 text-xs">Aucun allergène</p>}</div>); })()}
                 </div>
                 {!selectionMode && (
@@ -2834,7 +2859,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 </div>
                 <h3 className={`text-sm font-bold text-[#1A3A4A] leading-tight mb-1 ${selectionMode ? "" : "cursor-pointer hover:text-[#C8956C]"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>{recipe.name}</h3>
                 {recipe.createdAt && <p className="text-xs text-gray-400 mb-2">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
-                {isChef && costStatus.valid && <p className="text-sm font-bold text-[#C8956C] mb-2">{Number(totalCost || 0).toFixed(2)}€</p>}
+                {isChef && costStatus.valid && <p className="text-sm font-bold text-[#C8956C] mb-2">{Number(totalCost || 0).toFixed(2)}{currencySymbol}</p>}
                 {!selectionMode && (
                   <div className="flex gap-1">
                     <button onClick={() => setDetailRecipe(recipe)} className="flex-1 bg-gray-100 text-gray-600 py-1 rounded text-xs">Détail</button>
@@ -2864,7 +2889,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
               </div>
               <span className="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">{recipe.covers} cvt</span>
               {recipe.createdAt && <span className="text-xs text-gray-400 flex-shrink-0 hidden md:inline">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>}
-              {isChef && <span className="text-sm font-medium text-[#C8956C] flex-shrink-0 hidden sm:inline">{costStatus.valid ? `${Number(totalCost || 0).toFixed(2)}€` : "—"}</span>}
+              {isChef && <span className="text-sm font-medium text-[#C8956C] flex-shrink-0 hidden sm:inline">{costStatus.valid ? `${Number(totalCost || 0).toFixed(2)}${currencySymbol}` : "—"}</span>}
               {!selectionMode && (
                 <div className="flex gap-1 flex-shrink-0">
                   <button onClick={() => setDetailRecipe(recipe)} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Détail</button>
@@ -3071,51 +3096,407 @@ const ProducersView = ({ ingredients, setIngredients, suppliersRuntime, supplier
   );
 };
 
-const CostsView = ({ recipes, ingredients }) => {
-  const normalizedRecipes = recipes.map(normalizeRecipe);
-  const enriched = normalizedRecipes.map(recipe => ({ ...recipe, totalCost: calculateRecipeTotalCost(recipe, normalizedRecipes, new Set(), ingredients), status: getCostStatus(recipe, normalizedRecipes, ingredients) }));
-  const validRecipes = enriched.filter(r => r.status.valid && r.totalCost != null);
-  const avgCostPerRecipe = validRecipes.length ? validRecipes.reduce((sum, r) => sum + Number(r.totalCost || 0), 0) / validRecipes.length : 0;
-  const mostExpensive = validRecipes.length ? validRecipes.reduce((max, r) => Number(r.totalCost || 0) > Number(max.totalCost || 0) ? r : max, validRecipes[0]) : null;
-  const cheapest = validRecipes.length ? validRecipes.reduce((min, r) => Number(r.totalCost || 0) < Number(min.totalCost || 0) ? r : min, validRecipes[0]) : null;
-  return (
-    <div className="p-6 max-w-7xl mx-auto fade-in">
-      <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Analyse des Coûts</h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3><p className="text-3xl font-bold text-[#1A3A4A]">{avgCostPerRecipe.toFixed(2)}€</p></div>
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExpensive?.name || "-"}</p><p className="text-2xl font-bold text-red-600">{mostExpensive ? Number(mostExpensive.totalCost || 0).toFixed(2) : "0.00"}€</p></div>
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "-"}</p><p className="text-2xl font-bold text-green-600">{cheapest ? Number(cheapest.totalCost || 0).toFixed(2) : "0.00"}€</p></div>
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Ingrédients</h3><p className="text-3xl font-bold text-[#1A3A4A]">{ingredients.length}</p></div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200"><h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3></div>
-        <div className="block sm:hidden p-4 space-y-3">
-          {enriched.map(recipe => (
-            <div key={recipe.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-              <div className="font-semibold text-[#1A3A4A] mb-2">{recipe.name}</div>
-              <div className="space-y-1 text-sm text-gray-700">
-                <div><span className="font-medium">Type :</span> {recipe.recipeType === "base" ? "Base" : "Finale"}</div>
-                <div><span className="font-medium">Sous-catégories :</span> {recipe.categories.join(", ")}</div>
-                <div><span className="font-medium">Statut coût :</span> {recipe.status.valid ? "Calculable" : "Non calculable"}</div>
-                <div><span className="font-medium">Coût total :</span> <span className="font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</span></div>
-                <div><span className="font-medium">Coût/portion :</span> {recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</div>
-              </div>
-            </div>
-          ))}
+// ─── Rentabilité — sous-onglet Calculateur ───────────────────────────────────
+const CalculateurTab = ({ finalRecipes, allNormalized, ingredients, currencySymbol, config, prixRecettes, setPrixRecettes, preselectedRecipeId, onPreselectedConsumed, legal }) => {
+  const countryCode = config?.countryCode || "FR";
+  const tvaRates    = getTVARates(countryCode);
+  const defaultTVA  = getDefaultTVARate(countryCode) ?? 10;
+
+  const [selectedRecipeId, setSelectedRecipeId] = useState(preselectedRecipeId ? String(preselectedRecipeId) : "");
+  const [tauxTVA,          setTauxTVA]          = useState(defaultTVA);
+  const [customTVAInput,   setCustomTVAInput]   = useState(String(defaultTVA));
+  const [coeffInput,       setCoeffInput]       = useState("3.5");
+  const [margeHTInput,     setMargeHTInput]     = useState("65");
+  const [margeTTCInput,    setMargeTTCInput]    = useState("55");
+  const [prixTTCInput,     setPrixTTCInput]     = useState("");
+  const [saveOk,           setSaveOk]           = useState(null);
+
+  useEffect(() => {
+    if (preselectedRecipeId) {
+      setSelectedRecipeId(String(preselectedRecipeId));
+      onPreselectedConsumed();
+    }
+  }, [preselectedRecipeId]);
+
+  const selectedRecipe  = finalRecipes.find(r => String(r.id) === String(selectedRecipeId));
+  const coutTotal       = selectedRecipe ? calculateRecipeTotalCost(selectedRecipe, allNormalized, new Set(), ingredients) : null;
+  const coutParCouvert  = (coutTotal != null && selectedRecipe?.covers > 0) ? coutTotal / selectedRecipe.covers : null;
+  const tvaVal          = tvaRates ? tauxTVA : (parseFloat(customTVAInput.replace(",", ".")) || 0);
+
+  const col1 = coutParCouvert != null ? calcByCoefficient(coutParCouvert,   parseFloat(coeffInput.replace(",",    ".")) || 0, tvaVal) : null;
+  const col2 = coutParCouvert != null ? calcByMargeBruteHT(coutParCouvert,  parseFloat(margeHTInput.replace(",",  ".")) || 0, tvaVal) : null;
+  const col3 = coutParCouvert != null ? calcByMargeNetteTTC(coutParCouvert, parseFloat(margeTTCInput.replace(",", ".")) || 0, tvaVal) : null;
+  const col4 = coutParCouvert != null ? calcByPrixTTC(coutParCouvert,       parseFloat(prixTTCInput.replace(",",  ".")) || 0, tvaVal) : null;
+
+  const handleSave = (calc, colId) => {
+    if (!calc || !selectedRecipe || coutParCouvert == null) return;
+    const entry = {
+      id: Date.now().toString(),
+      recipeId: selectedRecipe.id, recipeName: selectedRecipe.name,
+      date: new Date().toISOString(),
+      coutParCouvert, prixHT: calc.prixHT, prixTTC: calc.prixTTC,
+      tauxTVA: tvaVal,
+      margeHTPct: calc.margeHTPct, margeHTEur: calc.margeHTEur,
+      margeTTCPct: calc.margeTTCPct, margeTTCEur: calc.margeTTCEur,
+      coefficient: calc.coefficient, isCurrent: true,
+    };
+    setPrixRecettes(prev =>
+      prev.map(p => p.recipeId === selectedRecipe.id ? { ...p, isCurrent: false } : p).concat(entry)
+    );
+    setSaveOk(colId);
+    setTimeout(() => setSaveOk(null), 3000);
+  };
+
+  const fmt    = (n) => n != null ? n.toFixed(2) + " " + currencySymbol : "—";
+  const fmtPct = (n) => n != null ? n.toFixed(2) + " %" : "—";
+
+  // Fonction (pas composant) pour éviter la perte de focus sur chaque frappe
+  const renderColCard = (title, inputEl, result, colId) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col">
+      <h3 className="text-xs font-semibold text-[#1A3A4A] mb-4 uppercase tracking-wide">{title}</h3>
+      {inputEl}
+      <div className="space-y-2 text-sm mt-4 flex-1">
+        <div className="flex justify-between"><span className="text-gray-500">Prix HT</span><span className="font-bold text-[#1A3A4A]">{result ? fmt(result.prixHT) : "—"}</span></div>
+        <div className="flex justify-between"><span className="text-gray-500">Prix TTC</span><span className="font-bold text-[#1A3A4A]">{result ? fmt(result.prixTTC) : "—"}</span></div>
+        {result?.coefficient != null && <div className="flex justify-between"><span className="text-gray-500">Coefficient</span><span className="font-medium">{result.coefficient.toFixed(2)}</span></div>}
+        <div className="border-t border-gray-100 pt-2">
+          <div className="flex justify-between text-xs"><span className="text-gray-500">Marge HT</span><span>{result ? `${fmtPct(result.margeHTPct)} · ${fmt(result.margeHTEur)}` : "—"}</span></div>
+          <div className="flex justify-between text-xs mt-1"><span className="text-gray-500">Marge TTC</span><span>{result ? `${fmtPct(result.margeTTCPct)} · ${fmt(result.margeTTCEur)}` : "—"}</span></div>
         </div>
-        <div className="hidden sm:block">
-          <table className="w-full">
-            <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sous-catégories</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût total</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coût/couvert</th></tr></thead>
-            <tbody className="divide-y divide-gray-200">{enriched.map(recipe => <tr key={recipe.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-medium text-[#1A3A4A]">{recipe.name}</td><td className="px-6 py-4 text-gray-600">{recipe.recipeType === "base" ? "Base" : "Finale"}</td><td className="px-6 py-4 text-gray-600">{recipe.categories.join(", ")}</td><td className="px-6 py-4 font-bold text-[#C8956C]">{recipe.status.valid ? `${Number(recipe.totalCost || 0).toFixed(2)}€` : "N/A"}</td><td className="px-6 py-4 text-gray-600">{recipe.status.valid && recipe.covers > 0 ? `${(Number(recipe.totalCost || 0) / recipe.covers).toFixed(2)}€` : "N/A"}</td></tr>)}</tbody>
+      </div>
+      <button onClick={() => handleSave(result, colId)} disabled={!result}
+        className="mt-4 w-full py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
+        Enregistrer ce prix
+      </button>
+      {saveOk === colId && <p className="text-xs text-green-600 mt-2 text-center">✓ Prix enregistré</p>}
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Recette finale</label>
+            <select value={selectedRecipeId} onChange={e => setSelectedRecipeId(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] bg-white">
+              <option value="">— Sélectionner une recette —</option>
+              {finalRecipes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Taux de TVA</label>
+            {tvaRates ? (
+              <select value={tauxTVA} onChange={e => setTauxTVA(parseFloat(e.target.value))}
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] bg-white">
+                {tvaRates.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            ) : (
+              <input type="text" inputMode="decimal" value={customTVAInput}
+                onChange={e => setCustomTVAInput(e.target.value)} placeholder="Ex : 10"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C]" />
+            )}
+          </div>
+        </div>
+        {selectedRecipe && (
+          <div className="mt-4 grid grid-cols-3 gap-4 bg-gray-50 rounded-lg p-4">
+            <div className="text-center"><p className="text-xs text-gray-500 mb-1">Coût total</p><p className="text-lg font-bold text-[#1A3A4A]">{coutTotal != null ? fmt(coutTotal) : "—"}</p></div>
+            <div className="text-center"><p className="text-xs text-gray-500 mb-1">Couverts</p><p className="text-lg font-bold text-[#1A3A4A]">{selectedRecipe.covers}</p></div>
+            <div className="text-center"><p className="text-xs text-gray-500 mb-1">Coût / couvert</p><p className="text-lg font-bold text-[#C8956C]">{coutParCouvert != null ? (coutParCouvert.toFixed(4) + " " + currencySymbol) : "—"}</p></div>
+          </div>
+        )}
+        {selectedRecipe && coutParCouvert == null && (
+          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
+            ⚠ Coût non calculable — vérifiez que tous les ingrédients ont un prix et que les couverts sont supérieurs à 0.
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {renderColCard("Par coefficient", (
+          <div><label className="block text-xs text-gray-500 mb-1">Coefficient</label>
+            <input type="text" inputMode="decimal" value={coeffInput}
+              onChange={e => setCoeffInput(e.target.value)} disabled={coutParCouvert == null}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:bg-gray-100 focus:ring-2 focus:ring-[#C8956C]" /></div>
+        ), col1, "col1")}
+        {renderColCard("Par marge HT cible", (
+          <div><label className="block text-xs text-gray-500 mb-1">Marge HT (%)</label>
+            <input type="text" inputMode="decimal" value={margeHTInput}
+              onChange={e => setMargeHTInput(e.target.value)} disabled={coutParCouvert == null}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:bg-gray-100 focus:ring-2 focus:ring-[#C8956C]" /></div>
+        ), col2, "col2")}
+        {renderColCard("Par marge TTC cible", (
+          <div><label className="block text-xs text-gray-500 mb-1">Marge TTC (%)</label>
+            <input type="text" inputMode="decimal" value={margeTTCInput}
+              onChange={e => setMargeTTCInput(e.target.value)} disabled={coutParCouvert == null}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:bg-gray-100 focus:ring-2 focus:ring-[#C8956C]" /></div>
+        ), col3, "col3")}
+        {renderColCard("Par prix TTC décidé", (
+          <div><label className="block text-xs text-gray-500 mb-1">Prix TTC ({currencySymbol})</label>
+            <input type="text" inputMode="decimal" value={prixTTCInput}
+              onChange={e => setPrixTTCInput(e.target.value)} disabled={coutParCouvert == null}
+              placeholder="Ex : 28.50"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:bg-gray-100 focus:ring-2 focus:ring-[#C8956C]" /></div>
+        ), col4, "col4")}
+      </div>
+      {legal}
+    </div>
+  );
+};
+
+// ─── Rentabilité — sous-onglet Prix actuels ───────────────────────────────────
+const PrixActuelsTab = ({ finalRecipes, allNormalized, ingredients, prixRecettes, currencySymbol, onCalculer, legal }) => {
+  const fmt    = (n) => n != null ? n.toFixed(2) + " " + currencySymbol : "—";
+  const fmtPct = (n) => n != null ? n.toFixed(2) + " %" : "—";
+  const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString("fr-FR"); } catch { return "—"; } };
+
+  const currentPrices = {};
+  prixRecettes.filter(p => p.isCurrent).forEach(p => { currentPrices[p.recipeId] = p; });
+
+  return (
+    <div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+        <div className="block md:hidden p-4 space-y-3">
+          {finalRecipes.map(recipe => {
+            const ct   = calculateRecipeTotalCost(recipe, allNormalized, new Set(), ingredients);
+            const cpp  = (ct != null && recipe.covers > 0) ? ct / recipe.covers : null;
+            const prix = currentPrices[recipe.id];
+            return (
+              <div key={recipe.id} className="bg-gray-50 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-semibold text-[#1A3A4A]">{recipe.name}</p>
+                  <button onClick={() => onCalculer(recipe.id)} className="text-xs px-3 py-1 bg-[#1A3A4A] text-white rounded-lg">Calculer</button>
+                </div>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div><span className="font-medium">Coût/couvert :</span> {cpp != null ? fmt(cpp) : <span className="text-gray-400">N/A</span>}</div>
+                  <div><span className="font-medium">Prix HT :</span> {prix ? fmt(prix.prixHT) : "—"}</div>
+                  <div><span className="font-medium">Prix TTC :</span> {prix ? fmt(prix.prixTTC) : "—"}</div>
+                  <div><span className="font-medium">Marge HT :</span> {prix ? `${fmtPct(prix.margeHTPct)} · ${fmt(prix.margeHTEur)}` : "—"}</div>
+                  <div><span className="font-medium">Marge TTC :</span> {prix ? `${fmtPct(prix.margeTTCPct)} · ${fmt(prix.margeTTCEur)}` : "—"}</div>
+                  <div><span className="font-medium">TVA :</span> {prix ? prix.tauxTVA + " %" : "—"} · <span className="font-medium">Mis à jour :</span> {prix ? fmtDate(prix.date) : "—"}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50"><tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coût/couvert</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix HT</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix TTC</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Marge HT</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Marge TTC</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Mis à jour</th>
+              <th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-200">
+              {finalRecipes.map(recipe => {
+                const ct   = calculateRecipeTotalCost(recipe, allNormalized, new Set(), ingredients);
+                const cpp  = (ct != null && recipe.covers > 0) ? ct / recipe.covers : null;
+                const prix = currentPrices[recipe.id];
+                return (
+                  <tr key={recipe.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-[#1A3A4A]">{recipe.name}</td>
+                    <td className="px-4 py-3 text-right font-medium text-[#C8956C]">{cpp != null ? fmt(cpp) : <span className="text-gray-400">N/A</span>}</td>
+                    <td className="px-4 py-3 text-right">{prix ? fmt(prix.prixHT) : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right font-bold">{prix ? fmt(prix.prixTTC) : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right text-xs">{prix ? `${fmtPct(prix.margeHTPct)} · ${fmt(prix.margeHTEur)}` : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right text-xs">{prix ? `${fmtPct(prix.margeTTCPct)} · ${fmt(prix.margeTTCEur)}` : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right">{prix ? prix.tauxTVA + " %" : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right text-gray-500 text-xs">{prix ? fmtDate(prix.date) : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => onCalculer(recipe.id)} className="px-3 py-1 text-xs bg-[#1A3A4A] text-white rounded-lg hover:bg-[#2A4A5A] transition-colors">Calculer</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
       </div>
+      {legal}
+    </div>
+  );
+};
+
+// ─── Rentabilité — sous-onglet Historique ────────────────────────────────────
+const HistoriqueTab = ({ prixRecettes, setPrixRecettes, finalRecipes, currencySymbol, legal }) => {
+  const [filterRecipeId, setFilterRecipeId] = useState("");
+  const fmt    = (n) => n != null ? n.toFixed(2) + " " + currencySymbol : "—";
+  const fmtPct = (n) => n != null ? n.toFixed(2) + " %" : "—";
+  const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString("fr-FR"); } catch { return "—"; } };
+
+  const filtered = prixRecettes
+    .filter(p => !filterRecipeId || String(p.recipeId) === filterRecipeId)
+    .slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const handleDelete = (id) => {
+    if (!window.confirm("Supprimer cette ligne de l'historique ?")) return;
+    setPrixRecettes(prev => prev.filter(p => p.id !== id));
+  };
+
+  return (
+    <div>
+      <div className="flex justify-end mb-4">
+        <select value={filterRecipeId} onChange={e => setFilterRecipeId(e.target.value)}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-[#C8956C]">
+          <option value="">— Toutes les recettes —</option>
+          {finalRecipes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+      </div>
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-400">Aucun enregistrement.</div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto mb-6">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50"><tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coût/couvert</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix HT</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix TTC</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Marge HT</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Marge TTC</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA</th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actuel</th>
+              <th className="px-4 py-3"></th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-200">
+              {filtered.map(p => (
+                <tr key={p.id} className={`hover:bg-gray-50 ${p.isCurrent ? "bg-green-50" : ""}`}>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{fmtDate(p.date)}</td>
+                  <td className="px-4 py-3 font-medium text-[#1A3A4A]">{p.recipeName}</td>
+                  <td className="px-4 py-3 text-right text-[#C8956C]">{fmt(p.coutParCouvert)}</td>
+                  <td className="px-4 py-3 text-right">{fmt(p.prixHT)}</td>
+                  <td className="px-4 py-3 text-right font-bold">{fmt(p.prixTTC)}</td>
+                  <td className="px-4 py-3 text-right text-xs">{fmtPct(p.margeHTPct)} · {fmt(p.margeHTEur)}</td>
+                  <td className="px-4 py-3 text-right text-xs">{fmtPct(p.margeTTCPct)} · {fmt(p.margeTTCEur)}</td>
+                  <td className="px-4 py-3 text-right">{p.tauxTVA} %</td>
+                  <td className="px-4 py-3 text-center">{p.isCurrent ? <span className="text-green-600 font-bold text-xs">✓</span> : ""}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600 text-xs" title="Supprimer">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {legal}
+    </div>
+  );
+};
+
+// ─── Rentabilité — sous-onglet Statistiques ───────────────────────────────────
+const StatistiquesTab = ({ allNormalized, ingredients, currencySymbol, legal }) => {
+  const enriched = allNormalized.map(r => ({ ...r, totalCost: calculateRecipeTotalCost(r, allNormalized, new Set(), ingredients), status: getCostStatus(r, allNormalized, ingredients) }));
+  const valid    = enriched.filter(r => r.status.valid && r.totalCost != null);
+  const avgCost  = valid.length ? valid.reduce((s, r) => s + Number(r.totalCost), 0) / valid.length : 0;
+  const mostExp  = valid.length ? valid.reduce((mx, r) => Number(r.totalCost) > Number(mx.totalCost) ? r : mx, valid[0]) : null;
+  const cheapest = valid.length ? valid.reduce((mn, r) => Number(r.totalCost) < Number(mn.totalCost) ? r : mn, valid[0]) : null;
+  return (
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Coût moyen</h3><p className="text-3xl font-bold text-[#1A3A4A]">{avgCost.toFixed(2)} {currencySymbol}</p></div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Plus chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{mostExp?.name || "—"}</p><p className="text-2xl font-bold text-red-600">{mostExp ? Number(mostExp.totalCost).toFixed(2) + " " + currencySymbol : "—"}</p></div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200"><h3 className="text-sm font-medium text-gray-500 mb-4">Moins chère</h3><p className="text-lg font-bold truncate text-[#1A3A4A]">{cheapest?.name || "—"}</p><p className="text-2xl font-bold text-green-600">{cheapest ? Number(cheapest.totalCost).toFixed(2) + " " + currencySymbol : "—"}</p></div>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-200"><h3 className="text-lg font-semibold text-[#1A3A4A]">Détail des coûts</h3></div>
+        <div className="block md:hidden p-4 space-y-3">
+          {enriched.map(r => (
+            <div key={r.id} className="bg-gray-50 rounded-lg p-4">
+              <p className="font-semibold text-[#1A3A4A] mb-1">{r.name}</p>
+              <p className="text-xs text-gray-500">{r.recipeType === "base" ? "Base" : "Finale"}</p>
+              <p className="text-sm mt-1"><span className="font-medium">Coût total :</span> <span className="font-bold text-[#C8956C]">{r.status.valid ? Number(r.totalCost).toFixed(2) + " " + currencySymbol : "N/A"}</span></p>
+              <p className="text-sm"><span className="font-medium">Coût/couvert :</span> {r.status.valid && r.covers > 0 ? (Number(r.totalCost) / r.covers).toFixed(2) + " " + currencySymbol : "N/A"}</p>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50"><tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recette</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coût total</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Coût/couvert</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-200">
+              {enriched.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-medium text-[#1A3A4A]">{r.name}</td>
+                  <td className="px-6 py-4 text-gray-600">{r.recipeType === "base" ? "Base" : "Finale"}</td>
+                  <td className="px-6 py-4 text-right font-bold text-[#C8956C]">{r.status.valid ? Number(r.totalCost).toFixed(2) + " " + currencySymbol : <span className="text-gray-400">N/A</span>}</td>
+                  <td className="px-6 py-4 text-right text-gray-600">{r.status.valid && r.covers > 0 ? (Number(r.totalCost) / r.covers).toFixed(2) + " " + currencySymbol : <span className="text-gray-400">N/A</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {legal}
+    </div>
+  );
+};
+
+// ─── Rentabilité — vue principale ─────────────────────────────────────────────
+const RentabiliteView = ({ recipes, ingredients, currencySymbol = "€", config }) => {
+  const [subTab,              setSubTab]              = useState("calculateur");
+  const [prixRecettes,        setPrixRecettes]        = useLocalStorage("formula_prix_recettes", []);
+  const [preselectedRecipeId, setPreselectedRecipeId] = useState(null);
+
+  const allNormalized  = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
+  const finalRecipes   = useMemo(() => allNormalized.filter(r => r.recipeType === "final"), [allNormalized]);
+
+  const handleGoToCalculateur = (recipeId) => {
+    setPreselectedRecipeId(recipeId);
+    setSubTab("calculateur");
+  };
+
+  const legal = <p className="text-xs text-gray-400 italic mt-8 text-center">Prix et marges affichés à titre indicatif — à valider avec votre comptable.</p>;
+
+  const SUBTABS = [
+    { id: "calculateur",   label: "Calculateur de prix" },
+    { id: "prix-actuels",  label: "Prix actuels" },
+    { id: "historique",    label: "Historique" },
+    { id: "statistiques",  label: "Statistiques" },
+  ];
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto fade-in">
+      <h2 className="text-2xl font-bold text-[#1A3A4A] mb-6">Rentabilité</h2>
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-gray-200">
+        {SUBTABS.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${subTab === t.id ? "border-[#C8956C] text-[#C8956C]" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {subTab === "calculateur" && (
+        <CalculateurTab finalRecipes={finalRecipes} allNormalized={allNormalized} ingredients={ingredients}
+          currencySymbol={currencySymbol} config={config} prixRecettes={prixRecettes} setPrixRecettes={setPrixRecettes}
+          preselectedRecipeId={preselectedRecipeId} onPreselectedConsumed={() => setPreselectedRecipeId(null)} legal={legal} />
+      )}
+      {subTab === "prix-actuels" && (
+        <PrixActuelsTab finalRecipes={finalRecipes} allNormalized={allNormalized} ingredients={ingredients}
+          prixRecettes={prixRecettes} currencySymbol={currencySymbol} onCalculer={handleGoToCalculateur} legal={legal} />
+      )}
+      {subTab === "historique" && (
+        <HistoriqueTab prixRecettes={prixRecettes} setPrixRecettes={setPrixRecettes} finalRecipes={finalRecipes} currencySymbol={currencySymbol} legal={legal} />
+      )}
+      {subTab === "statistiques" && (
+        <StatistiquesTab allNormalized={allNormalized} ingredients={ingredients} currencySymbol={currencySymbol} legal={legal} />
+      )}
     </div>
   );
 };
 
 // ─── Section Export / Import ─────────────────────────────────────────────────
-const ExportImportSection = ({ config, ingredients, recipes, suppliers, onImport, onMerge }) => {
+const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge }) => {
   // --- État import (remplacer) ---
   const [importStep, setImportStep] = useState("idle"); // idle | preview | error
   const [importPreview, setImportPreview] = useState(null);
@@ -3136,7 +3517,8 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, onImport
 
   const formatPrice = (p) => {
     const n = Number(p);
-    return Number.isFinite(n) && n > 0 ? n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €" : (p != null ? String(p) : "—");
+    const sym = getCurrencySymbol();
+    return Number.isFinite(n) && n > 0 ? n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + sym : (p != null ? String(p) : "—");
   };
 
   // Télécharge un fichier JSON contenant toutes les données du restaurant.
@@ -3146,6 +3528,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, onImport
       ingredients,
       recipes,
       suppliers,
+      prixRecettes,
     });
     const json = JSON.stringify(payload, null, 2);
     const blob = new Blob([json], { type: "application/json" });
@@ -3482,6 +3865,18 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
     setTimeout(() => setNameSuccess(false), 3000);
   };
 
+  // --- Pays et monnaie ---
+  const [selectedCountryCode, setSelectedCountryCode] = useState(config?.countryCode || DEFAULT_COUNTRY_CODE);
+  const [countrySuccess, setCountrySuccess] = useState(false);
+  const handleSaveCountry = () => {
+    const country = getCountryByCode(selectedCountryCode);
+    const newConfig = { ...config, countryCode: selectedCountryCode, currencySymbol: country ? country.currencySymbol : "€" };
+    saveConfig(newConfig);
+    onConfigChange(newConfig);
+    setCountrySuccess(true);
+    setTimeout(() => setCountrySuccess(false), 3000);
+  };
+
   // --- Email chef ---
   const [chefEmail, setChefEmail] = useState(config?.chefEmail || "");
   const [emailError, setEmailError] = useState("");
@@ -3564,6 +3959,25 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
           </button>
         </div>
         {nameSuccess && <p className="text-sm text-green-600 mt-2">✓ Nom mis à jour.</p>}
+      </div>
+
+      {/* Pays et monnaie */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">Pays et monnaie</h3>
+        <p className="text-sm text-gray-500 mb-4">Détermine le symbole monétaire affiché dans toute l'application.</p>
+        <div className="flex gap-3">
+          <select value={selectedCountryCode} onChange={(e) => setSelectedCountryCode(e.target.value)}
+            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#C8956C] focus:border-transparent bg-white">
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>{c.name} ({c.currencySymbol})</option>
+            ))}
+          </select>
+          <button onClick={handleSaveCountry}
+            className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors">
+            Enregistrer
+          </button>
+        </div>
+        {countrySuccess && <p className="text-sm text-green-600 mt-2">✓ Pays et monnaie mis à jour.</p>}
       </div>
 
       {/* Email chef */}
@@ -3657,6 +4071,7 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
 
       {/* Sauvegarde & restauration */}
       <ExportImportSection config={config} ingredients={ingredients} recipes={recipes} suppliers={suppliers}
+        prixRecettes={JSON.parse(window.localStorage.getItem("formula_prix_recettes") || "[]")}
         onImport={onImport} onMerge={onMerge} />
     </div>
   );
@@ -3736,6 +4151,7 @@ const App = () => {
   // Configuration présente mais pas connecté → écran de login
   if (!user) return <Login onLogin={setUser} restaurantName={config.restaurantName} />;
   const isChef = user.role === "chef";
+  const currencySymbol = getCurrencySymbol();
   const suppliersRuntime = window.FormulaRuntimeDataSource
     ? window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
         legacyIngredients: ingredients,
@@ -3749,11 +4165,11 @@ const App = () => {
       {consent === null && <ConsentBanner onAccept={handleAcceptConsent} onDecline={handleDeclineConsent} />}
       <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} restaurantLogo={restaurantLogo} restaurantName={config?.restaurantName} />
       <main className="pb-12">
-        {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
-        {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" />}
-        {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" />}
+        {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} currencySymbol={currencySymbol} />}
+        {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" currencySymbol={currencySymbol} />}
+        {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" currencySymbol={currencySymbol} />}
         {activeTab === "producers" && <ProducersView ingredients={ingredients} setIngredients={setIngredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
-        {activeTab === "couts" && isChef && <CostsView recipes={recipes} ingredients={ingredients} />}
+        {activeTab === "rentabilite" && isChef && <RentabiliteView recipes={recipes} ingredients={ingredients} currencySymbol={currencySymbol} config={config} />}
         {activeTab === "parametres" && isChef && (
           <ParametresView
             restaurantLogo={restaurantLogo} onLogoChange={setRestaurantLogo}

@@ -41,6 +41,53 @@
   var INITIAL_INGREDIENTS = [];
   var INITIAL_RECIPES = [];
 
+  var COUNTRIES = [
+    { code: "FR", name: "France",     currencySymbol: "€",   currencyCode: "EUR" },
+    { code: "CH", name: "Suisse",     currencySymbol: "CHF", currencyCode: "CHF" },
+    { code: "BE", name: "Belgique",   currencySymbol: "€",   currencyCode: "EUR" },
+    { code: "LU", name: "Luxembourg", currencySymbol: "€",   currencyCode: "EUR" },
+  ];
+
+  var DEFAULT_COUNTRY_CODE = "FR";
+
+  var TVA_RATES_BY_COUNTRY = {
+    FR: [
+      { label: "5,5 % — Conservation / Emporter",     value: 5.5 },
+      { label: "10 % — Plats sur place",               value: 10,  isDefault: true },
+      { label: "20 % — Alcool",                        value: 20 },
+    ],
+    BE: [
+      { label: "6 % — Emporter boissons non alcool",   value: 6 },
+      { label: "12 % — Restauration sur place",        value: 12,  isDefault: true },
+      { label: "21 % — Alcool",                        value: 21 },
+    ],
+    CH: [
+      { label: "2,6 % — Nourriture / boissons non alcool", value: 2.6, isDefault: true },
+      { label: "3,8 % — Hébergement",                  value: 3.8 },
+      { label: "8,1 % — Taux normal",                  value: 8.1 },
+    ],
+    LU: [
+      { label: "3 % — Restauration",                   value: 3,   isDefault: true },
+      { label: "14 % — Intermédiaire",                 value: 14 },
+      { label: "17 % — Normal",                        value: 17 },
+    ],
+  };
+
+  function getTVARates(countryCode) {
+    return TVA_RATES_BY_COUNTRY[countryCode] || null;
+  }
+
+  function getDefaultTVARate(countryCode) {
+    var rates = TVA_RATES_BY_COUNTRY[countryCode];
+    if (!rates) return null;
+    var def = rates.find(function (r) { return r.isDefault; });
+    return def ? def.value : rates[0].value;
+  }
+
+  function getCountryByCode(code) {
+    return COUNTRIES.find(function (c) { return c.code === code; }) || null;
+  }
+
   global.FormulaConstants = {
     LOGO_URL,
     SERVICE_CATEGORIES,
@@ -56,5 +103,11 @@
     CATEGORIES_ING,
     INITIAL_INGREDIENTS,
     INITIAL_RECIPES,
+    COUNTRIES,
+    DEFAULT_COUNTRY_CODE,
+    TVA_RATES_BY_COUNTRY,
+    getTVARates,
+    getDefaultTVARate,
+    getCountryByCode,
   };
 })(typeof window !== "undefined" ? window : global);

@@ -1,5 +1,17 @@
 ﻿(function (global) {
   const ENTITY_DEFINITIONS = {
+    RestaurantConfig: {
+      description: "Configuration du restaurant, stockée dans localStorage sous arpege_restaurant_config.",
+      fields: {
+        restaurantName:      { type: "string",      required: true },
+        chefEmail:           { type: "string",      required: false },
+        chefPasswordHash:    { type: "string",      required: true },
+        employePasswordHash: { type: "string",      required: true },
+        recoveryCodeHash:    { type: "string|null", required: false },
+        countryCode:         { type: "string",      required: false, default: "FR" },
+        currencySymbol:      { type: "string",      required: false, default: "€" },
+      },
+    },
     Ingredient: {
       description: "quantite_reference_prix=1 signifie explicitement 1 unité de unite_par_defaut (convention legacy).",
       fields: {
@@ -112,6 +124,8 @@
       coeff_perte_global: 1,
       quantite_reference_prix: 1,
       actif: true,
+      countryCode: "FR",
+      currencySymbol: "€",
     },
     helpers: {
       isNonEmptyString,

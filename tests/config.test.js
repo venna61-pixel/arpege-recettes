@@ -21,7 +21,7 @@ function loadScript(path) {
 
 loadScript("logic/core/config.js");
 
-const { CONFIG_KEY, getConfig, saveConfig } = global.FormulaConfig;
+const { CONFIG_KEY, getConfig, saveConfig, getCurrencySymbol, getCountryCode } = global.FormulaConfig;
 
 // ─── getConfig ───────────────────────────────────────────────────────────────
 
@@ -54,6 +54,50 @@ function testSaveConfigEcraseLAncienneConfig() {
   assert.strictEqual(result.restaurantName, "Deuxième", "la deuxième sauvegarde doit remplacer la première");
 }
 
+// ─── getCurrencySymbol ────────────────────────────────────────────────────────
+
+function testGetCurrencySymbolRetourneEuroParDefautSiPasDeConfig() {
+  global.localStorage.clear();
+  assert.strictEqual(getCurrencySymbol(), "€", "doit retourner € si aucune config");
+}
+
+function testGetCurrencySymbolRetourneEuroSiChampsAbsent() {
+  global.localStorage.clear();
+  saveConfig({ restaurantName: "Test" });
+  assert.strictEqual(getCurrencySymbol(), "€", "doit retourner € si currencySymbol absent de la config");
+}
+
+function testGetCurrencySymbolRetourneLaValeurSauvegardee() {
+  global.localStorage.clear();
+  saveConfig({ restaurantName: "Test", currencySymbol: "CHF" });
+  assert.strictEqual(getCurrencySymbol(), "CHF");
+}
+
+function testGetCurrencySymbolRetourneEuroPourFrance() {
+  global.localStorage.clear();
+  saveConfig({ countryCode: "FR", currencySymbol: "€" });
+  assert.strictEqual(getCurrencySymbol(), "€");
+}
+
+// ─── getCountryCode ───────────────────────────────────────────────────────────
+
+function testGetCountryCodeRetourneFRParDefautSiPasDeConfig() {
+  global.localStorage.clear();
+  assert.strictEqual(getCountryCode(), "FR", "doit retourner FR si aucune config");
+}
+
+function testGetCountryCodeRetourneFRSiChampsAbsent() {
+  global.localStorage.clear();
+  saveConfig({ restaurantName: "Test" });
+  assert.strictEqual(getCountryCode(), "FR", "doit retourner FR si countryCode absent de la config");
+}
+
+function testGetCountryCodeRetourneLaValeurSauvegardee() {
+  global.localStorage.clear();
+  saveConfig({ countryCode: "CH", currencySymbol: "CHF" });
+  assert.strictEqual(getCountryCode(), "CH");
+}
+
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -62,6 +106,13 @@ function runAll() {
     testGetConfigRetourneNullSiJsonInvalide,
     testSaveConfigEtGetConfigDonnentLeMemeObjet,
     testSaveConfigEcraseLAncienneConfig,
+    testGetCurrencySymbolRetourneEuroParDefautSiPasDeConfig,
+    testGetCurrencySymbolRetourneEuroSiChampsAbsent,
+    testGetCurrencySymbolRetourneLaValeurSauvegardee,
+    testGetCurrencySymbolRetourneEuroPourFrance,
+    testGetCountryCodeRetourneFRParDefautSiPasDeConfig,
+    testGetCountryCodeRetourneFRSiChampsAbsent,
+    testGetCountryCodeRetourneLaValeurSauvegardee,
   ];
 
   for (const testFn of tests) {
