@@ -25,7 +25,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── config.js                  # Lecture/écriture de la configuration restaurant
 │   │   ├── procedure.js               # Détection des dimensions/temps dans les procédés, avertissements d'adaptation
 │   │   ├── analytics.js               # Chargement conditionnel de Google Analytics (consentement RGPD)
-│   │   └── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
+│   │   ├── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
+│   │   └── pricing.js                 # Calcul des prix de vente et marges (4 méthodes : coefficient, marge HT, marge TTC, prix TTC décidé)
 │   ├── migration/                     # Migration legacy → v1
 │   │   ├── legacy-to-v1.js            # Transformation des données historiques
 │   │   ├── report.js                  # Rapport de migration (warnings/erreurs)
@@ -36,20 +37,23 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 ├── tests/                             # Tests unitaires (Node.js, sans framework)
 │   ├── run-all.js                     # Lanceur de tous les tests
 │   ├── allergenes.test.js
+│   ├── analytics.test.js
 │   ├── auth-helpers.test.js
+│   ├── config.test.js
+│   ├── constants.test.js
 │   ├── core-costs-and-units.test.js
 │   ├── data-export.test.js
+│   ├── editor.test.js
 │   ├── merge.test.js
 │   ├── migration-coherence.test.js
+│   ├── procedure.test.js
 │   ├── recipe-builder.test.js
 │   ├── recipe-filters.test.js
 │   ├── recipe-scaling.test.js
 │   ├── recipe-submission.test.js
-│   ├── utils.test.js
-│   ├── config.test.js
-│   ├── procedure.test.js
-│   ├── analytics.test.js
-│   └── editor.test.js
+│   ├── rentabilite.test.js
+│   ├── schema.test.js
+│   └── utils.test.js
 └── logo/
     ├── formula-logo.svg
     ├── formula-logo-clair.svg
@@ -69,6 +73,7 @@ node tests/run-all.js
 - **Recettes finales** : assemblage de recettes de base + ingrédients directs
 - **Fournisseurs** : gestion de la liste des fournisseurs
 - **Coûts** : calcul automatique avec conversions d'unités et coefficient de perte
+- **Rentabilité** : calculateur de prix de vente (4 méthodes : par coefficient, par marge HT, par marge TTC, par prix TTC décidé), historique des prix, prix actuels par recette, statistiques de coûts
 - **Adaptation** : mise à l'échelle d'une recette selon couverts, budget, quantité ou ingrédient pivot
 - **Allergènes** : détection automatique des 14 allergènes réglementaires européens
 - **Export PDF** : fiche recette, fiche de production, fiche adaptée
@@ -100,6 +105,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `procedure.js` | Détection des dimensions et temps de cuisson dans les procédés, construction des avertissements d'adaptation |
 | `analytics.js` | Chargement conditionnel de Google Analytics selon le consentement RGPD de l'utilisateur |
 | `editor.js` | Formatage riche du procédé (gras, italique, souligné, couleur, liste à puces) via Selection/Range, sans `execCommand` |
+| `pricing.js` | Calcul des prix de vente et marges selon 4 méthodes : par coefficient, par marge brute HT, par marge nette TTC, par prix TTC décidé |
 
 ## Stockage localStorage
 
