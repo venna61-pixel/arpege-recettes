@@ -957,8 +957,7 @@ const IngredientsManager = ({ ingredients, setIngredients, suppliers, setSupplie
   );
 };
 
-const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSuggestions = [], currencySymbol: _currencySymbolProp }) => {
-  const currencySymbol = _currencySymbolProp !== undefined ? _currencySymbolProp : getCurrencySymbol();
+const AddIngredientModal = ({ isOpen, onClose, onAdd, suggestedName, supplierSuggestions = [], currencySymbol = "€" }) => {
   const [formData, setFormData] = useState({ category: CATEGORIES_ING[0], name: "", price: "", unit: "Kg", supplier: "", allergenes: null });
   const [recipeUsage, setRecipeUsage] = useState({ recipeQuantity: "", recipeWasteCoeff: "" });
   const [recipeUnit, setRecipeUnit] = useState("");
