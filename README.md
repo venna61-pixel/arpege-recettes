@@ -25,7 +25,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── config.js                  # Lecture/écriture de la configuration restaurant
 │   │   ├── procedure.js               # Détection des dimensions/temps dans les procédés, avertissements d'adaptation
 │   │   ├── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
-│   │   └── pricing.js                 # Calcul des prix de vente et marges (4 méthodes : coefficient, marge HT, marge TTC, prix TTC décidé)
+│   │   ├── pricing.js                 # Calcul des prix de vente et marges (4 méthodes : coefficient, marge HT, marge TTC, prix TTC décidé)
+│   │   └── safety-backup.js           # Sauvegarde automatique avant import/fusion + restauration
 │   ├── migration/                     # Migration legacy → v1
 │   │   ├── legacy-to-v1.js            # Transformation des données historiques
 │   │   ├── report.js                  # Rapport de migration (warnings/erreurs)
@@ -50,6 +51,7 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   ├── recipe-scaling.test.js
 │   ├── recipe-submission.test.js
 │   ├── rentabilite.test.js
+│   ├── safety-backup.test.js
 │   ├── schema.test.js
 │   └── utils.test.js
 └── logo/
@@ -75,7 +77,7 @@ node tests/run-all.js
 - **Adaptation** : mise à l'échelle d'une recette selon couverts, budget, quantité ou ingrédient pivot
 - **Allergènes** : détection automatique des 14 allergènes réglementaires européens
 - **Export PDF** : fiche recette, fiche de production, fiche adaptée
-- **Sauvegarde** : export/import JSON, fusion intelligente de sauvegardes
+- **Sauvegarde** : export/import JSON (avec préservation des prix de vente), fusion intelligente de sauvegardes, sauvegarde automatique avant tout import/fusion avec restauration possible
 
 ## Rôles
 
@@ -98,11 +100,12 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `recipe-scaling.js` | Calcul du multiplicateur et des quantités adaptées |
 | `allergenes.js` | Dictionnaire des 14 allergènes, détection par nom d'ingrédient, résumé complet pour une recette |
 | `data-export.js` | Sérialisation pour export JSON, validation à l'import |
-| `merge.js` | Comparaison et fusion de deux sauvegardes sans écrasement |
+| `merge.js` | Comparaison et fusion de deux sauvegardes sans écrasement, y compris les prix de vente des recettes nouvellement importées |
 | `config.js` | Lecture et écriture de la configuration restaurant (localStorage) |
 | `procedure.js` | Détection des dimensions et temps de cuisson dans les procédés, construction des avertissements d'adaptation |
 | `editor.js` | Formatage riche du procédé (gras, italique, souligné, couleur, liste à puces) via Selection/Range, sans `execCommand` |
 | `pricing.js` | Calcul des prix de vente et marges selon 4 méthodes : par coefficient, par marge brute HT, par marge nette TTC, par prix TTC décidé |
+| `safety-backup.js` | Sauvegarde automatique des données avant tout import ou fusion, avec restauration possible |
 
 ## Stockage localStorage
 

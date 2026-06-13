@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/merge.js");
 
-const { normalizeMergeName, analyzeMerge, applyMerge } = window.FormulaMerge;
+const { normalizeMergeName, analyzeMerge, applyMerge, mergePrixRecettes } = window.FormulaMerge;
 
 // Données de base réutilisées dans plusieurs tests
 const ING_BEURRE  = { id: 1, name: "Beurre",    price: 8.50, supplier: "Metro" };
@@ -413,6 +413,87 @@ function testPrixNullDesDeuxCotesNeGenerePasConflict() {
   assert.strictEqual(result.ingredientConflicts.length, 0, "null vs null ne doit pas créer de conflit");
 }
 
+// ─── mergePrixRecettes — chantier #7 étape B (Option B) ──────────────────────
+
+function testMergePrixRecettesAjouteSeulementPourNouvellesRecettes() {
+  const existing = [{ id: "p1", recipeId: 10, prixHT: 20, isCurrent: true }];
+  const imported = [
+    { id: "p99", recipeId: 99, prixHT: 30, isCurrent: true }, // recette nouvelle
+    { id: "p10", recipeId: 10, prixHT: 18, isCurrent: true }, // recette déjà locale → à ignorer
+  ];
+  const newRecipes = [{ id: 99, name: "Soupe importée" }];
+  const result = mergePrixRecettes({ existingPrixRecettes: existing, importedPrixRecettes: imported, newRecipes });
+  assert.strictEqual(result.length, 2, "On garde l'existant + le prix de la nouvelle recette");
+  assert.ok(result.some(p => p.recipeId === 10 && p.prixHT === 20), "Le prix local (recette déjà présente) est conservé");
+  assert.ok(result.some(p => p.recipeId === 99 && p.prixHT === 30), "Le prix du fichier pour la nouvelle recette est ajouté");
+  assert.ok(!result.some(p => p.recipeId === 10 && p.prixHT === 18), "Le prix du fichier pour une recette locale est ignoré");
+}
+
+function testMergePrixRecettesAucuneNouvelleRecetteGardeUniquementExistant() {
+  const existing = [{ id: "p1", recipeId: 10, prixHT: 20, isCurrent: true }];
+  const imported = [{ id: "p2", recipeId: 11, prixHT: 25, isCurrent: true }];
+  const result = mergePrixRecettes({ existingPrixRecettes: existing, importedPrixRecettes: imported, newRecipes: [] });
+  assert.deepStrictEqual(result, existing);
+}
+
+function testMergePrixRecettesGereHistorique() {
+  // Plusieurs entrées (historique + courant) pour la même nouvelle recette doivent toutes être importées.
+  const existing = [];
+  const imported = [
+    { id: "p1", recipeId: 99, prixHT: 15, isCurrent: false },
+    { id: "p2", recipeId: 99, prixHT: 18, isCurrent: true },
+  ];
+  const newRecipes = [{ id: 99, name: "Nouveau plat" }];
+  const result = mergePrixRecettes({ existingPrixRecettes: existing, importedPrixRecettes: imported, newRecipes });
+  assert.strictEqual(result.length, 2);
+}
+
+function testMergePrixRecettesTableauxVidesOuAbsents() {
+  assert.deepStrictEqual(mergePrixRecettes({}), []);
+  assert.deepStrictEqual(mergePrixRecettes({ existingPrixRecettes: null, importedPrixRecettes: null, newRecipes: null }), []);
+}
+
+function testApplyMergeRetournePrixRecettesFusionnes() {
+  const existing = { ingredients: [], recipes: [REC_TARTE], suppliers: [] };
+  const importedData = {
+    ingredients: [], suppliers: [],
+    recipes: [{ id: 999, name: "Velouté", recipeType: "final" }],
+    prixRecettes: [{ id: "pX", recipeId: 999, prixHT: 12, isCurrent: true }],
+  };
+  const analysis = analyzeMerge({
+    importedData,
+    existingIngredients: existing.ingredients,
+    existingRecipes: existing.recipes,
+    existingSuppliers: existing.suppliers,
+  });
+  const merged = applyMerge({
+    analysis,
+    selectedRecipeNames: [], selectedIngredientNames: [],
+    existingIngredients: existing.ingredients,
+    existingRecipes: existing.recipes,
+    existingSuppliers: existing.suppliers,
+    existingPrixRecettes: [{ id: "pLocal", recipeId: 10, prixHT: 50, isCurrent: true }],
+  });
+  assert.strictEqual(merged.prixRecettes.length, 2);
+  assert.ok(merged.prixRecettes.some(p => p.recipeId === 10), "Prix local conservé");
+  assert.ok(merged.prixRecettes.some(p => p.recipeId === 999), "Prix de la recette importée ajouté");
+}
+
+function testAnalyzeMergeExtraitImportedPrixRecettes() {
+  const importedData = {
+    ingredients: [], recipes: [], suppliers: [],
+    prixRecettes: [{ id: "p1", recipeId: 5, prixHT: 10 }],
+  };
+  const result = analyzeMerge({ importedData, existingIngredients: [], existingRecipes: [], existingSuppliers: [] });
+  assert.deepStrictEqual(result.importedPrixRecettes, importedData.prixRecettes);
+}
+
+function testAnalyzeMergePrixRecettesAbsentDonneTableauVide() {
+  const importedData = { ingredients: [], recipes: [], suppliers: [] };
+  const result = analyzeMerge({ importedData, existingIngredients: [], existingRecipes: [], existingSuppliers: [] });
+  assert.deepStrictEqual(result.importedPrixRecettes, []);
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -444,6 +525,13 @@ function runAll() {
     testPrixTexteEtNombreIdentiquesNeGenerentPasConflict,
     testPrixReellementDifferentGenereBienConflict,
     testPrixNullDesDeuxCotesNeGenerePasConflict,
+    testMergePrixRecettesAjouteSeulementPourNouvellesRecettes,
+    testMergePrixRecettesAucuneNouvelleRecetteGardeUniquementExistant,
+    testMergePrixRecettesGereHistorique,
+    testMergePrixRecettesTableauxVidesOuAbsents,
+    testApplyMergeRetournePrixRecettesFusionnes,
+    testAnalyzeMergeExtraitImportedPrixRecettes,
+    testAnalyzeMergePrixRecettesAbsentDonneTableauVide,
   ];
 
   for (const testFn of tests) {

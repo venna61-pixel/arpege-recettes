@@ -69,14 +69,28 @@
       newRecipes,
       recipeConflicts,
       newSuppliers,
+      importedPrixRecettes: Array.isArray(importedData.prixRecettes) ? importedData.prixRecettes : [],
       exportedAt: importedData.exportedAt || null,
     };
+  }
+
+  // Fusion Option B : on conserve tous les prix existants et on ajoute uniquement
+  // les prix des recettes nouvellement importées. Les prix concernant des recettes
+  // déjà présentes localement sont écartés (l'utilisateur garde ses propres prix).
+  function mergePrixRecettes({ existingPrixRecettes, importedPrixRecettes, newRecipes }) {
+    const existing = Array.isArray(existingPrixRecettes) ? existingPrixRecettes : [];
+    const imported = Array.isArray(importedPrixRecettes) ? importedPrixRecettes : [];
+    const newRecipeIds = new Set((newRecipes || []).map(function (r) { return r.id; }));
+    const importedForNewRecipes = imported.filter(function (p) {
+      return newRecipeIds.has(p.recipeId);
+    });
+    return existing.concat(importedForNewRecipes);
   }
 
   // Applique la fusion : ajoute les nouveaux éléments et remplace ceux sélectionnés par l'utilisateur.
   // selectedRecipeNames et selectedIngredientNames : tableaux de noms (comparés après normalisation).
   // Les IDs existants sont conservés pour ne pas casser les références internes.
-  function applyMerge({ analysis, selectedRecipeNames, selectedIngredientNames, existingIngredients, existingRecipes, existingSuppliers }) {
+  function applyMerge({ analysis, selectedRecipeNames, selectedIngredientNames, existingIngredients, existingRecipes, existingSuppliers, existingPrixRecettes }) {
     const selectedRecipeSet = new Set(selectedRecipeNames.map(normalizeMergeName));
     const selectedIngredientSet = new Set(selectedIngredientNames.map(normalizeMergeName));
 
@@ -126,10 +140,17 @@
       return Object.assign({}, recipe, { directIngredients: directIngredients, baseComponents: baseComponents });
     });
 
+    const mergedPrixRecettes = mergePrixRecettes({
+      existingPrixRecettes: existingPrixRecettes,
+      importedPrixRecettes: analysis.importedPrixRecettes,
+      newRecipes: analysis.newRecipes,
+    });
+
     return {
       ingredients: mergedIngredients,
       recipes: remappedRecipes,
       suppliers: mergedSuppliers,
+      prixRecettes: mergedPrixRecettes,
     };
   }
 
@@ -137,5 +158,6 @@
     normalizeMergeName,
     analyzeMerge,
     applyMerge,
+    mergePrixRecettes,
   };
 })(typeof window !== "undefined" ? window : global);

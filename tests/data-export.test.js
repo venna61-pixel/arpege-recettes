@@ -171,6 +171,42 @@ function testRoundtripExportImportDonneesIdentiques() {
   assert.deepStrictEqual(result.data.suppliers, original.suppliers);
 }
 
+// ─── prixRecettes — chantier #7 (préserver les prix de vente à l'import) ──────
+
+function testBuildExportPayloadIncluePrixRecettes() {
+  const prix = [{ recipeId: 1, prix: 28.5 }, { recipeId: 2, prix: 42 }];
+  const result = buildExportPayload({
+    restaurantName: "Test",
+    ingredients: [], recipes: [], suppliers: [],
+    prixRecettes: prix,
+  });
+  assert.deepStrictEqual(result.data.prixRecettes, prix);
+}
+
+function testValidateImportPayloadPrixRecettesAbsentDonneTableauVide() {
+  // Rétrocompatibilité : anciennes sauvegardes sans prixRecettes restent valides.
+  const payload = {
+    app: APP_IDENTIFIER,
+    formatVersion: FORMAT_VERSION,
+    data: { ingredients: [], recipes: [], suppliers: [] },
+  };
+  const result = validateImportPayload(payload);
+  assert.strictEqual(result.valid, true);
+  assert.deepStrictEqual(result.data.prixRecettes, []);
+}
+
+function testRoundtripPreservePrixRecettes() {
+  const original = {
+    restaurantName: "La Belle Table",
+    ingredients: [], recipes: [{ id: 1, name: "Sauce" }], suppliers: [],
+    prixRecettes: [{ recipeId: 1, prix: 18.9 }],
+  };
+  const exported = buildExportPayload(original);
+  const result = parseImportPayload(JSON.stringify(exported));
+  assert.strictEqual(result.valid, true);
+  assert.deepStrictEqual(result.data.prixRecettes, original.prixRecettes);
+}
+
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -190,6 +226,9 @@ function runAll() {
     testParseImportPayloadFichierVide,
     testParseImportPayloadNull,
     testRoundtripExportImportDonneesIdentiques,
+    testBuildExportPayloadIncluePrixRecettes,
+    testValidateImportPayloadPrixRecettesAbsentDonneTableauVide,
+    testRoundtripPreservePrixRecettes,
   ];
 
   for (const testFn of tests) {

@@ -3709,6 +3709,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
       existingIngredients: ingredients,
       existingRecipes: recipes,
       existingSuppliers: suppliers,
+      existingPrixRecettes: prixRecettes,
     });
     onMerge(merged);
     setMergeStep("idle");
@@ -4302,6 +4303,7 @@ const App = () => {
               setIngredients(data.ingredients);
               setRecipes(data.recipes);
               setSuppliers(data.suppliers);
+              setPrixRecettes(Array.isArray(data.prixRecettes) ? data.prixRecettes : []);
             }}
             onMerge={(data) => {
               writeSafetyBackup(
@@ -4311,6 +4313,7 @@ const App = () => {
               setIngredients(data.ingredients);
               setRecipes(data.recipes);
               setSuppliers(data.suppliers);
+              setPrixRecettes(Array.isArray(data.prixRecettes) ? data.prixRecettes : []);
             }}
             onRestoreBackup={(restored) => {
               setIngredients(restored.ingredients);
