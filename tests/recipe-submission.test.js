@@ -1,4 +1,4 @@
-﻿const fs = require("fs");
+const fs = require("fs");
 const assert = require("assert");
 
 global.window = global;
@@ -11,41 +11,376 @@ loadScript("logic/core/recipe-submission.js");
 
 const { validateRecipeDraft, buildRecipePayload, upsertRecipe } = window.FormulaRecipeSubmission;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function validBaseRecipe() {
+  return {
+    recipeType: "base",
+    name: "Sauce béchamel",
+    categories: ["Sauce"],
+    outputQuantity: 1,
+    outputUnit: "Kg",
+    wasteCoeff: 0,
+    directIngredients: [{ ingredientId: 1, quantity: 100, unit: "Gramme" }],
+    baseComponents: [],
+  };
+}
+
+function validFinalRecipe() {
+  return {
+    recipeType: "final",
+    name: "Quiche lorraine",
+    categories: ["Plat"],
+    covers: 4,
+    wasteCoeff: 0,
+    directIngredients: [{ ingredientId: 1, quantity: 100, unit: "Gramme" }],
+    baseComponents: [],
+  };
+}
+
+function hasError(errors, field) {
+  return errors.some((e) => e.field === field);
+}
+
+// ─── Groupe A — Structure de la réponse ───────────────────────────────────────
+
+function testValidRetourneErrorsVide() {
+  const result = validateRecipeDraft(validBaseRecipe());
+  assert.strictEqual(result.valid, true);
+  assert.deepStrictEqual(result.errors, []);
+}
+
+function testInvalidRetourneErrorsTableau() {
+  const result = validateRecipeDraft({});
+  assert.strictEqual(result.valid, false);
+  assert.ok(Array.isArray(result.errors));
+  assert.ok(result.errors.length > 0);
+}
+
+function testChaqueErreurContientFieldEtMessage() {
+  const result = validateRecipeDraft({});
+  for (const err of result.errors) {
+    assert.ok(typeof err.field === "string" && err.field.length > 0, `field manquant: ${JSON.stringify(err)}`);
+    assert.ok(typeof err.message === "string" && err.message.length > 0, `message manquant: ${JSON.stringify(err)}`);
+  }
+}
+
+// ─── Groupe B — Type de recette ───────────────────────────────────────────────
+
+function testRecipeTypeNonReconnuInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), recipeType: "dessert" });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "recipeType"));
+}
+
+function testRecipeTypeManquantInvalide() {
+  const recipe = validBaseRecipe();
+  delete recipe.recipeType;
+  const result = validateRecipeDraft(recipe);
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "recipeType"));
+}
+
+// ─── Groupe C — Nom ───────────────────────────────────────────────────────────
+
+function testNomVideInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), name: "" });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "name"));
+}
+
+function testNomBlancInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), name: "   " });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "name"));
+}
+
+function testNomManquantInvalide() {
+  const recipe = validBaseRecipe();
+  delete recipe.name;
+  const result = validateRecipeDraft(recipe);
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "name"));
+}
+
+// ─── Groupe D — Catégorie ─────────────────────────────────────────────────────
+
+function testCategoriesVideInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), categories: [] });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "categories"));
+}
+
+function testCategoriesUniquementBlancsInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), categories: ["", "   "] });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "categories"));
+}
+
+function testCategoriesManquantesInvalide() {
+  const recipe = validBaseRecipe();
+  delete recipe.categories;
+  const result = validateRecipeDraft(recipe);
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "categories"));
+}
+
+// ─── Groupe E — Couverts (recettes finales) ───────────────────────────────────
+
+function testCouvertsZeroFinaleInvalide() {
+  const result = validateRecipeDraft({ ...validFinalRecipe(), covers: 0 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "covers"));
+}
+
+function testCouvertsNegatifFinaleInvalide() {
+  const result = validateRecipeDraft({ ...validFinalRecipe(), covers: -3 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "covers"));
+}
+
+function testCouvertsPositifFinaleValide() {
+  const result = validateRecipeDraft({ ...validFinalRecipe(), covers: 6 });
+  assert.strictEqual(result.valid, true);
+}
+
+function testBaseAvecCouvertsZeroAccepte() {
+  // covers est ignoré pour les recettes de base — on ne valide que pour finales
+  const result = validateRecipeDraft({ ...validBaseRecipe(), covers: 0 });
+  assert.strictEqual(result.valid, true);
+}
+
+// ─── Groupe F — Rendement (recettes de base) ──────────────────────────────────
+
+function testOutputQuantityZeroBaseInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), outputQuantity: 0 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "outputQuantity"));
+}
+
+function testOutputQuantityNegatifBaseInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), outputQuantity: -1 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "outputQuantity"));
+}
+
+function testOutputUnitManquanteBaseInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), outputUnit: "" });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "outputUnit"));
+}
+
+function testRendementBaseValide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), outputQuantity: 2.5, outputUnit: "Litre" });
+  assert.strictEqual(result.valid, true);
+}
+
+function testFinaleSansRendementValide() {
+  const recipe = validFinalRecipe();
+  // pas d'outputQuantity ni outputUnit — c'est optionnel pour les finales
+  const result = validateRecipeDraft(recipe);
+  assert.strictEqual(result.valid, true);
+}
+
+// ─── Groupe G — Coefficient de perte ──────────────────────────────────────────
+
+function testWasteCoeffNegatifInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), wasteCoeff: -5 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "wasteCoeff"));
+}
+
+function testWasteCoeffCentInvalide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), wasteCoeff: 100 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "wasteCoeff"));
+}
+
+function testWasteCoeffNormalValide() {
+  const result = validateRecipeDraft({ ...validBaseRecipe(), wasteCoeff: 15 });
+  assert.strictEqual(result.valid, true);
+}
+
+function testWasteCoeffAbsentValide() {
+  const recipe = validBaseRecipe();
+  delete recipe.wasteCoeff;
+  const result = validateRecipeDraft(recipe);
+  assert.strictEqual(result.valid, true);
+}
+
+// ─── Groupe H — Au moins un composant (règle historique préservée) ────────────
+
 function testBaseSansIngredientDirectInvalide() {
   const result = validateRecipeDraft({
-    recipeType: "base",
+    ...validBaseRecipe(),
     directIngredients: [],
     baseComponents: [],
   });
   assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "components"));
 }
 
 function testFinaleSansDirectNiBaseInvalide() {
   const result = validateRecipeDraft({
-    recipeType: "final",
+    ...validFinalRecipe(),
     directIngredients: [],
     baseComponents: [],
   });
   assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "components"));
 }
 
 function testFinaleAvecBaseValide() {
   const result = validateRecipeDraft({
-    recipeType: "final",
+    ...validFinalRecipe(),
     directIngredients: [],
-    baseComponents: [{ baseRecipeId: 1 }],
+    baseComponents: [{ baseRecipeId: 1, quantity: 200, unit: "Gramme" }],
   });
   assert.strictEqual(result.valid, true);
 }
 
 function testBaseAvecIngredientDirectValide() {
+  const result = validateRecipeDraft(validBaseRecipe());
+  assert.strictEqual(result.valid, true);
+}
+
+// ─── Groupe I — Validation par ligne : ingrédients directs ────────────────────
+
+function testIngredientSansIdInvalide() {
   const result = validateRecipeDraft({
-    recipeType: "base",
-    directIngredients: [{ ingredientId: 1 }],
-    baseComponents: [],
+    ...validBaseRecipe(),
+    directIngredients: [{ ingredientId: "", quantity: 100, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "directIngredients[0].ingredientId"));
+}
+
+function testIngredientQuantiteZeroInvalide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [{ ingredientId: 1, quantity: 0, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "directIngredients[0].quantity"));
+}
+
+function testIngredientQuantiteNegativeInvalide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [{ ingredientId: 1, quantity: -5, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "directIngredients[0].quantity"));
+}
+
+function testIngredientUniteVideInvalide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [{ ingredientId: 1, quantity: 100, unit: "" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "directIngredients[0].unit"));
+}
+
+function testIngredientPlusieursLignesAvecErreursDifferentes() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [
+      { ingredientId: 1, quantity: 100, unit: "Gramme" }, // valide
+      { ingredientId: "", quantity: 100, unit: "Gramme" }, // sans id
+      { ingredientId: 3, quantity: 0, unit: "Gramme" }, // quantité 0
+    ],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "directIngredients[1].ingredientId"));
+  assert.ok(hasError(result.errors, "directIngredients[2].quantity"));
+  // pas d'erreur sur la ligne 0 qui est valide
+  assert.ok(!result.errors.some((e) => e.field.startsWith("directIngredients[0]")));
+}
+
+// ─── Groupe J — Validation par ligne : composants de base ─────────────────────
+
+function testBaseComponentSansIdInvalide() {
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: "", quantity: 200, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents[0].baseRecipeId"));
+}
+
+function testBaseComponentQuantityZeroInvalide() {
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, quantity: 0, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents[0].quantity"));
+}
+
+function testBaseComponentUniteVideInvalide() {
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, quantity: 200, unit: "" }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents[0].unit"));
+}
+
+function testBaseComponentPortionModePortionCountZeroInvalide() {
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, usageMode: "portion", portionCount: 0 }],
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents[0].portionCount"));
+}
+
+function testBaseComponentPortionModeValide() {
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, usageMode: "portion", portionCount: 4 }],
   });
   assert.strictEqual(result.valid, true);
 }
+
+function testBaseComponentPortionModeIgnoreQuantityEtUnit() {
+  // En mode portion, la quantité/unité n'est pas validée
+  const result = validateRecipeDraft({
+    ...validFinalRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, usageMode: "portion", portionCount: 2, quantity: 0, unit: "" }],
+  });
+  assert.strictEqual(result.valid, true);
+}
+
+// ─── Groupe K — Validation cumulée et messages ────────────────────────────────
+
+function testFormulaireVideAccumuleErreurs() {
+  const result = validateRecipeDraft({});
+  // On attend AU MOINS les erreurs essentielles : type, nom, catégories, composants
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "recipeType"));
+  assert.ok(hasError(result.errors, "name"));
+  assert.ok(hasError(result.errors, "categories"));
+  assert.ok(hasError(result.errors, "components"));
+}
+
+function testTousLesMessagesEnFrancais() {
+  const result = validateRecipeDraft({});
+  for (const err of result.errors) {
+    // Pas de message en anglais qui aurait fui — vérification soft mais utile
+    assert.ok(!/required/i.test(err.message), `message anglais détecté: ${err.message}`);
+    assert.ok(!/invalid/i.test(err.message), `message anglais détecté: ${err.message}`);
+  }
+}
+
+// ─── Tests existants : buildRecipePayload et upsertRecipe ─────────────────────
 
 function testBuildRecipePayloadAppelleNormalizeRecipe() {
   let called = false;
@@ -83,7 +418,6 @@ function testComparaisonRobusteIdStringEtNumber() {
 }
 
 function testUpsertRecipeGrandeListeSansPlantage() {
-  // Vérifie que reduce() ne plante pas avec beaucoup de recettes (Math.max spread plantait)
   const recipes = Array.from({ length: 10000 }, (_, i) => ({ id: i + 1, name: `R${i + 1}` }));
   const payload = { name: "Nouvelle" };
   const updated = upsertRecipe(recipes, payload, null);
@@ -112,12 +446,63 @@ function testUpsertRecipeUpdateNeTouchesPasCreatedAt() {
   assert.strictEqual(updated[0].createdAt, "2023-01-01T00:00:00.000Z");
 }
 
+// ─── Runner ───────────────────────────────────────────────────────────────────
+
 function runAll() {
   const tests = [
+    // Structure
+    testValidRetourneErrorsVide,
+    testInvalidRetourneErrorsTableau,
+    testChaqueErreurContientFieldEtMessage,
+    // Type
+    testRecipeTypeNonReconnuInvalide,
+    testRecipeTypeManquantInvalide,
+    // Nom
+    testNomVideInvalide,
+    testNomBlancInvalide,
+    testNomManquantInvalide,
+    // Catégories
+    testCategoriesVideInvalide,
+    testCategoriesUniquementBlancsInvalide,
+    testCategoriesManquantesInvalide,
+    // Couverts (final)
+    testCouvertsZeroFinaleInvalide,
+    testCouvertsNegatifFinaleInvalide,
+    testCouvertsPositifFinaleValide,
+    testBaseAvecCouvertsZeroAccepte,
+    // Rendement (base)
+    testOutputQuantityZeroBaseInvalide,
+    testOutputQuantityNegatifBaseInvalide,
+    testOutputUnitManquanteBaseInvalide,
+    testRendementBaseValide,
+    testFinaleSansRendementValide,
+    // Coeff perte
+    testWasteCoeffNegatifInvalide,
+    testWasteCoeffCentInvalide,
+    testWasteCoeffNormalValide,
+    testWasteCoeffAbsentValide,
+    // Composants (règle historique)
     testBaseSansIngredientDirectInvalide,
     testFinaleSansDirectNiBaseInvalide,
     testFinaleAvecBaseValide,
     testBaseAvecIngredientDirectValide,
+    // Lignes ingrédients directs
+    testIngredientSansIdInvalide,
+    testIngredientQuantiteZeroInvalide,
+    testIngredientQuantiteNegativeInvalide,
+    testIngredientUniteVideInvalide,
+    testIngredientPlusieursLignesAvecErreursDifferentes,
+    // Lignes composants de base
+    testBaseComponentSansIdInvalide,
+    testBaseComponentQuantityZeroInvalide,
+    testBaseComponentUniteVideInvalide,
+    testBaseComponentPortionModePortionCountZeroInvalide,
+    testBaseComponentPortionModeValide,
+    testBaseComponentPortionModeIgnoreQuantityEtUnit,
+    // Cumul
+    testFormulaireVideAccumuleErreurs,
+    testTousLesMessagesEnFrancais,
+    // buildRecipePayload + upsertRecipe (préservés)
     testBuildRecipePayloadAppelleNormalizeRecipe,
     testUpsertRecipeCreateMaxIdPlusUn,
     testUpsertRecipeMetAJourBonneRecette,

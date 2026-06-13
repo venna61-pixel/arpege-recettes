@@ -2290,7 +2290,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
     };
     const validation = validateRecipeDraft(normalizedFormData);
     if (!validation.valid) {
-      alert(validation.message);
+      alert(validation.errors.map((e) => "• " + e.message).join("\n"));
       return;
     }
     const payload = buildRecipePayload(normalizedFormData, normalizeRecipe);
@@ -2552,7 +2552,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100 space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-100 space-y-6">
           <h3 className="text-lg font-semibold text-[#1A3A4A]">{editingId ? (sectionType === "base" ? "Modifier la recette de base" : "Modifier la recette finale") : (sectionType === "base" ? "Nouvelle recette de base" : "Nouvelle recette finale")}</h3>
           <p className="text-sm text-gray-500">{sectionType === "base" ? "Ce formulaire est dédié aux recettes de base." : "Ce formulaire est dédié aux recettes finales et permet d'ajouter des recettes de base."}</p>
 
