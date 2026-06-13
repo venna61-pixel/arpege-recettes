@@ -3557,9 +3557,8 @@ const StatistiquesTab = ({ allNormalized, ingredients, currencySymbol, legal }) 
 };
 
 // ─── Rentabilité — vue principale ─────────────────────────────────────────────
-const RentabiliteView = ({ recipes, ingredients, currencySymbol = "€", config }) => {
+const RentabiliteView = ({ recipes, ingredients, currencySymbol = "€", config, prixRecettes, setPrixRecettes }) => {
   const [subTab,              setSubTab]              = useState("calculateur");
-  const [prixRecettes,        setPrixRecettes]        = useLocalStorage("formula_prix_recettes", []);
   const [preselectedRecipeId, setPreselectedRecipeId] = useState(null);
 
   const allNormalized  = useMemo(() => recipes.map(normalizeRecipe), [recipes]);
@@ -3950,7 +3949,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
   );
 };
 
-const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, ingredients, recipes, suppliers, onImport, onMerge }) => {
+const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge }) => {
   // --- Logo ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -4185,7 +4184,7 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
 
       {/* Sauvegarde & restauration */}
       <ExportImportSection config={config} ingredients={ingredients} recipes={recipes} suppliers={suppliers}
-        prixRecettes={JSON.parse(window.localStorage.getItem("formula_prix_recettes") || "[]")}
+        prixRecettes={prixRecettes}
         onImport={onImport} onMerge={onMerge} />
     </div>
   );
@@ -4212,6 +4211,7 @@ const App = () => {
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
+  const [prixRecettes, setPrixRecettes] = useLocalStorage("formula_prix_recettes", []);
   const [activeTab, setActiveTab] = useState("ingredients");
   const [restaurantLogo, setRestaurantLogo] = useState(() => window.localStorage.getItem("arpege_restaurant_logo") || null);
 
@@ -4283,12 +4283,13 @@ const App = () => {
         {activeTab === "baseRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="base" currencySymbol={currencySymbol} />}
         {activeTab === "finalRecipes" && <RecipesManager ingredients={ingredients} setIngredients={setIngredients} recipes={recipes} setRecipes={setRecipes} isChef={isChef} sectionType="final" currencySymbol={currencySymbol} />}
         {activeTab === "producers" && <ProducersView ingredients={ingredients} setIngredients={setIngredients} suppliersRuntime={suppliersRuntime} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} />}
-        {activeTab === "rentabilite" && isChef && <RentabiliteView recipes={recipes} ingredients={ingredients} currencySymbol={currencySymbol} config={config} />}
+        {activeTab === "rentabilite" && isChef && <RentabiliteView recipes={recipes} ingredients={ingredients} currencySymbol={currencySymbol} config={config} prixRecettes={prixRecettes} setPrixRecettes={setPrixRecettes} />}
         {activeTab === "parametres" && isChef && (
           <ParametresView
             restaurantLogo={restaurantLogo} onLogoChange={setRestaurantLogo}
             config={config} onConfigChange={setConfig}
             ingredients={ingredients} recipes={recipes} suppliers={suppliers}
+            prixRecettes={prixRecettes}
             onImport={(data) => {
               setIngredients(data.ingredients);
               setRecipes(data.recipes);
