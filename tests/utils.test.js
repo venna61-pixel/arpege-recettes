@@ -137,14 +137,101 @@ function testMigrateMarkdownEnHtml() {
   assert.ok(result.includes("ligne2"));
 }
 
-function testMigrateMarkdownDejaHtmlPasseThrough() {
-  const html = "<p>déjà du html</p>";
-  assert.strictEqual(migrateProcedureMarkdownToHtml(html), html);
-}
-
 function testMigrateMarkdownVideRetourneVide() {
   assert.strictEqual(migrateProcedureMarkdownToHtml(""), "");
   assert.strictEqual(migrateProcedureMarkdownToHtml(null), "");
+}
+
+// ─── Sanitisation HTML (correction du bypass dangereux) ─────────────────────
+
+function testMigrateHtmlSansSanitizerEchappePourSecurite() {
+  // Quand DOMPurify est absent (Node, offline...), le fallback safe est
+  // d'échapper le HTML plutôt que de l'afficher tel quel.
+  const result = migrateProcedureMarkdownToHtml("<p>du html</p>");
+  assert.ok(!result.includes("<p>"), `le HTML ne doit pas passer brut (résultat: ${result})`);
+  assert.ok(result.includes("&lt;p&gt;"), `les chevrons doivent être échappés (résultat: ${result})`);
+}
+
+function testMigrateHtmlSansSanitizerEchappeScript() {
+  // Vecteur XSS classique : si DOMPurify absent, le script doit être inerte.
+  const result = migrateProcedureMarkdownToHtml("<script>alert(1)</script>");
+  assert.ok(!result.includes("<script>"), `<script> ne doit jamais passer brut (résultat: ${result})`);
+  assert.ok(result.includes("&lt;script&gt;"), `doit être échappé (résultat: ${result})`);
+}
+
+function testMigrateHtmlAvecSanitizerAppelleLeSanitizer() {
+  let received = null;
+  const sanitizer = (input) => { received = input; return "<safe/>"; };
+  migrateProcedureMarkdownToHtml("<p>contenu</p>", sanitizer);
+  assert.strictEqual(received, "<p>contenu</p>", "le sanitizer doit recevoir le HTML brut");
+}
+
+function testMigrateHtmlAvecSanitizerRetourneSonResultat() {
+  const sanitizer = () => "<p>nettoyé</p>";
+  const result = migrateProcedureMarkdownToHtml("<script>dangereux</script>", sanitizer);
+  assert.strictEqual(result, "<p>nettoyé</p>");
+}
+
+function testMigrateMarkdownSansSanitizerSuitLeCheminConvert() {
+  // Le chemin markdown (texte sans tag HTML) reste inchangé — déjà safe.
+  const result = migrateProcedureMarkdownToHtml("ligne **gras**");
+  assert.ok(result.includes("<p>"), "doit emballer en <p>");
+  assert.ok(result.includes("<strong>gras</strong>"), "doit convertir le markdown");
+}
+
+function testMigrateMarkdownAvecSanitizerNAppellePasLeSanitizer() {
+  // Le chemin markdown n'a pas besoin du sanitizer (déjà safe via escapeHtml).
+  let appele = false;
+  const sanitizer = () => { appele = true; return "RIEN"; };
+  const result = migrateProcedureMarkdownToHtml("texte simple", sanitizer);
+  assert.strictEqual(appele, false, "le sanitizer ne doit pas être appelé pour du markdown");
+  assert.ok(result.includes("<p>texte simple</p>"));
+}
+
+function testMigrateHtmlVecteurOnerror() {
+  // Sans sanitizer, le tag <img> doit être neutralisé par échappement.
+  // Le mot "onerror" peut rester comme texte (inoffensif) mais le tag lui-même
+  // ne doit pas exister dans le DOM rendu.
+  const result = migrateProcedureMarkdownToHtml('<img src=x onerror="alert(1)">');
+  assert.ok(!result.includes("<img"), `<img> ne doit pas passer brut (résultat: ${result})`);
+  assert.ok(result.includes("&lt;img"), `doit être échappé en texte (résultat: ${result})`);
+}
+
+function testMigrateHtmlVecteurIframe() {
+  // Sans sanitizer, iframe doit être échappée.
+  const result = migrateProcedureMarkdownToHtml('<iframe src="javascript:alert(1)"></iframe>');
+  assert.ok(!result.includes("<iframe"), `<iframe> ne doit pas passer brut (résultat: ${result})`);
+}
+
+function testMigrateHtmlSanitizerEstAppeleUneSeuleFois() {
+  let count = 0;
+  const sanitizer = (s) => { count += 1; return s; };
+  migrateProcedureMarkdownToHtml("<p>x</p>", sanitizer);
+  assert.strictEqual(count, 1);
+}
+
+function testAllowlistInclutFontEtColorViaDomPurifyMock() {
+  // Vérifie que le sanitizer par défaut passe une allowlist incluant <font>
+  // et color (pour les recettes legacy enregistrées en <font color="...">).
+  // On mock window.DOMPurify pour capturer la config passée.
+  const originalDOMPurify = global.DOMPurify;
+  let capturedConfig = null;
+  global.DOMPurify = {
+    sanitize: (input, config) => {
+      capturedConfig = config;
+      return input;
+    },
+  };
+  try {
+    migrateProcedureMarkdownToHtml('<font color="#dc2626">rouge</font>');
+    assert.ok(capturedConfig, "DOMPurify.sanitize doit être appelé avec une config");
+    assert.ok(capturedConfig.ALLOWED_TAGS.includes("font"), "<font> doit être dans ALLOWED_TAGS");
+    assert.ok(capturedConfig.ALLOWED_TAGS.includes("span"), "<span> doit rester autorisé");
+    assert.ok(capturedConfig.ALLOWED_ATTR.includes("color"), "'color' doit être dans ALLOWED_ATTR");
+    assert.ok(capturedConfig.ALLOWED_ATTR.includes("style"), "'style' doit rester autorisé");
+  } finally {
+    global.DOMPurify = originalDOMPurify;
+  }
 }
 
 // ─── sanitizePrintTitle ──────────────────────────────────────────────────────
@@ -195,8 +282,17 @@ function runAll() {
     testFormatProcedureLinePuce,
     testFormatProcedureLineEchappementHtml,
     testMigrateMarkdownEnHtml,
-    testMigrateMarkdownDejaHtmlPasseThrough,
     testMigrateMarkdownVideRetourneVide,
+    testMigrateHtmlSansSanitizerEchappePourSecurite,
+    testMigrateHtmlSansSanitizerEchappeScript,
+    testMigrateHtmlAvecSanitizerAppelleLeSanitizer,
+    testMigrateHtmlAvecSanitizerRetourneSonResultat,
+    testMigrateMarkdownSansSanitizerSuitLeCheminConvert,
+    testMigrateMarkdownAvecSanitizerNAppellePasLeSanitizer,
+    testMigrateHtmlVecteurOnerror,
+    testMigrateHtmlVecteurIframe,
+    testMigrateHtmlSanitizerEstAppeleUneSeuleFois,
+    testAllowlistInclutFontEtColorViaDomPurifyMock,
     testSanitizePrintTitleNomNormal,
     testSanitizePrintTitleCaracteresInterdits,
     testSanitizePrintTitleValeurVide,

@@ -43,9 +43,53 @@
     return html;
   }
 
-  function migrateProcedureMarkdownToHtml(text) {
+  // Allowlist DOMPurify pour les procédés riches.
+  //
+  // Tags produits par l'éditeur execCommand :
+  //  - moderne (avec styleWithCSS=true) : <span style="color:...">
+  //  - legacy (Chrome par défaut)       : <font color="...">
+  // On accepte les deux : <font> reste autorisé pour ne pas casser les
+  // recettes déjà enregistrées avant le passage à styleWithCSS.
+  //
+  // Attributs :
+  //  - style : nécessaire pour la couleur en mode moderne
+  //  - color : nécessaire pour <font color="...">
+  // DOMPurify bloque déjà les valeurs CSS dangereuses (url(javascript:...)
+  // expression(), etc.) par défaut.
+  var PROCEDURE_ALLOWLIST = {
+    ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "u", "span", "ul", "li", "font"],
+    ALLOWED_ATTR: ["style", "color"],
+  };
+
+  function defaultProcedureSanitizer(html) {
+    if (typeof window !== "undefined" && window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
+      return window.DOMPurify.sanitize(html, PROCEDURE_ALLOWLIST);
+    }
+    // Fallback safe quand DOMPurify est absent (Node tests, offline, CDN cassé).
+    // On échappe entièrement le HTML : le contenu s'affiche en texte brut,
+    // ce qui est moins joli mais ne peut JAMAIS exécuter de script.
+    return String(html || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  // Convertit le texte d'un procédé en HTML safe.
+  // Deux chemins :
+  //  - texte SANS tag HTML détecté : markdown legacy (**gras**, *italique*,
+  //    __souligné__, [red]...[/red], - puce) → formatProcedureLine qui échappe
+  //    AVANT d'appliquer les patterns. Le résultat est intrinsèquement safe.
+  //  - texte AVEC tag HTML : produit par l'éditeur execCommand. Passe par le
+  //    sanitizer fourni en paramètre, ou par defaultProcedureSanitizer (DOMPurify
+  //    en navigateur, échappement total en fallback).
+  // Le sanitizer est injectable pour rendre la fonction testable sans DOMPurify.
+  function migrateProcedureMarkdownToHtml(text, sanitizer) {
     if (!text) return "";
-    if (/<[a-z][\s\S]*>/i.test(text)) return text;
+    if (/<[a-z][\s\S]*>/i.test(text)) {
+      var fn = typeof sanitizer === "function" ? sanitizer : defaultProcedureSanitizer;
+      return fn(text);
+    }
     return text.split("\n").map(function (line) {
       return "<p>" + (formatProcedureLine(line) || "<br>") + "</p>";
     }).join("");

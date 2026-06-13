@@ -6,6 +6,11 @@
   function applyRichFormat(editorEl, command, value) {
     if (!editorEl) return;
     editorEl.focus();
+    // Force le format moderne (<span style="color:...">) au lieu de <font color>
+    // legacy. Compatible avec la sanitisation DOMPurify et évite d'accumuler
+    // du HTML deprecated. Cette directive doit être appliquée AVANT chaque
+    // commande car son état n'est pas garanti persistant entre les éditions.
+    try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
     if (command === "foreColor") {
       var current = "";
       try { current = document.queryCommandValue("foreColor"); } catch (e) {}
