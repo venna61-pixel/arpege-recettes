@@ -28,6 +28,7 @@
     <script src="./logic/core/config.js"></script>
     <script src="./logic/core/procedure.js"></script>
     <script src="./logic/core/editor.js"></script>
+    <script src="./logic/core/safety-backup.js"></script>
     <script src="./logic/core/pricing.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
@@ -216,6 +217,16 @@ if (!window.FormulaPricing) {
   throw new Error("Module requis manquant: logic/core/pricing.js n'est pas chargé.");
 }
 const { calcByCoefficient, calcByMargeBruteHT, calcByMargeNetteTTC, calcByPrixTTC } = window.FormulaPricing;
+if (!window.FormulaSafetyBackup) {
+  throw new Error("Module requis manquant: logic/core/safety-backup.js n'est pas chargé.");
+}
+const {
+  createSafetyBackup,
+  writeSafetyBackup,
+  readSafetyBackup,
+  hasSafetyBackup,
+  clearSafetyBackup,
+} = window.FormulaSafetyBackup;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -3574,7 +3585,7 @@ const RentabiliteView = ({ recipes, ingredients, currencySymbol = "€", config,
 };
 
 // ─── Section Export / Import ─────────────────────────────────────────────────
-const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge }) => {
+const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge, onRestoreBackup }) => {
   // --- État import (remplacer) ---
   const [importStep, setImportStep] = useState("idle"); // idle | preview | error
   const [importPreview, setImportPreview] = useState(null);
@@ -3586,6 +3597,9 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
   const [mergeErrors, setMergeErrors] = useState([]);
   const [selectedRecipes, setSelectedRecipes] = useState([]);
   const [selectedIngredients, setSelectedIngredients] = useState([]);
+
+  // --- Filet de sécurité : dernier snapshot avant import/fusion ---
+  const [safetyBackup, setSafetyBackup] = useState(() => readSafetyBackup(window.localStorage));
 
   const formatDate = (iso) => {
     if (!iso) return "date inconnue";
@@ -3646,6 +3660,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
     onImport(importPreview);
     setImportStep("idle");
     setImportPreview(null);
+    setSafetyBackup(readSafetyBackup(window.localStorage));
   };
 
   const handleCancelImport = () => {
@@ -3697,6 +3712,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
     onMerge(merged);
     setMergeStep("idle");
     setMergeAnalysis(null);
+    setSafetyBackup(readSafetyBackup(window.localStorage));
     setSelectedRecipes([]);
     setSelectedIngredients([]);
   };
@@ -3723,6 +3739,30 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
 
   // Valeurs dérivées pour l'aperçu de fusion
   const mergeNewIngredients = mergeAnalysis?.newIngredients || [];
+  const handleRestoreBackup = () => {
+    if (!safetyBackup) return;
+    const when = (() => {
+      try { return new Date(safetyBackup.timestamp).toLocaleString("fr-FR"); }
+      catch { return safetyBackup.timestamp; }
+    })();
+    const sourceLabel = safetyBackup.source === "merge" ? "une fusion" : "un import";
+    const ok = window.confirm(
+      "Restaurer la sauvegarde du " + when + " (créée avant " + sourceLabel + ") ?\n\n" +
+      "Vos données actuelles seront remplacées par celles de cette sauvegarde. " +
+      "Cette opération est elle-même définitive."
+    );
+    if (!ok) return;
+    onRestoreBackup(safetyBackup.data);
+    setSafetyBackup(null);
+  };
+
+  const safetyBackupWhen = (() => {
+    if (!safetyBackup) return "";
+    try { return new Date(safetyBackup.timestamp).toLocaleString("fr-FR"); }
+    catch { return safetyBackup.timestamp; }
+  })();
+  const safetyBackupSource = safetyBackup?.source === "merge" ? "une fusion" : "un import";
+
   const mergeIngConflicts = mergeAnalysis?.ingredientConflicts || [];
   const mergeNewRecipes = mergeAnalysis?.newRecipes || [];
   const mergeRecipeConflicts = mergeAnalysis?.recipeConflicts || [];
@@ -3737,6 +3777,20 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
       <p className="text-sm text-gray-500 mb-6">
         Vos données sont stockées dans ce navigateur. Téléchargez régulièrement une copie pour ne rien perdre.
       </p>
+
+      {safetyBackup && (
+        <div className="mb-6 bg-amber-50 border border-amber-300 rounded-lg p-4">
+          <p className="text-sm font-semibold text-amber-900 mb-1">⚠ Sauvegarde de sécurité disponible</p>
+          <p className="text-xs text-amber-800 mb-3">
+            Créée le {safetyBackupWhen} avant {safetyBackupSource}. Tu peux revenir à cet état si l'opération
+            n'était pas celle attendue.
+          </p>
+          <button onClick={handleRestoreBackup}
+            className="px-4 py-2 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 transition-colors">
+            Restaurer cette sauvegarde
+          </button>
+        </div>
+      )}
 
       {/* Export */}
       <div className="mb-6 pb-6 border-b border-gray-100">
@@ -3914,7 +3968,7 @@ const ExportImportSection = ({ config, ingredients, recipes, suppliers, prixRece
   );
 };
 
-const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge }) => {
+const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, ingredients, recipes, suppliers, prixRecettes, onImport, onMerge, onRestoreBackup }) => {
   // --- Logo ---
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -4150,7 +4204,7 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
       {/* Sauvegarde & restauration */}
       <ExportImportSection config={config} ingredients={ingredients} recipes={recipes} suppliers={suppliers}
         prixRecettes={prixRecettes}
-        onImport={onImport} onMerge={onMerge} />
+        onImport={onImport} onMerge={onMerge} onRestoreBackup={onRestoreBackup} />
     </div>
   );
 };
@@ -4240,14 +4294,29 @@ const App = () => {
             ingredients={ingredients} recipes={recipes} suppliers={suppliers}
             prixRecettes={prixRecettes}
             onImport={(data) => {
+              writeSafetyBackup(
+                createSafetyBackup({ ingredients, recipes, suppliers, prixRecettes }, "import"),
+                window.localStorage
+              );
               setIngredients(data.ingredients);
               setRecipes(data.recipes);
               setSuppliers(data.suppliers);
             }}
             onMerge={(data) => {
+              writeSafetyBackup(
+                createSafetyBackup({ ingredients, recipes, suppliers, prixRecettes }, "merge"),
+                window.localStorage
+              );
               setIngredients(data.ingredients);
               setRecipes(data.recipes);
               setSuppliers(data.suppliers);
+            }}
+            onRestoreBackup={(restored) => {
+              setIngredients(restored.ingredients);
+              setRecipes(restored.recipes);
+              setSuppliers(restored.suppliers);
+              setPrixRecettes(restored.prixRecettes);
+              clearSafetyBackup(window.localStorage);
             }}
           />
         )}

@@ -16,6 +16,7 @@ const tests = [
   "config.test.js",
   "procedure.test.js",
   "editor.test.js",
+  "safety-backup.test.js",
   "constants.test.js",
   "schema.test.js",
   "rentabilite.test.js",
