@@ -54,6 +54,107 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
+// ─── FormulaErrorBoundary ───────────────────────────────────────────────────
+// Filet de sécurité React global. Capture les erreurs de rendu, lifecycle et
+// constructor des composants descendants, et affiche un fallback lisible au
+// lieu d'un écran blanc (cf. bug currencySymbol AddIngredientModal du 12 juin).
+//
+// Ne capture PAS les erreurs des event handlers ni les erreurs asynchrones —
+// comportement standard d'un Error Boundary React, ces cas restent à la charge
+// des appelants via try/catch.
+//
+// Maintenu inline ici plutôt que dans components/error-boundary.js car Babel
+// Standalone ne peut pas charger un script externe via `src` quand l'app est
+// ouverte en file:// (CORS bloqué par Chrome). À extraire dès qu'un dev server
+// est en place (Phase 7 Vite, ou plus tôt si on en introduit un avant).
+class FormulaErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null, showDetails: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    this.setState({ info });
+    console.error("[FormulaErrorBoundary] Erreur capturée :", error, info);
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleResetSession = () => {
+    const ok = window.confirm(
+      "Effacer la session courante et recharger ?\n\n" +
+      "Vos recettes, ingrédients et fournisseurs restent intacts. " +
+      "Vous devrez seulement vous reconnecter."
+    );
+    if (!ok) return;
+    try { window.localStorage.removeItem("arpege_user"); } catch (e) { /* ignore */ }
+    window.location.reload();
+  };
+
+  toggleDetails = () => {
+    this.setState((prev) => ({ showDetails: !prev.showDetails }));
+  };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    const { error, info, showDetails } = this.state;
+    const errorMessage = error ? (error.message || String(error)) : "Erreur inconnue";
+    const stack = (error && error.stack) ? error.stack : "";
+    const componentStack = (info && info.componentStack) ? info.componentStack : "";
+
+    const wrapStyle  = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", fontFamily: "'Inter', sans-serif", background: "#f9fafb" };
+    const cardStyle  = { maxWidth: "560px", width: "100%", background: "white", borderRadius: "16px", boxShadow: "0 10px 30px rgba(0,0,0,0.08)", padding: "32px", borderTop: "4px solid #C8956C" };
+    const titleStyle = { color: "#1A3A4A", fontSize: "22px", fontWeight: 700, marginBottom: "8px" };
+    const leadStyle  = { color: "#4b5563", fontSize: "14px", lineHeight: 1.5, marginBottom: "20px" };
+    const linkStyle  = { background: "transparent", border: "none", color: "#6b7280", fontSize: "12px", cursor: "pointer", textDecoration: "underline", padding: 0, marginBottom: "12px" };
+    const preStyle   = { background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "12px", fontSize: "11px", fontFamily: "monospace", color: "#374151", overflow: "auto", maxHeight: "200px", marginBottom: "20px", whiteSpace: "pre-wrap" };
+    const rowStyle   = { display: "flex", gap: "12px", flexWrap: "wrap" };
+    const btnPrimary = { background: "#1A3A4A", color: "white", border: "none", borderRadius: "8px", padding: "12px 20px", fontSize: "14px", fontWeight: 600, cursor: "pointer", flex: 1 };
+    const btnSecondary = { background: "white", color: "#1A3A4A", border: "1px solid #d1d5db", borderRadius: "8px", padding: "12px 20px", fontSize: "14px", fontWeight: 600, cursor: "pointer" };
+
+    return (
+      <div style={wrapStyle} role="alert">
+        <div style={cardStyle}>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }} aria-hidden="true">⚠️</div>
+          <h1 style={titleStyle}>Une erreur est survenue</h1>
+          <p style={leadStyle}>
+            L'application a rencontré un problème inattendu.
+            Vos données sont sauvegardées et intactes — vous pouvez recharger sans risque.
+          </p>
+
+          <button onClick={this.toggleDetails} style={linkStyle}>
+            {showDetails ? "Masquer les détails techniques" : "Afficher les détails techniques"}
+          </button>
+
+          {showDetails && (
+            <pre style={preStyle}>
+              {errorMessage}
+              {stack ? "\n\n" + stack : ""}
+              {componentStack ? "\n\n--- Composant ---" + componentStack : ""}
+            </pre>
+          )}
+
+          <div style={rowStyle}>
+            <button onClick={this.handleReload} style={btnPrimary}>
+              Recharger l'application
+            </button>
+            <button onClick={this.handleResetSession} style={btnSecondary}>
+              Effacer la session et recharger
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
 if (!window.FormulaConstants) {
   throw new Error("Module requis manquant: logic/core/constants.js n'est pas chargé.");
 }
@@ -4205,7 +4306,11 @@ const App = () => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <FormulaErrorBoundary>
+    <App />
+  </FormulaErrorBoundary>
+);
 </script>
 </body>
 </html>
