@@ -24,7 +24,6 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── merge.js                   # Fusion intelligente de sauvegardes
 │   │   ├── config.js                  # Lecture/écriture de la configuration restaurant
 │   │   ├── procedure.js               # Détection des dimensions/temps dans les procédés, avertissements d'adaptation
-│   │   ├── analytics.js               # Chargement conditionnel de Google Analytics (consentement RGPD)
 │   │   ├── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
 │   │   └── pricing.js                 # Calcul des prix de vente et marges (4 méthodes : coefficient, marge HT, marge TTC, prix TTC décidé)
 │   ├── migration/                     # Migration legacy → v1
@@ -37,7 +36,6 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 ├── tests/                             # Tests unitaires (Node.js, sans framework)
 │   ├── run-all.js                     # Lanceur de tous les tests
 │   ├── allergenes.test.js
-│   ├── analytics.test.js
 │   ├── auth-helpers.test.js
 │   ├── config.test.js
 │   ├── constants.test.js
@@ -103,7 +101,6 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `merge.js` | Comparaison et fusion de deux sauvegardes sans écrasement |
 | `config.js` | Lecture et écriture de la configuration restaurant (localStorage) |
 | `procedure.js` | Détection des dimensions et temps de cuisson dans les procédés, construction des avertissements d'adaptation |
-| `analytics.js` | Chargement conditionnel de Google Analytics selon le consentement RGPD de l'utilisateur |
 | `editor.js` | Formatage riche du procédé (gras, italique, souligné, couleur, liste à puces) via Selection/Range, sans `execCommand` |
 | `pricing.js` | Calcul des prix de vente et marges selon 4 méthodes : par coefficient, par marge brute HT, par marge nette TTC, par prix TTC décidé |
 
@@ -117,7 +114,6 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 
 ### Session
 - `arpege_user` : utilisateur connecté (rôle)
-- `arpege_consent_analytics` : consentement RGPD pour Google Analytics
 
 ### Données migrées v1 (en cours de déploiement)
 - `arpege_v1_fournisseurs`

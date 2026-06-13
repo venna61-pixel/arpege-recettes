@@ -27,7 +27,6 @@
     <script src="./logic/core/auth-helpers.js"></script>
     <script src="./logic/core/config.js"></script>
     <script src="./logic/core/procedure.js"></script>
-    <script src="./logic/core/analytics.js"></script>
     <script src="./logic/core/editor.js"></script>
     <script src="./logic/core/pricing.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -47,7 +46,6 @@
         .procedure-editor p { margin: 0 0 4px 0; }
         .procedure-editor ul { list-style-type: disc; padding-left: 1.5rem; margin: 0; }
     </style>
-    <!-- Google Analytics chargé uniquement après consentement RGPD explicite -->
 </head>
 <body class="bg-gray-50">
 <div id="root"></div>
@@ -327,13 +325,6 @@ const useLocalStorage = (key, initialValue) => {
   return [storedValue, setValue];
 };
 
-// ─── RGPD — consentement analytics ──────────────────────────────────────────
-if (!window.FormulaAnalytics) {
-  throw new Error("Module requis manquant: logic/core/analytics.js n'est pas chargé.");
-}
-const { CONSENT_KEY, GA_ID, loadGoogleAnalytics } = window.FormulaAnalytics;
-
-
 
 
 const AllergenesFormSection = ({ step, allergenesSelected, onStep, onToggle, onConfirm, onConfirmNone }) => {
@@ -423,32 +414,6 @@ const IngredientAllergenesModal = ({ ingredient, isOpen, onClose, onSave }) => {
     </div>
   );
 };
-
-// ─── Bandeau de consentement RGPD ────────────────────────────────────────────
-// Apparaît une seule fois, en bas de l'écran. Choix stocké dans localStorage.
-const ConsentBanner = ({ onAccept, onDecline }) => (
-  <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t-2 border-[#C8956C] shadow-2xl">
-    <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-4">
-      <div className="flex-1">
-        <p className="text-sm font-semibold text-[#1A3A4A]">🍪 Mesure d'audience</p>
-        <p className="text-xs text-gray-500 mt-1">
-          Cette application utilise Google Analytics pour compter les visites (pays, appareil, durée).
-          Aucune recette ni donnée personnelle n'est transmise. Conformément au RGPD, votre accord est requis.
-        </p>
-      </div>
-      <div className="flex gap-3 shrink-0">
-        <button onClick={onAccept}
-          className="px-5 py-2 bg-[#1A3A4A] text-white rounded-lg text-sm font-medium hover:bg-[#2A4A5A] transition-colors">
-          Accepter
-        </button>
-        <button onClick={onDecline}
-          className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
-          Refuser
-        </button>
-      </div>
-    </div>
-  </div>
-);
 
 // ─── Écran de premier lancement ─────────────────────────────────────────────
 // Formulaire de configuration initiale (nom, email, mots de passe)
@@ -4193,21 +4158,6 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
 const App = () => {
   const [config, setConfig] = useState(() => getConfig());
   const [user, setUser] = useLocalStorage("arpege_user", null);
-  // Consentement RGPD : null = pas encore choisi, "accepted" ou "declined"
-  const [consent, setConsent] = useState(() => window.localStorage.getItem(CONSENT_KEY));
-
-  useEffect(() => {
-    if (consent === "accepted") loadGoogleAnalytics();
-  }, [consent]);
-
-  const handleAcceptConsent = () => {
-    window.localStorage.setItem(CONSENT_KEY, "accepted");
-    setConsent("accepted");
-  };
-  const handleDeclineConsent = () => {
-    window.localStorage.setItem(CONSENT_KEY, "declined");
-    setConsent("declined");
-  };
   const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
   const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
   const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
@@ -4276,7 +4226,6 @@ const App = () => {
     : { source: "legacy", canaryActive: false, reason: "RUNTIME_DATA_SOURCE_UNAVAILABLE", data: [] };
   return (
     <div className="min-h-screen bg-gray-50">
-      {consent === null && <ConsentBanner onAccept={handleAcceptConsent} onDecline={handleDeclineConsent} />}
       <Header user={user} onLogout={() => setUser(null)} activeTab={activeTab} setActiveTab={setActiveTab} restaurantLogo={restaurantLogo} restaurantName={config?.restaurantName} />
       <main className="pb-12">
         {activeTab === "ingredients" && <IngredientsManager ingredients={ingredients} setIngredients={setIngredients} suppliers={suppliers} setSuppliers={setSuppliers} isChef={isChef} currencySymbol={currencySymbol} />}
