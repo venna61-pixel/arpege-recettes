@@ -2,6 +2,8 @@
 
 Application web de gestion de recettes pour restaurant gastronomique. Construite avec React (sans bundler) et des modules JavaScript indépendants. Fonctionne entièrement en local, sans serveur.
 
+📐 Pour comprendre les décisions structurantes, les flux de données et les conventions : voir [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Architecture du projet
 
 ```text
