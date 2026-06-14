@@ -26,7 +26,8 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   │   ├── procedure.js               # Détection des dimensions/temps dans les procédés, avertissements d'adaptation
 │   │   ├── editor.js                  # Formatage riche du procédé (gras, italique, couleur, liste) sans execCommand
 │   │   ├── pricing.js                 # Calcul des prix de vente et marges (4 méthodes : coefficient, marge HT, marge TTC, prix TTC décidé)
-│   │   └── safety-backup.js           # Sauvegarde automatique avant import/fusion + restauration
+│   │   ├── safety-backup.js           # Sauvegarde automatique avant import/fusion + restauration
+│   │   └── data-status.js             # État des données (compteurs par type, dernière sauvegarde, taille de stockage)
 │   ├── migration/                     # Migration legacy → v1
 │   │   ├── legacy-to-v1.js            # Transformation des données historiques
 │   │   ├── report.js                  # Rapport de migration (warnings/erreurs)
@@ -42,6 +43,7 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   ├── constants.test.js
 │   ├── core-costs-and-units.test.js
 │   ├── data-export.test.js
+│   ├── data-status.test.js
 │   ├── editor.test.js
 │   ├── merge.test.js
 │   ├── migration-coherence.test.js
@@ -78,6 +80,7 @@ node tests/run-all.js
 - **Allergènes** : détection automatique des 14 allergènes réglementaires européens
 - **Export PDF** : fiche recette, fiche de production, fiche adaptée
 - **Sauvegarde** : export/import JSON (avec préservation des prix de vente), fusion intelligente de sauvegardes, sauvegarde automatique avant tout import/fusion avec restauration possible
+- **État des données** : carte dans l'onglet Paramètres (chef) résumant le nombre d'ingrédients, recettes, fournisseurs, la dernière sauvegarde automatique et la taille du stockage local
 
 ## Rôles
 
@@ -106,6 +109,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `editor.js` | Formatage riche du procédé (gras, italique, souligné, couleur, liste à puces) via Selection/Range, sans `execCommand` |
 | `pricing.js` | Calcul des prix de vente et marges selon 4 méthodes : par coefficient, par marge brute HT, par marge nette TTC, par prix TTC décidé |
 | `safety-backup.js` | Sauvegarde automatique des données avant tout import ou fusion, avec restauration possible |
+| `data-status.js` | État des données (compteurs ingrédients/recettes/fournisseurs, timestamp de la dernière sauvegarde automatique, taille du stockage localStorage) — affiché dans l'onglet Paramètres |
 
 ## Stockage localStorage
 

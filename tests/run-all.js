@@ -20,6 +20,7 @@ const tests = [
   "constants.test.js",
   "schema.test.js",
   "rentabilite.test.js",
+  "data-status.test.js",
 ];
 
 let passed = 0;

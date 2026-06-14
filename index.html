@@ -30,6 +30,7 @@
     <script src="./logic/core/procedure.js"></script>
     <script src="./logic/core/editor.js"></script>
     <script src="./logic/core/safety-backup.js"></script>
+    <script src="./logic/core/data-status.js"></script>
     <script src="./logic/core/pricing.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
@@ -228,6 +229,10 @@ const {
   hasSafetyBackup,
   clearSafetyBackup,
 } = window.FormulaSafetyBackup;
+if (!window.FormulaDataStatus) {
+  throw new Error("Module requis manquant: logic/core/data-status.js n'est pas chargé.");
+}
+const { buildDataStatus } = window.FormulaDataStatus;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -4083,9 +4088,54 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
     finally { setEmployeLoading(false); }
   };
 
+  // --- État des données ---
+  // Re-calcul à chaque rendu : la taille du stockage et la dernière sauvegarde
+  // peuvent évoluer hors des datasets React (autre onglet, import/restore).
+  // Coût négligeable comparé au gain de fraîcheur.
+  const collectFormulaStorageEntries = () => {
+    const entries = {};
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (!key) continue;
+        if (key.startsWith("arpege_") || key.startsWith("formula_")) {
+          entries[key] = window.localStorage.getItem(key);
+        }
+      }
+    } catch (e) {
+      // localStorage indisponible : on retourne ce qu'on a (potentiellement vide).
+    }
+    return entries;
+  };
+  const dataStatus = buildDataStatus({
+    datasets: { ingredients, recipes, suppliers, prixRecettes },
+    safetyBackup: readSafetyBackup(window.localStorage),
+    storageEntries: collectFormulaStorageEntries(),
+  });
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
       <h2 className="text-2xl font-bold text-[#1A3A4A]">Paramètres</h2>
+
+      {/* État des données */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-[#1A3A4A] mb-1">État de vos données</h3>
+        <p className="text-sm text-gray-500 mb-4">Vue d'ensemble de ce qui est stocké dans Formula sur cet appareil.</p>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <dt className="text-gray-600">Ingrédients</dt>
+          <dd className="text-right font-medium text-[#1A3A4A]">{dataStatus.counts.ingredients}</dd>
+          <dt className="text-gray-600">Recettes de base</dt>
+          <dd className="text-right font-medium text-[#1A3A4A]">{dataStatus.counts.baseRecipes}</dd>
+          <dt className="text-gray-600">Recettes finales</dt>
+          <dd className="text-right font-medium text-[#1A3A4A]">{dataStatus.counts.finalRecipes}</dd>
+          <dt className="text-gray-600">Fournisseurs</dt>
+          <dd className="text-right font-medium text-[#1A3A4A]">{dataStatus.counts.suppliers}</dd>
+          <dt className="text-gray-600 pt-2 border-t border-gray-100">Dernière sauvegarde automatique</dt>
+          <dd className="text-right font-medium text-[#1A3A4A] pt-2 border-t border-gray-100">{dataStatus.lastBackupLabel}</dd>
+          <dt className="text-gray-600">Espace utilisé</dt>
+          <dd className="text-right font-medium text-[#1A3A4A]">{dataStatus.storageLabel}</dd>
+        </dl>
+      </div>
 
       {/* Nom du restaurant */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
