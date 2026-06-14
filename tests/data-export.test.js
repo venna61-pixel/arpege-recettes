@@ -207,6 +207,70 @@ function testRoundtripPreservePrixRecettes() {
   assert.deepStrictEqual(result.data.prixRecettes, original.prixRecettes);
 }
 
+// ─── Non-régression : structures abîmées (chemins robustesse import) ──────────
+
+function testValidateImportPayloadRecipesNonTableau() {
+  const payload = {
+    app: APP_IDENTIFIER,
+    formatVersion: FORMAT_VERSION,
+    data: { ingredients: [], recipes: "pas un tableau", suppliers: [] },
+  };
+  const result = validateImportPayload(payload);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.errors.some((e) => e.includes("recettes")));
+  assert.strictEqual(result.data, null);
+}
+
+function testValidateImportPayloadSuppliersNonTableau() {
+  const payload = {
+    app: APP_IDENTIFIER,
+    formatVersion: FORMAT_VERSION,
+    data: { ingredients: [], recipes: [], suppliers: { erreur: true } },
+  };
+  const result = validateImportPayload(payload);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.errors.some((e) => e.includes("fournisseurs")));
+  assert.strictEqual(result.data, null);
+}
+
+function testValidateImportPayloadErreursCumulees() {
+  // Les 3 listes invalides simultanément doivent toutes ressortir, pour que le
+  // chef corrige tout d'un coup au lieu de découvrir les erreurs une par une.
+  const payload = {
+    app: APP_IDENTIFIER,
+    formatVersion: FORMAT_VERSION,
+    data: { ingredients: "x", recipes: 42, suppliers: null },
+  };
+  const result = validateImportPayload(payload);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.errors.some((e) => e.includes("ingrédients")), "Erreur ingrédients attendue");
+  assert.ok(result.errors.some((e) => e.includes("recettes")), "Erreur recettes attendue");
+  assert.ok(result.errors.some((e) => e.includes("fournisseurs")), "Erreur fournisseurs attendue");
+  assert.ok(result.errors.length >= 3, `Au moins 3 erreurs attendues, reçu ${result.errors.length}`);
+}
+
+function testValidateImportPayloadTableauAuLieuDObjet() {
+  // Un tableau JSON parsable mais pas une sauvegarde Formula : le code défend
+  // déjà ce cas via Array.isArray(parsed) en sortie précoce — on verrouille.
+  const result = validateImportPayload([1, 2, 3]);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.errors.length > 0);
+  assert.strictEqual(result.data, null);
+}
+
+function testValidateImportPayloadPrixRecettesPresentMaisNonTableau() {
+  // Fallback silencieux à [] si la sauvegarde déclare prixRecettes mal formé.
+  // Pas une erreur bloquante : on importe le reste sans perdre les vraies données.
+  const payload = {
+    app: APP_IDENTIFIER,
+    formatVersion: FORMAT_VERSION,
+    data: { ingredients: [], recipes: [], suppliers: [], prixRecettes: "abc" },
+  };
+  const result = validateImportPayload(payload);
+  assert.strictEqual(result.valid, true);
+  assert.deepStrictEqual(result.data.prixRecettes, []);
+}
+
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -229,6 +293,11 @@ function runAll() {
     testBuildExportPayloadIncluePrixRecettes,
     testValidateImportPayloadPrixRecettesAbsentDonneTableauVide,
     testRoundtripPreservePrixRecettes,
+    testValidateImportPayloadRecipesNonTableau,
+    testValidateImportPayloadSuppliersNonTableau,
+    testValidateImportPayloadErreursCumulees,
+    testValidateImportPayloadTableauAuLieuDObjet,
+    testValidateImportPayloadPrixRecettesPresentMaisNonTableau,
   ];
 
   for (const testFn of tests) {
