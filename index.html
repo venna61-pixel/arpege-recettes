@@ -296,7 +296,8 @@ const {
   normalizeRecipe,
   getRecipeById,
   calculateRecipeTotalCost,
-  getCostStatus
+  getCostStatus,
+  checkLineUnitConvertibility
 } = window.FormulaCostsAndUnits;
 const {
   buildDirectIngredientLine,
@@ -2729,6 +2730,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   {formData.directIngredients.map((ing, idx) => {
                     const linkedIngredient = ingredients.find((i) => Number(i.id) === Number(ing?.ingredientId));
                     const isOrphanIngredient = !linkedIngredient;
+                    const unitWarning = !isOrphanIngredient ? checkLineUnitConvertibility(ing, ingredients) : null;
                     return (
                     <div key={idx} className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
                       {editingDirectIndex === idx ? (
@@ -2746,6 +2748,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                             <div><label className="block text-xs text-gray-600 mb-1">Unité</label><select value={ing.unit} onChange={(e) => updateDirectIngredientLine(idx, { unit: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white">{DISPLAY_UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></div>
                             <div><label className="block text-xs text-gray-600 mb-1">Perte (%)</label><input type="number" step="0.1" min="0" max="99" value={ing.wasteCoeff} onChange={(e) => updateDirectIngredientLine(idx, { wasteCoeff: e.target.value })} className="w-full px-2 py-1 rounded border border-gray-300 bg-white" /></div>
                           </div>
+                          {unitWarning && !unitWarning.valid && (
+                            <div className="mt-2 text-xs text-amber-700 italic">⚠ {unitWarning.message}</div>
+                          )}
                         </>
                       ) : (
                         <div className="flex items-center justify-between">
@@ -2754,6 +2759,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                             <div className="text-xs text-gray-600">{ing.quantity} {ing.unit} • perte {ing.wasteCoeff}%</div>
                             {!isOrphanIngredient && linkedIngredient && linkedIngredient.allergenes == null && (
                               <span className="text-xs text-amber-600 italic">⚠ Allergènes non renseignés</span>
+                            )}
+                            {unitWarning && !unitWarning.valid && (
+                              <div className="text-xs text-amber-700 italic">⚠ {unitWarning.message}</div>
                             )}
                           </div>
                           <div className="flex gap-2">

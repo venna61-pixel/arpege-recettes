@@ -177,6 +177,38 @@
     return baseCost * (converted / Number(effectiveYield.quantity));
   };
 
+  // Entrée: une ligne d'ingrédient saisie au formulaire + catalogue ingrédients.
+  // Sortie: { valid, message } cohérent avec getCostStatus.
+  // valid:false uniquement quand on peut prouver l'incompatibilité (groupes mass/volume/count
+  // différents). On reste silencieux quand on manque d'éléments pour décider — la validation
+  // des champs obligatoires reste l'affaire de validateRecipeDraft.
+  const checkLineUnitConvertibility = (ingredientLine, ingredientsCatalog = null) => {
+    const lineUnit = String(ingredientLine?.unit || "").trim();
+    if (!lineUnit) return { valid: true, message: null };
+
+    const pricing = resolveIngredientPricing(ingredientLine, ingredientsCatalog);
+    const pricingUnit = pricing?.pricingUnit ? String(pricing.pricingUnit).trim() : null;
+    if (!pricingUnit) return { valid: true, message: null };
+
+    if (lineUnit === pricingUnit) return { valid: true, message: null };
+
+    const lineGroup = getUnitGroup(lineUnit);
+    const pricingGroup = getUnitGroup(pricingUnit);
+    if (lineGroup === "unknown" || pricingGroup === "unknown") {
+      return { valid: true, message: null };
+    }
+
+    if (lineGroup !== pricingGroup) {
+      const ingredientLabel = String(ingredientLine?.name || "").trim() || "cet ingrédient";
+      return {
+        valid: false,
+        message: `L'unité « ${lineUnit} » n'est pas convertible vers l'unité d'achat « ${pricingUnit} » de ${ingredientLabel}.`,
+      };
+    }
+
+    return { valid: true, message: null };
+  };
+
   const checkUnitCatalogConsistency = (uiUnits = []) => {
     const uiSet = new Set((uiUnits || []).map((u) => String(u || "").trim()).filter(Boolean));
     const logicSet = new Set(LOGIC_UNITS);
@@ -325,6 +357,7 @@
     getRecipeById,
     calculateRecipeTotalCost,
     getCostStatus,
+    checkLineUnitConvertibility,
     checkUnitCatalogConsistency,
   };
 })(window);

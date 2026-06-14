@@ -17,6 +17,7 @@ const {
   getCostStatus,
   computeTheoreticalYieldFromDirectIngredients,
   resolveEffectiveYield,
+  checkLineUnitConvertibility,
   checkUnitCatalogConsistency,
 } = window.FormulaCostsAndUnits;
 
@@ -421,6 +422,80 @@ function testBaseRecipeIdMismatchFallbackNom() {
   assert.strictEqual(cost, 5);
 }
 
+function testCheckLineUnitConvertibiliteUnitesIdentiques() {
+  const line = { ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg' };
+  const catalog = [{ id: 1, name: 'A', price: 5, unit: 'Kg' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.message, null);
+}
+
+function testCheckLineUnitConvertibiliteMemeGroupe() {
+  const line = { ingredientId: 1, name: 'A', quantity: 200, unit: 'Gramme' };
+  const catalog = [{ id: 1, name: 'A', price: 5, unit: 'Kg' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.message, null);
+}
+
+function testCheckLineUnitConvertibiliteGroupesDifferents() {
+  const line = { ingredientId: 1, name: 'Beurre', quantity: 200, unit: 'Gramme' };
+  const catalog = [{ id: 1, name: 'Beurre', price: 5, unit: 'Litre' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.message.includes('Gramme'));
+  assert.ok(result.message.includes('Litre'));
+  assert.ok(result.message.includes('Beurre'));
+}
+
+function testCheckLineUnitConvertibiliteSansUniteSaisie() {
+  const line = { ingredientId: 1, name: 'A', quantity: 1 };
+  const catalog = [{ id: 1, name: 'A', price: 5, unit: 'Kg' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.message, null);
+}
+
+function testCheckLineUnitConvertibiliteCatalogueSansUniteAchat() {
+  const line = { ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg' };
+  const catalog = [{ id: 1, name: 'A', price: 5, unit: '' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.message, null);
+}
+
+function testCheckLineUnitConvertibiliteFallbackLegacyCompatible() {
+  const line = { ingredientId: 99, name: 'X', quantity: 500, unit: 'Gramme', unitPrice: 'Kg', pricePerUnit: 5 };
+  const result = checkLineUnitConvertibility(line, []);
+  assert.strictEqual(result.valid, true);
+  assert.strictEqual(result.message, null);
+}
+
+function testCheckLineUnitConvertibiliteFallbackLegacyIncompatible() {
+  const line = { ingredientId: 99, name: 'X', quantity: 500, unit: 'Gramme', unitPrice: 'Litre', pricePerUnit: 5 };
+  const result = checkLineUnitConvertibility(line, []);
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.message.includes('Gramme'));
+  assert.ok(result.message.includes('Litre'));
+}
+
+function testCheckLineUnitConvertibiliteUniteInconnueLaissePasser() {
+  // Cas hors périmètre : si l'unité est inconnue du système (ni masse, ni volume, ni count),
+  // on ne peut pas conclure → on reste silencieux et on laisse passer.
+  const line = { ingredientId: 1, name: 'A', quantity: 1, unit: 'UnitéBidon' };
+  const catalog = [{ id: 1, name: 'A', price: 5, unit: 'Kg' }];
+  const result = checkLineUnitConvertibility(line, catalog);
+  assert.strictEqual(result.valid, true);
+}
+
+function testCheckLineUnitConvertibiliteSansCatalogueAvecUnitSeule() {
+  // line.unit seul (pas de unitPrice) → resolvePricingUnit fallback à line.unit
+  // → pricingUnit identique à lineUnit → valid:true.
+  const line = { name: 'X', quantity: 1, unit: 'Kg' };
+  const result = checkLineUnitConvertibility(line);
+  assert.strictEqual(result.valid, true);
+}
+
 function testBaseRecipeIntrouvableRetourneNull() {
   // baseRecipeId inconnu ET nom absent du catalogue → null → N/A
   const finalRecipe = {
@@ -469,6 +544,15 @@ function runAll() {
     testCompatAncienneRecetteSansUsageMode,
     testBaseRecipeIdMismatchFallbackNom,
     testBaseRecipeIntrouvableRetourneNull,
+    testCheckLineUnitConvertibiliteUnitesIdentiques,
+    testCheckLineUnitConvertibiliteMemeGroupe,
+    testCheckLineUnitConvertibiliteGroupesDifferents,
+    testCheckLineUnitConvertibiliteSansUniteSaisie,
+    testCheckLineUnitConvertibiliteCatalogueSansUniteAchat,
+    testCheckLineUnitConvertibiliteFallbackLegacyCompatible,
+    testCheckLineUnitConvertibiliteFallbackLegacyIncompatible,
+    testCheckLineUnitConvertibiliteUniteInconnueLaissePasser,
+    testCheckLineUnitConvertibiliteSansCatalogueAvecUnitSeule,
   ];
 
   for (const testFn of tests) {

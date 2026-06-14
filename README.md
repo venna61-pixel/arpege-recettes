@@ -72,7 +72,7 @@ node tests/run-all.js
 - **Recettes de base** : composition, procédé WYSIWYG, rendement, couverts
 - **Recettes finales** : assemblage de recettes de base + ingrédients directs
 - **Fournisseurs** : gestion de la liste des fournisseurs
-- **Coûts** : calcul automatique avec conversions d'unités et coefficient de perte
+- **Coûts** : calcul automatique avec conversions d'unités et coefficient de perte. Avertissement formulaire quand une unité saisie n'est pas convertible vers l'unité d'achat de l'ingrédient.
 - **Rentabilité** : calculateur de prix de vente (4 méthodes : par coefficient, par marge HT, par marge TTC, par prix TTC décidé), historique des prix, prix actuels par recette, statistiques de coûts
 - **Adaptation** : mise à l'échelle d'une recette selon couverts, budget, quantité ou ingrédient pivot
 - **Allergènes** : détection automatique des 14 allergènes réglementaires européens
@@ -93,7 +93,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | `constants.js` | Unités, catégories, types de recettes |
 | `utils.js` | Formatage des nombres, prix, procédés, titres d'impression |
 | `auth-helpers.js` | Chiffrement SHA-256 des mots de passe, génération et validation des codes de récupération |
-| `costs-and-units.js` | Conversions masse/volume, calcul du coût total d'une recette, statut de coût |
+| `costs-and-units.js` | Conversions masse/volume, calcul du coût total d'une recette, statut de coût, vérification de convertibilité par ligne (avertissement formulaire) |
 | `recipe-builder.js` | Construction d'une ligne ingrédient ou sous-recette |
 | `recipe-filters.js` | Filtres de liste et de recherche |
 | `recipe-submission.js` | Validation du formulaire recette, upsert |

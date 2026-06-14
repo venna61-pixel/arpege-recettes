@@ -7,7 +7,8 @@
   // - validation de références (ingredientId pointe sur un ingrédient existant,
   //   baseRecipeId sur une recette existante) — nécessite le contexte ingrédients/recettes
   // - validation de cohérence d'unités (l'unité saisie doit être convertible vers
-  //   l'unité d'achat) — gérée au calcul de coût via le statut "N/A"
+  //   l'unité d'achat) — signalée au formulaire via FormulaCostsAndUnits.checkLineUnitConvertibility
+  //   (avertissement non bloquant) et confirmée au calcul de coût par getCostStatus
   function validateRecipeDraft(formData) {
     const errors = [];
     const data = formData || {};
