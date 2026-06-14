@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/constants.js");
 
-const { COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode } = global.FormulaConstants;
+const { COUNTRIES, DEFAULT_COUNTRY_CODE, getCountryByCode, MESSAGES } = global.FormulaConstants;
 
 // ─── COUNTRIES ───────────────────────────────────────────────────────────────
 
@@ -85,6 +85,31 @@ function testGetCountryByCodeEstCaseSensible() {
   assert.strictEqual(getCountryByCode("fr"), null, "le code doit être en majuscules");
 }
 
+// ─── MESSAGES ────────────────────────────────────────────────────────────────
+
+function testMessagesEstUnObjet() {
+  assert.ok(MESSAGES && typeof MESSAGES === "object" && !Array.isArray(MESSAGES));
+}
+
+function testMessageImpressionPdfPresent() {
+  assert.ok(typeof MESSAGES.IMPRESSION_PDF_IMPOSSIBLE === "string");
+  assert.ok(MESSAGES.IMPRESSION_PDF_IMPOSSIBLE.length > 0);
+}
+
+function testMessagesRespectentLeStandardPhrase() {
+  // Vérifie qu'aucun message ne dérive du standard documenté dans constants.js :
+  // - non vide
+  // - finit par un point
+  // - pas de majuscule "Désolé"/"Désole" (ton non blâmant)
+  for (const key in MESSAGES) {
+    const msg = MESSAGES[key];
+    assert.strictEqual(typeof msg, "string", `${key} doit être une string`);
+    assert.ok(msg.trim().length > 0, `${key} ne doit pas être vide`);
+    assert.ok(/[.!?]$/.test(msg.trim()), `${key} doit finir par un point/!/?, reçu : "${msg}"`);
+    assert.ok(!/^Désol(é|e)/i.test(msg.trim()), `${key} ne doit pas commencer par "Désolé"`);
+  }
+}
+
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
 function runAll() {
@@ -101,6 +126,9 @@ function runAll() {
     testGetCountryByCodeRetourneNullSiInconnu,
     testGetCountryByCodeRetourneNullSiVide,
     testGetCountryByCodeEstCaseSensible,
+    testMessagesEstUnObjet,
+    testMessageImpressionPdfPresent,
+    testMessagesRespectentLeStandardPhrase,
   ];
 
   for (const testFn of tests) {

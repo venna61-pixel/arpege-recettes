@@ -93,7 +93,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 
 | Module | Rôle |
 |---|---|
-| `constants.js` | Unités, catégories, types de recettes |
+| `constants.js` | Unités, catégories, types de recettes, pays/TVA, messages utilisateur centralisés (`MESSAGES`) |
 | `utils.js` | Formatage des nombres, prix, procédés, titres d'impression |
 | `auth-helpers.js` | Chiffrement SHA-256 des mots de passe, génération et validation des codes de récupération |
 | `costs-and-units.js` | Conversions masse/volume, calcul du coût total d'une recette, statut de coût, vérification de convertibilité par ligne (avertissement formulaire) |

@@ -88,6 +88,25 @@
     return COUNTRIES.find(function (c) { return c.code === code; }) || null;
   }
 
+  // Messages utilisateur : standard maison.
+  //
+  // Toute chaîne affichée à l'utilisateur (alert, setError, avertissement
+  // inline) destinée à être réutilisée à plusieurs endroits passe ici. Un
+  // message unique au monde reste en place — la centralisation a un coût.
+  //
+  // Style :
+  // - Phrase complète, point final.
+  // - Ton direct, pas de "Désolé...", pas de blâme ("vous avez").
+  // - Indiquer l'action attendue quand on la connaît.
+  // - Une ou deux phrases courtes max.
+  //
+  // Limite assumée Phase 1 : les alert() natifs cohabitent encore avec des
+  // affichages inline (setError, ⚠ orange). L'unification UI (toast/modal
+  // custom) est tracée pour Phase 2 — voir plan_formula_arpege_audit_lead_dev.html.
+  var MESSAGES = {
+    IMPRESSION_PDF_IMPOSSIBLE: "Impossible d'ouvrir l'impression PDF. Vérifiez les paramètres de votre navigateur.",
+  };
+
   global.FormulaConstants = {
     LOGO_URL,
     SERVICE_CATEGORIES,
@@ -109,5 +128,6 @@
     getTVARates,
     getDefaultTVARate,
     getCountryByCode,
+    MESSAGES,
   };
 })(typeof window !== "undefined" ? window : global);
