@@ -512,6 +512,104 @@ function testBaseRecipeIntrouvableRetourneNull() {
   assert.strictEqual(cost, null);
 }
 
+function testCostStatusFinalePropageMessageSousRecetteIngredientSansPrix() {
+  // Sous-recette avec un ingrédient sans prix → la recette finale doit nommer
+  // explicitement la sous-recette ET l'ingrédient incriminé, pas se contenter
+  // d'un "Calcul du coût impossible" générique.
+  const baseRecipe = {
+    id: 501,
+    name: 'Sauce hollandaise',
+    recipeType: 'base',
+    directIngredients: [
+      { ingredientId: 1, name: 'Beurre', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: null, wasteCoeff: 0 },
+    ],
+    baseComponents: [],
+    outputQuantity: 1,
+    outputUnit: 'Kg',
+    covers: 1,
+    wasteCoeff: 0,
+  };
+  const finalRecipe = {
+    id: 502,
+    name: 'Asperges sauce hollandaise',
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 501, name: 'Sauce hollandaise', quantity: 100, unit: 'Gramme' }],
+    outputQuantity: 1,
+    outputUnit: 'Portion',
+    covers: 1,
+    wasteCoeff: 0,
+  };
+
+  const status = getCostStatus(finalRecipe, [baseRecipe, finalRecipe]);
+  assert.strictEqual(status.valid, false);
+  assert.ok(status.message.includes('Sauce hollandaise'), `Le message doit nommer la sous-recette, reçu : "${status.message}"`);
+  assert.ok(status.message.includes('Beurre'), `Le message doit nommer l'ingrédient sans prix, reçu : "${status.message}"`);
+  assert.ok(status.message.includes('Prix manquant'), `Le message doit expliquer la cause, reçu : "${status.message}"`);
+}
+
+function testCostStatusPropageSurDeuxNiveauxDeSousRecettes() {
+  // Profondeur : finale → sous-recette → sous-sous-recette avec ingrédient sans prix.
+  // Le message remonté doit chaîner les deux niveaux de sous-recettes pour rester traçable.
+  const subSub = {
+    id: 611,
+    name: 'Fond de veau',
+    recipeType: 'base',
+    directIngredients: [
+      { ingredientId: 1, name: 'Os de veau', quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: null, wasteCoeff: 0 },
+    ],
+    baseComponents: [],
+    outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0,
+  };
+  const middle = {
+    id: 612,
+    name: 'Sauce demi-glace',
+    recipeType: 'base',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 611, name: 'Fond de veau', quantity: 500, unit: 'Gramme' }],
+    outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0,
+  };
+  const finalRecipe = {
+    id: 613,
+    name: 'Filet de bœuf demi-glace',
+    recipeType: 'final',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 612, name: 'Sauce demi-glace', quantity: 50, unit: 'Gramme' }],
+    outputQuantity: 1, outputUnit: 'Portion', covers: 1, wasteCoeff: 0,
+  };
+
+  const status = getCostStatus(finalRecipe, [subSub, middle, finalRecipe]);
+  assert.strictEqual(status.valid, false);
+  assert.ok(status.message.includes('Sauce demi-glace'), `Le message doit nommer le niveau intermédiaire, reçu : "${status.message}"`);
+  assert.ok(status.message.includes('Fond de veau'), `Le message doit nommer la sous-sous-recette, reçu : "${status.message}"`);
+  assert.ok(status.message.includes('Os de veau'), `Le message doit nommer l'ingrédient profond, reçu : "${status.message}"`);
+}
+
+function testCostStatusDetecteCycleEntreRecettes() {
+  // Cycle artificiel : A référence B, B référence A. Sans anti-cycle, la récursion
+  // boucle à l'infini. getCostStatus doit retourner un message lisible.
+  const recipeA = {
+    id: 701,
+    name: 'Recette A',
+    recipeType: 'base',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 702, name: 'Recette B', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0,
+  };
+  const recipeB = {
+    id: 702,
+    name: 'Recette B',
+    recipeType: 'base',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 701, name: 'Recette A', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0,
+  };
+
+  const status = getCostStatus(recipeA, [recipeA, recipeB]);
+  assert.strictEqual(status.valid, false);
+  assert.ok(status.message.includes('Cycle'), `Le message doit annoncer un cycle, reçu : "${status.message}"`);
+}
+
 function runAll() {
   const tests = [
     testConversionCompatible,
@@ -553,6 +651,9 @@ function runAll() {
     testCheckLineUnitConvertibiliteFallbackLegacyIncompatible,
     testCheckLineUnitConvertibiliteUniteInconnueLaissePasser,
     testCheckLineUnitConvertibiliteSansCatalogueAvecUnitSeule,
+    testCostStatusFinalePropageMessageSousRecetteIngredientSansPrix,
+    testCostStatusPropageSurDeuxNiveauxDeSousRecettes,
+    testCostStatusDetecteCycleEntreRecettes,
   ];
 
   for (const testFn of tests) {

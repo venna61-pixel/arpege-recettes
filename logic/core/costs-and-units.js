@@ -290,8 +290,21 @@
     return total * globalWasteFactor;
   };
 
-  const getCostStatus = (recipe, allRecipes, ingredientsCatalog = null) => {
+  // Entrées : recette à diagnostiquer, référentiel complet des recettes, catalogue ingrédients,
+  // visited (anti-cycle, ne pas fournir au premier appel).
+  // Sortie : { valid, message } expliquant pourquoi le coût ne peut pas être calculé.
+  // Pour une recette finale, descend récursivement dans chaque sous-recette de base afin que
+  // l'absence de prix sur un ingrédient profond soit nommée explicitement plutôt que masquée
+  // par un "Calcul du coût impossible" générique. Le message des sous-recettes est préfixé
+  // par le nom de la sous-recette concernée, ce qui reste lisible sur plusieurs niveaux.
+  const getCostStatus = (recipe, allRecipes, ingredientsCatalog = null, visited = new Set()) => {
     const current = normalizeRecipe(recipe);
+    if (visited.has(current.id)) {
+      return { valid: false, message: `Cycle détecté impliquant « ${current.name || "cette recette"} »` };
+    }
+    const nextVisited = new Set(visited);
+    nextVisited.add(current.id);
+
     for (const ing of current.directIngredients) {
       const pricing = resolveIngredientPricing(ing, ingredientsCatalog);
       if (!Number.isFinite(pricing.pricePerUnit) || Number(pricing.pricePerUnit) <= 0) {
@@ -314,6 +327,15 @@
         return { valid: false, message: `Recette de base introuvable : ${component.name}` };
       }
       const normalizedBase = normalizeRecipe(baseRecipe);
+
+      // Vérifier que la sous-recette est intrinsèquement calculable avant de regarder
+      // le joint (rendement, conversion, portions). Le message remonte enrichi.
+      const subStatus = getCostStatus(normalizedBase, allRecipes, ingredientsCatalog, nextVisited);
+      if (!subStatus.valid) {
+        const subLabel = normalizedBase.name || component.name || "sous-recette";
+        return { valid: false, message: `« ${subLabel} » → ${subStatus.message}` };
+      }
+
       const effectiveYield = resolveEffectiveYield(normalizedBase);
       if (!effectiveYield) {
         return { valid: false, message: `Rendement invalide pour ${normalizedBase.name || component.name}` };
