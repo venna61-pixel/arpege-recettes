@@ -21,6 +21,7 @@ const tests = [
   "schema.test.js",
   "rentabilite.test.js",
   "data-status.test.js",
+  "storage-keys.test.js",
 ];
 
 let passed = 0;

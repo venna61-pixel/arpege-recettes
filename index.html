@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="./logic/core/constants.js"></script>
+    <script src="./logic/core/storage-keys.js"></script>
     <script src="./logic/core/utils.js"></script>
     <script src="./models/schema.js"></script>
     <script src="./logic/migration/legacy-to-v1.js"></script>
@@ -94,7 +95,7 @@ class FormulaErrorBoundary extends React.Component {
       "Vous devrez seulement vous reconnecter."
     );
     if (!ok) return;
-    try { window.localStorage.removeItem("arpege_user"); } catch (e) { /* ignore */ }
+    try { window.localStorage.removeItem(STORAGE_KEYS.SESSION.USER); } catch (e) { /* ignore */ }
     window.location.reload();
   };
 
@@ -234,6 +235,10 @@ if (!window.FormulaDataStatus) {
   throw new Error("Module requis manquant: logic/core/data-status.js n'est pas chargé.");
 }
 const { buildDataStatus } = window.FormulaDataStatus;
+if (!window.FormulaStorageKeys) {
+  throw new Error("Module requis manquant: logic/core/storage-keys.js n'est pas chargé.");
+}
+const STORAGE_KEYS = window.FormulaStorageKeys;
 const unitCatalogCheck = window.FormulaCostsAndUnits.checkUnitCatalogConsistency(UNITS);
 if (!unitCatalogCheck.isConsistent) {
   console.warn("[Units] Incohérence entre UNITS (UI) et taxonomie logique", unitCatalogCheck);
@@ -2104,9 +2109,9 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
   const [selectedForExport, setSelectedForExport] = useState(new Set());
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = React.useRef(null);
-  const [sortBy, setSortBy] = useLocalStorage(`arpege_recipes_sortBy_${sectionType}`, "name");
-  const [sortDir, setSortDir] = useLocalStorage(`arpege_recipes_sortDir_${sectionType}`, "asc");
-  const [viewMode, setViewMode] = useLocalStorage(`arpege_recipes_viewMode_${sectionType}`, "grande");
+  const [sortBy, setSortBy] = useLocalStorage(STORAGE_KEYS.PREFS.recipesSortBy(sectionType), "name");
+  const [sortDir, setSortDir] = useLocalStorage(STORAGE_KEYS.PREFS.recipesSortDir(sectionType), "asc");
+  const [viewMode, setViewMode] = useLocalStorage(STORAGE_KEYS.PREFS.recipesViewMode(sectionType), "grande");
   useEffect(() => {
     if (!showExportMenu) return;
     const handleClick = (e) => {
@@ -3994,12 +3999,12 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target.result;
-      window.localStorage.setItem("arpege_restaurant_logo", base64);
+      window.localStorage.setItem(STORAGE_KEYS.CONFIG.RESTAURANT_LOGO, base64);
       onLogoChange(base64);
     };
     reader.readAsDataURL(file);
   };
-  const handleReset = () => { window.localStorage.removeItem("arpege_restaurant_logo"); onLogoChange(null); };
+  const handleReset = () => { window.localStorage.removeItem(STORAGE_KEYS.CONFIG.RESTAURANT_LOGO); onLogoChange(null); };
 
   // --- Nom du restaurant ---
   const [restaurantName, setRestaurantName] = useState(config?.restaurantName || "");
@@ -4272,18 +4277,18 @@ const ParametresView = ({ restaurantLogo, onLogoChange, config, onConfigChange, 
 
 const App = () => {
   const [config, setConfig] = useState(() => getConfig());
-  const [user, setUser] = useLocalStorage("arpege_user", null);
-  const [ingredients, setIngredients] = useLocalStorage("arpege_ingredients", INITIAL_INGREDIENTS);
-  const [recipes, setRecipes] = useLocalStorage("arpege_recipes", INITIAL_RECIPES);
-  const [suppliers, setSuppliers] = useLocalStorage("arpege_suppliers", []);
-  const [prixRecettes, setPrixRecettes] = useLocalStorage("formula_prix_recettes", []);
+  const [user, setUser] = useLocalStorage(STORAGE_KEYS.SESSION.USER, null);
+  const [ingredients, setIngredients] = useLocalStorage(STORAGE_KEYS.DATA.INGREDIENTS, INITIAL_INGREDIENTS);
+  const [recipes, setRecipes] = useLocalStorage(STORAGE_KEYS.DATA.RECIPES, INITIAL_RECIPES);
+  const [suppliers, setSuppliers] = useLocalStorage(STORAGE_KEYS.DATA.SUPPLIERS, []);
+  const [prixRecettes, setPrixRecettes] = useLocalStorage(STORAGE_KEYS.DATA.PRIX_RECETTES, []);
   const [activeTab, setActiveTab] = useState("ingredients");
-  const [restaurantLogo, setRestaurantLogo] = useState(() => window.localStorage.getItem("arpege_restaurant_logo") || null);
+  const [restaurantLogo, setRestaurantLogo] = useState(() => window.localStorage.getItem(STORAGE_KEYS.CONFIG.RESTAURANT_LOGO) || null);
 
   useEffect(() => {
-    if (window.localStorage.getItem("arpege_waste_pct_v2")) return;
+    if (window.localStorage.getItem(STORAGE_KEYS.MIGRATIONS.WASTE_PCT_V2)) return;
     try {
-      const rawRecipes = window.localStorage.getItem("arpege_recipes");
+      const rawRecipes = window.localStorage.getItem(STORAGE_KEYS.DATA.RECIPES);
       if (rawRecipes) {
         const parsed = JSON.parse(rawRecipes);
         const migrated = parsed.map((r) => ({
@@ -4294,10 +4299,10 @@ const App = () => {
             wasteCoeff: Math.round((Number(l.wasteCoeff || 1) - 1) * 100 * 10) / 10,
           })),
         }));
-        window.localStorage.setItem("arpege_recipes", JSON.stringify(migrated));
+        window.localStorage.setItem(STORAGE_KEYS.DATA.RECIPES, JSON.stringify(migrated));
         setRecipes(migrated);
       }
-      window.localStorage.setItem("arpege_waste_pct_v2", "1");
+      window.localStorage.setItem(STORAGE_KEYS.MIGRATIONS.WASTE_PCT_V2, "1");
     } catch (e) {
       console.error("[Migration wasteCoeff] Échec", e);
     }

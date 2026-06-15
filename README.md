@@ -14,6 +14,7 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 ├── logic/
 │   ├── core/                          # Logique métier
 │   │   ├── constants.js               # Constantes partagées (unités, catégories, etc.)
+│   │   ├── storage-keys.js            # Source unique des clés localStorage (DATA, SESSION, CONFIG, SAFETY, MIGRATIONS, V1, FEATURE_FLAGS, PREFS)
 │   │   ├── utils.js                   # Fonctions utilitaires (formatage, impression)
 │   │   ├── auth-helpers.js            # Sécurité (chiffrement mot de passe, codes de récupération)
 │   │   ├── costs-and-units.js         # Conversions d'unités, calcul des coûts
@@ -57,6 +58,7 @@ Application web de gestion de recettes pour restaurant gastronomique. Construite
 │   ├── rentabilite.test.js
 │   ├── safety-backup.test.js
 │   ├── schema.test.js
+│   ├── storage-keys.test.js
 │   └── utils.test.js
 └── logo/
     ├── formula-logo.svg
@@ -96,6 +98,7 @@ Les comptes sont créés lors du premier lancement de l'application (écran de c
 | Module | Rôle |
 |---|---|
 | `constants.js` | Unités, catégories, types de recettes, pays/TVA, messages utilisateur centralisés (`MESSAGES`) |
+| `storage-keys.js` | Source unique des clés `localStorage` regroupées par catégorie : `DATA` (legacy), `SESSION`, `CONFIG`, `SAFETY`, `MIGRATIONS`, `V1`, `FEATURE_FLAGS` |
 | `utils.js` | Formatage des nombres, prix, procédés, titres d'impression |
 | `auth-helpers.js` | Chiffrement SHA-256 des mots de passe, génération et validation des codes de récupération |
 | `costs-and-units.js` | Conversions masse/volume, calcul du coût total d'une recette, statut de coût, vérification de convertibilité par ligne (avertissement formulaire) |
