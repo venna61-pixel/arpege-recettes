@@ -1,9 +1,8 @@
 ﻿(function (global) {
-  const storageApi = global.FormulaVersionedStorage;
-
-  const FEATURE_FLAGS = {
-    READ_V1_ENABLED: "arpege_feature_read_v1_enabled",
-  };
+  if (!global.FormulaStorageKeys) {
+    throw new Error("Module requis: logic/core/storage-keys.js doit être chargé avant logic/migration/parallel-read.js");
+  }
+  const FEATURE_FLAGS = global.FormulaStorageKeys.FEATURE_FLAGS;
 
   const FALLBACK_TYPES = new Set([
     "EMPTY_UNIT_FALLBACK",
@@ -45,22 +44,20 @@
   // Cas null/fallback: JSON invalide -> fallback null par collection (pas d'exception propagée).
   // Limite: "exists" indique seulement la présence de clés, pas leur cohérence métier.
   function readV1Data(storage = global.localStorage) {
-    const keys = storageApi.TARGET_KEYS;
+    const V1 = global.FormulaStorageKeys.V1;
     const data = {
-      fournisseurs: parseJSONSafe(storage.getItem(keys.fournisseurs), null),
-      ingredients: parseJSONSafe(storage.getItem(keys.ingredients), null),
-      recettesBase: parseJSONSafe(storage.getItem(keys.recettesBase), null),
-      platsFinals: parseJSONSafe(storage.getItem(keys.platsFinals), null),
-      lignesRecetteIngredient: parseJSONSafe(storage.getItem(keys.lignesRecetteIngredient), null),
-      lignesPlatSousRecette: parseJSONSafe(storage.getItem(keys.lignesPlatSousRecette), null),
-      lignesPlatIngredientDirect: parseJSONSafe(storage.getItem(keys.lignesPlatIngredientDirect), null),
-      schemaVersion: parseJSONSafe(storage.getItem(keys.schemaVersion), null),
+      fournisseurs: parseJSONSafe(storage.getItem(V1.FOURNISSEURS), null),
+      ingredients: parseJSONSafe(storage.getItem(V1.INGREDIENTS), null),
+      recettesBase: parseJSONSafe(storage.getItem(V1.RECETTES_BASE), null),
+      platsFinals: parseJSONSafe(storage.getItem(V1.PLATS_FINALS), null),
+      lignesRecetteIngredient: parseJSONSafe(storage.getItem(V1.LIGNES_RECETTE_INGREDIENT), null),
+      lignesPlatSousRecette: parseJSONSafe(storage.getItem(V1.LIGNES_PLAT_SOUS_RECETTE), null),
+      lignesPlatIngredientDirect: parseJSONSafe(storage.getItem(V1.LIGNES_PLAT_INGREDIENT_DIRECT), null),
+      schemaVersion: parseJSONSafe(storage.getItem(V1.SCHEMA_VERSION), null),
     };
 
-    const presentKeys = Object.entries(keys)
-      .map(([name, key]) => ({ name, key, present: storage.getItem(key) != null }))
-      .filter((entry) => entry.present)
-      .map((entry) => entry.key);
+    const presentKeys = Object.values(V1)
+      .filter((key) => storage.getItem(key) != null);
 
     return {
       exists: presentKeys.length > 0,
@@ -269,7 +266,6 @@
   }
 
   global.FormulaParallelRead = {
-    FEATURE_FLAGS,
     getFeatureFlags,
     readV1Data,
     buildCrossCheckReport,

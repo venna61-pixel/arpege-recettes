@@ -7,10 +7,11 @@ function loadScript(path) {
   eval(fs.readFileSync(path, "utf8"));
 }
 
+loadScript("logic/core/storage-keys.js");
 loadScript("logic/core/safety-backup.js");
 
+const SAFETY_KEY = window.FormulaStorageKeys.SAFETY.SAFETY_BACKUP;
 const {
-  SAFETY_KEY,
   SAFETY_VERSION,
   createSafetyBackup,
   writeSafetyBackup,
@@ -41,10 +42,6 @@ function sampleSnapshot() {
 }
 
 // ─── Groupe A — Constantes exposées ───────────────────────────────────────────
-
-function testSafetyKeyExpose() {
-  assert.strictEqual(SAFETY_KEY, "arpege_safety_backup");
-}
 
 function testSafetyVersionExpose() {
   assert.strictEqual(typeof SAFETY_VERSION, "number");
@@ -186,7 +183,6 @@ function testClearSafetyBackupNoopSiAbsent() {
 
 function runAll() {
   const tests = [
-    testSafetyKeyExpose,
     testSafetyVersionExpose,
     testCreateSafetyBackupContientVersion,
     testCreateSafetyBackupContientTimestampISO,

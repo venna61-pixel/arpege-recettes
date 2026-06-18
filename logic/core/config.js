@@ -1,5 +1,8 @@
-﻿(function (global) {
-  var CONFIG_KEY = "arpege_restaurant_config";
+(function (global) {
+  if (!global.FormulaStorageKeys) {
+    throw new Error("Module requis: logic/core/storage-keys.js doit être chargé avant logic/core/config.js");
+  }
+  var CONFIG_KEY = global.FormulaStorageKeys.CONFIG.RESTAURANT_CONFIG;
 
   function getConfig() {
     try {
@@ -25,7 +28,6 @@
   }
 
   global.FormulaConfig = {
-    CONFIG_KEY,
     getConfig,
     saveConfig,
     getCurrencySymbol,

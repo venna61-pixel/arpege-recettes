@@ -23,6 +23,7 @@ class MemoryStorage {
   }
 }
 
+loadScript('logic/core/storage-keys.js');
 loadScript('models/schema.js');
 loadScript('logic/migration/legacy-to-v1.js');
 loadScript('logic/migration/report.js');
@@ -162,7 +163,7 @@ function testV1PresenteMaisIncoherente() {
   const storage = new MemoryStorage();
   window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
 
-  storage.setItem(window.FormulaVersionedStorage.TARGET_KEYS.ingredients, JSON.stringify([]));
+  storage.setItem(window.FormulaStorageKeys.V1.INGREDIENTS, JSON.stringify([]));
 
   const v1Data = window.FormulaParallelRead.readV1Data(storage);
   const report = window.FormulaParallelRead.buildCrossCheckReport({ legacyData: legacy, migrationResult, v1Data });
@@ -179,7 +180,7 @@ function testFeatureFlagDesactiveParDefaut() {
 
 function testFeatureFlagActiveSansImpactVisible() {
   const storage = new MemoryStorage({
-    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaStorageKeys.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
   const flags = window.FormulaParallelRead.getFeatureFlags(storage);
   assert.strictEqual(flags.readV1Enabled, true);
@@ -251,11 +252,11 @@ function testCanarySansImpactEcritureExistante() {
   };
   const { migrationResult } = runMigration(legacy);
   const storage = new MemoryStorage({
-    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaStorageKeys.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
   const persistResult = window.FormulaVersionedStorage.persistVersionedData({ migrationResult, storage });
   assert.strictEqual(persistResult.status, 'written');
-  assert.ok(persistResult.writtenKeys.includes(window.FormulaVersionedStorage.TARGET_KEYS.ingredients));
+  assert.ok(persistResult.writtenKeys.includes(window.FormulaStorageKeys.V1.INGREDIENTS));
 }
 
 function testRuntimeSourceLegacyParDefaut() {
@@ -273,15 +274,15 @@ function testRuntimeSourceLegacyParDefaut() {
 
 function testRuntimeCanaryAutorise() {
   const storage = new MemoryStorage({
-    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
-    [window.FormulaVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'V1 Fournisseur' }]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
+    [window.FormulaStorageKeys.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaStorageKeys.V1.FOURNISSEURS]: JSON.stringify([{ nom: 'V1 Fournisseur' }]),
+    [window.FormulaStorageKeys.V1.INGREDIENTS]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.RECETTES_BASE]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.PLATS_FINALS]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_RECETTE_INGREDIENT]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_PLAT_SOUS_RECETTE]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_PLAT_INGREDIENT_DIRECT]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.SCHEMA_VERSION]: JSON.stringify(1),
   });
 
   const runtime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
@@ -297,7 +298,7 @@ function testRuntimeCanaryAutorise() {
 
 function testRuntimeCanaryRefuseEtFallbackAvecRaison() {
   const storage = new MemoryStorage({
-    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaStorageKeys.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
   });
   const runtime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({
     legacyIngredients: [{ supplier: 'Primeur' }],
@@ -313,8 +314,8 @@ function testRuntimeCanaryRefuseEtFallbackAvecRaison() {
 
 function testReadLegacyDataJSONCorrompuRetourneSafeEmpty() {
   const storage = new MemoryStorage({
-    [window.FormulaVersionedStorage.LEGACY_KEYS.ingredients]: '{bad-json',
-    [window.FormulaVersionedStorage.LEGACY_KEYS.recipes]: 'not-json',
+    [window.FormulaStorageKeys.DATA.INGREDIENTS]: '{bad-json',
+    [window.FormulaStorageKeys.DATA.RECIPES]: 'not-json',
   });
 
   const legacy = window.FormulaVersionedStorage.readLegacyData(storage);
@@ -325,7 +326,7 @@ function testReadLegacyDataJSONCorrompuRetourneSafeEmpty() {
 
 function testReadV1DataJSONCorrompuNeCrashPas() {
   const storage = new MemoryStorage({
-    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: '{bad-json',
+    [window.FormulaStorageKeys.V1.INGREDIENTS]: '{bad-json',
   });
 
   const v1 = window.FormulaParallelRead.readV1Data(storage);
@@ -432,15 +433,15 @@ function testFournisseursLegacyStringVsObjetModerne() {
   ];
 
   const storage = new MemoryStorage({
-    [window.FormulaParallelRead.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
-    [window.FormulaVersionedStorage.TARGET_KEYS.fournisseurs]: JSON.stringify([{ nom: 'Fournisseur V1' }]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.ingredients]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.recettesBase]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.platsFinals]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesRecetteIngredient]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatSousRecette]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.lignesPlatIngredientDirect]: JSON.stringify([]),
-    [window.FormulaVersionedStorage.TARGET_KEYS.schemaVersion]: JSON.stringify(1),
+    [window.FormulaStorageKeys.FEATURE_FLAGS.READ_V1_ENABLED]: 'true',
+    [window.FormulaStorageKeys.V1.FOURNISSEURS]: JSON.stringify([{ nom: 'Fournisseur V1' }]),
+    [window.FormulaStorageKeys.V1.INGREDIENTS]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.RECETTES_BASE]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.PLATS_FINALS]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_RECETTE_INGREDIENT]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_PLAT_SOUS_RECETTE]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.LIGNES_PLAT_INGREDIENT_DIRECT]: JSON.stringify([]),
+    [window.FormulaStorageKeys.V1.SCHEMA_VERSION]: JSON.stringify(1),
   });
 
   const legacyRuntime = window.FormulaRuntimeDataSource.resolveDataSourcesRuntime({

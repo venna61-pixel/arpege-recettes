@@ -11,7 +11,10 @@
 //   import/fusion) ni du logo (idem) ni de l'utilisateur connecté.
 
 (function (global) {
-  var SAFETY_KEY = "arpege_safety_backup";
+  if (!global.FormulaStorageKeys) {
+    throw new Error("Module requis: logic/core/storage-keys.js doit être chargé avant logic/core/safety-backup.js");
+  }
+  var SAFETY_KEY = global.FormulaStorageKeys.SAFETY.SAFETY_BACKUP;
   var SAFETY_VERSION = 1;
 
   function createSafetyBackup(snapshot, source) {
@@ -54,7 +57,6 @@
   }
 
   global.FormulaSafetyBackup = {
-    SAFETY_KEY: SAFETY_KEY,
     SAFETY_VERSION: SAFETY_VERSION,
     createSafetyBackup: createSafetyBackup,
     writeSafetyBackup: writeSafetyBackup,

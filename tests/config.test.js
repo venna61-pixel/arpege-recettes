@@ -19,9 +19,11 @@ function loadScript(path) {
   eval(fs.readFileSync(path, "utf8"));
 }
 
+loadScript("logic/core/storage-keys.js");
 loadScript("logic/core/config.js");
 
-const { CONFIG_KEY, getConfig, saveConfig, getCurrencySymbol, getCountryCode } = global.FormulaConfig;
+const CONFIG_KEY = global.FormulaStorageKeys.CONFIG.RESTAURANT_CONFIG;
+const { getConfig, saveConfig, getCurrencySymbol, getCountryCode } = global.FormulaConfig;
 
 // ─── getConfig ───────────────────────────────────────────────────────────────
 

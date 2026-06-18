@@ -1,19 +1,9 @@
-﻿(function (global) {
-  const TARGET_KEYS = {
-    fournisseurs: "arpege_v1_fournisseurs",
-    ingredients: "arpege_v1_ingredients",
-    recettesBase: "arpege_v1_recettes_base",
-    platsFinals: "arpege_v1_plats_finals",
-    lignesRecetteIngredient: "arpege_v1_lignes_recette_ingredient",
-    lignesPlatSousRecette: "arpege_v1_lignes_plat_sous_recette",
-    lignesPlatIngredientDirect: "arpege_v1_lignes_plat_ingredient_direct",
-    schemaVersion: "arpege_schema_version",
-  };
-
-  const LEGACY_KEYS = {
-    ingredients: "arpege_ingredients",
-    recipes: "arpege_recipes",
-  };
+(function (global) {
+  if (!global.FormulaStorageKeys) {
+    throw new Error("Module requis: logic/core/storage-keys.js doit être chargé avant logic/migration/versioned-storage.js");
+  }
+  const V1 = global.FormulaStorageKeys.V1;
+  const DATA = global.FormulaStorageKeys.DATA;
 
   const BLOCKING_WARNING_TYPES = new Set([
     "MISSING_INGREDIENT_REFERENCE",
@@ -22,8 +12,8 @@
 
   function readLegacyData(storage) {
     try {
-      const rawIngredients = storage.getItem(LEGACY_KEYS.ingredients);
-      const rawRecipes = storage.getItem(LEGACY_KEYS.recipes);
+      const rawIngredients = storage.getItem(DATA.INGREDIENTS);
+      const rawRecipes = storage.getItem(DATA.RECIPES);
       return {
         ingredients: rawIngredients ? JSON.parse(rawIngredients) : [],
         recipes: rawRecipes ? JSON.parse(rawRecipes) : [],
@@ -55,14 +45,14 @@
 
   function buildPayload(migrationResult) {
     return {
-      [TARGET_KEYS.fournisseurs]: migrationResult.fournisseurs || [],
-      [TARGET_KEYS.ingredients]: migrationResult.ingredients || [],
-      [TARGET_KEYS.recettesBase]: migrationResult.recettesBase || [],
-      [TARGET_KEYS.platsFinals]: migrationResult.platsFinals || [],
-      [TARGET_KEYS.lignesRecetteIngredient]: migrationResult.lignesRecetteIngredient || [],
-      [TARGET_KEYS.lignesPlatSousRecette]: migrationResult.lignesPlatSousRecette || [],
-      [TARGET_KEYS.lignesPlatIngredientDirect]: migrationResult.lignesPlatIngredientDirect || [],
-      [TARGET_KEYS.schemaVersion]: migrationResult.schemaVersion || 1,
+      [V1.FOURNISSEURS]: migrationResult.fournisseurs || [],
+      [V1.INGREDIENTS]: migrationResult.ingredients || [],
+      [V1.RECETTES_BASE]: migrationResult.recettesBase || [],
+      [V1.PLATS_FINALS]: migrationResult.platsFinals || [],
+      [V1.LIGNES_RECETTE_INGREDIENT]: migrationResult.lignesRecetteIngredient || [],
+      [V1.LIGNES_PLAT_SOUS_RECETTE]: migrationResult.lignesPlatSousRecette || [],
+      [V1.LIGNES_PLAT_INGREDIENT_DIRECT]: migrationResult.lignesPlatIngredientDirect || [],
+      [V1.SCHEMA_VERSION]: migrationResult.schemaVersion || 1,
     };
   }
 
@@ -134,8 +124,6 @@
   }
 
   global.FormulaVersionedStorage = {
-    TARGET_KEYS,
-    LEGACY_KEYS,
     BLOCKING_WARNING_TYPES,
     readLegacyData,
     buildWriteDecision,
