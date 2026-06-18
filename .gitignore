@@ -5,3 +5,7 @@ plan-*.html
 # Sources de données et notes externes — gardées en local hors du repo
 Base Ingredients Cuisine Francaise.xlsx
 evaluation app chat.docx
+
+# Configuration Claude Code — locale à chaque poste, ne jamais commiter
+.claude/settings.json
+.claude/settings.local.json
