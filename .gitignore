@@ -2,6 +2,9 @@
 plan_*.html
 plan-*.html
 
+# Archives locales des anciennes versions (plans, docs remplacés) — ne jamais commiter
+_archive_*
+
 # Sources de données et notes externes — gardées en local hors du repo
 Base Ingredients Cuisine Francaise.xlsx
 evaluation app chat.docx
