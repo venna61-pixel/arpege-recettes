@@ -1343,6 +1343,36 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
   const handlePrintProductionSheet = () => {
     const printTitle = sanitizePrintTitle(normalized.name, "Fiche complète");
 
+    // Section "Ingredients propres" : ce qui appartient en propre a la recette
+    // qu'on imprime (par opposition aux ingredients herites des sous-recettes,
+    // affiches plus bas dans leurs blocs). Omise si aucun ingredient direct.
+    const directIngredientsRows = normalized.directIngredients.map((ing) => {
+      const ingredientCost = isChef ? calculateIngredientCost(ing, ingredients) : null;
+      return `
+        <tr>
+          <td>${escapeHtml(ing.name)}</td>
+          <td>${escapeHtml(ing.quantity)} ${escapeHtml(ing.unit)}</td>
+          ${isChef ? `<td style="text-align:right;">${ingredientCost == null ? "N/A" : `${ingredientCost.toFixed(2)}${currencySymbol}`}</td>` : ""}
+        </tr>
+      `;
+    }).join("");
+
+    const directIngredientsSection = normalized.directIngredients.length === 0 ? "" : `
+      <section>
+        <h2>Ingrédients propres à « ${escapeHtml(normalized.name)} »</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Ingrédient</th>
+              <th>Quantité</th>
+              ${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>${directIngredientsRows}</tbody>
+        </table>
+      </section>
+    `;
+
     const baseBlocks = normalized.baseComponents.length === 0
       ? `<p style="color:var(--gray-500);font-style:italic;">Aucune sous-recette liée.</p>`
       : normalized.baseComponents.map((component, idx) => {
@@ -1464,6 +1494,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
         <body>
           <h1>${escapeHtml(normalized.name)}</h1>
           <p class="meta"><strong>${normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</strong> • <strong>Couverts :</strong> ${escapeHtml(normalized.covers)}${normalized.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}` : ""}</p>
+          ${directIngredientsSection}
           ${baseBlocks}
           <section class="subrecipe-block">
             <h2>${normalized.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2>
@@ -1833,6 +1864,35 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef, cur
   const handlePrintAdaptedProductionSheet = () => {
     const printTitle = sanitizePrintTitle(adaptedRecipe.name, "Fiche complète adaptée");
 
+    // Section "Ingredients propres adaptes" : meme principe que la version non
+    // adaptee, mais quantites multipliees par le coefficient d'adaptation.
+    const adaptedDirectIngredientsRows = adaptedDirectIngredients.map((ing) => {
+      const adaptedLineCost = isChef ? calculateIngredientCost({ ...ing, quantity: ing.adaptedQuantity }, ingredients) : null;
+      return `
+        <tr>
+          <td>${escapeHtml(ing.name)}</td>
+          <td>${Number(ing.adaptedQuantity || 0).toFixed(2)} ${escapeHtml(ing.unit)}</td>
+          ${isChef ? `<td style="text-align:right;">${adaptedLineCost == null ? "N/A" : `${adaptedLineCost.toFixed(2)}${currencySymbol}`}</td>` : ""}
+        </tr>
+      `;
+    }).join("");
+
+    const adaptedDirectIngredientsSection = adaptedDirectIngredients.length === 0 ? "" : `
+      <section>
+        <h2>Ingrédients propres à « ${escapeHtml(adaptedRecipe.name)} » (adaptés)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Ingrédient</th>
+              <th>Quantité adaptée</th>
+              ${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>${adaptedDirectIngredientsRows}</tbody>
+        </table>
+      </section>
+    `;
+
     const baseBlocks = adaptedBaseComponents.length === 0
       ? `<p style="color:var(--gray-500);font-style:italic;">Aucune sous-recette liée.</p>`
       : adaptedBaseComponents.map((component, idx) => {
@@ -1960,6 +2020,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef, cur
           <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
           <p class="meta"><strong>${adaptedRecipe.recipeType === "base" ? "Recette de base" : "Recette finale"}</strong> • <strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}${adaptedRecipe.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}` : ""}</p>
           ${(() => { const { allergens: a, hasIncomplete: inc } = computeRecipeAllergeneSummary(normalized, ingredients, recipes); return `<section class="subrecipe-block"><h2>Allergènes</h2>${a.length > 0 ? `<p style="color:var(--alert-danger-text);font-weight:600;">${escapeHtml(a.join(" · "))}</p>` : `<p style="color:var(--alert-success-text);font-weight:600;">Aucun allergène</p>`}${inc ? `<p style="color:var(--alert-warning-muted);font-size:13px;font-style:italic;">⚠ La liste peut être incomplète</p>` : ""}</section>`; })()}
+          ${adaptedDirectIngredientsSection}
           ${baseBlocks}
           <section class="subrecipe-block">
             <h2>${adaptedRecipe.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2>
@@ -2473,8 +2534,8 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           <h1>${esc(r.name)}</h1>
           <p class="meta"><strong>Recette de base</strong> • <strong>Couverts :</strong> ${esc(r.covers)} • <strong>Rendement :</strong> ${esc(r.outputQuantity)} ${esc(r.outputUnit)}</p>
           <div class="badges">${r.categories.map(cat => `<span class="badge">${esc(cat)}</span>`).join("")}</div>
-          <section><h2>Ingrédients (${r.directIngredients.length})</h2>
-            <table><thead><tr><th>Ingrédient</th><th>Quantité</th>${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}</tr></thead><tbody>${directRows}</tbody></table></section>
+          ${r.directIngredients.length > 0 ? `<section><h2>Ingrédients propres à « ${esc(r.name)} »</h2>
+            <table><thead><tr><th>Ingrédient</th><th>Quantité</th>${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}</tr></thead><tbody>${directRows}</tbody></table></section>` : ""}
           ${subrecipeBlocks ? `<section><h2>Sous-recettes utilisées (${r.baseComponents.length})</h2>${subrecipeBlocks}</section>` : ""}
           <section><h2>Procédé</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
           ${allergenesHtml}
@@ -2505,7 +2566,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           <h1>${esc(r.name)}</h1>
           <p class="meta"><strong>Recette finale</strong> • <strong>Couverts :</strong> ${esc(r.covers)}</p>
           <div class="badges">${r.categories.map(cat => `<span class="badge">${esc(cat)}</span>`).join("")}</div>
-          ${r.directIngredients.length > 0 ? `<section><h2>Ingrédients directs (${r.directIngredients.length})</h2>
+          ${r.directIngredients.length > 0 ? `<section><h2>Ingrédients propres à « ${esc(r.name)} »</h2>
             <table><thead><tr><th>Ingrédient</th><th>Quantité</th>${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}</tr></thead><tbody>${directRows}</tbody></table></section>` : ""}
           ${subrecipeBlocks}
           <section class="subrecipe-block"><h2>${r.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
