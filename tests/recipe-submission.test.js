@@ -9,7 +9,7 @@ function loadScript(path) {
 
 loadScript("logic/core/recipe-submission.js");
 
-const { validateRecipeDraft, buildRecipePayload, upsertRecipe } = window.FormulaRecipeSubmission;
+const { validateRecipeDraft, detectBaseComponentCycle, buildRecipePayload, upsertRecipe } = window.FormulaRecipeSubmission;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -359,6 +359,149 @@ function testBaseComponentPortionModeIgnoreQuantityEtUnit() {
   assert.strictEqual(result.valid, true);
 }
 
+// ─── Groupe L — Imbrication : recette de base avec sous-recettes ──────────────
+// Depuis 2026-06-26, une recette de base peut être composée uniquement de
+// sous-recettes (cas pâtissier : biscuit composé d'un insert + un sirop, sans
+// ingrédient direct). Avant, ce cas était rejeté par la validation.
+
+function testBaseAvecUniquementBaseComponentsValide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, quantity: 200, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+}
+
+function testBaseAvecBaseComponentsEnPortionValide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 1, usageMode: "portion", portionCount: 2 }],
+  });
+  assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+}
+
+function testBaseAvecIngredientEtSousRecetteValide() {
+  const result = validateRecipeDraft({
+    ...validBaseRecipe(),
+    directIngredients: [{ ingredientId: 1, quantity: 100, unit: "Gramme" }],
+    baseComponents: [{ baseRecipeId: 2, quantity: 50, unit: "Gramme" }],
+  });
+  assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+}
+
+// ─── Groupe M — Détection de cycle dans les sous-recettes ─────────────────────
+// L'anti-cycle n'est appliqué que si options.allRecipes + options.editingId
+// sont fournis. Sans contexte, la validation reste structurelle (rétro-compat).
+
+function makeRecipeNode(id, name, baseComponents) {
+  return {
+    id,
+    name,
+    recipeType: "base",
+    categories: ["X"],
+    outputQuantity: 1,
+    outputUnit: "Kg",
+    directIngredients: [],
+    baseComponents: baseComponents || [],
+  };
+}
+
+function testCycleDirectAReverseDansSesPropresSousRecettes() {
+  // Édition de A (id=10). Le formulaire ajoute A comme sa propre sous-recette.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 10, name: "A", quantity: 100, unit: "Gramme" }],
+  };
+  const allRecipes = [makeRecipeNode(10, "A", [])];
+  const result = validateRecipeDraft(formData, { allRecipes, editingId: 10 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents"));
+}
+
+function testCycleIndirectABA() {
+  // A (id=10) veut ajouter B (id=20). Or B contient déjà A. Cycle A→B→A.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 20, name: "B", quantity: 100, unit: "Gramme" }],
+  };
+  const allRecipes = [
+    makeRecipeNode(10, "A", []), // ancienne version de A (sans encore B)
+    makeRecipeNode(20, "B", [{ baseRecipeId: 10, name: "A" }]), // B contient A
+  ];
+  const result = validateRecipeDraft(formData, { allRecipes, editingId: 10 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents"));
+}
+
+function testCycleProfondABCA() {
+  // A→B→C→A : cycle à 3 niveaux d'imbrication.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 20, name: "B", quantity: 100, unit: "Gramme" }],
+  };
+  const allRecipes = [
+    makeRecipeNode(10, "A", []),
+    makeRecipeNode(20, "B", [{ baseRecipeId: 30, name: "C" }]),
+    makeRecipeNode(30, "C", [{ baseRecipeId: 10, name: "A" }]),
+  ];
+  const result = validateRecipeDraft(formData, { allRecipes, editingId: 10 });
+  assert.strictEqual(result.valid, false);
+  assert.ok(hasError(result.errors, "baseComponents"));
+}
+
+function testPasDeCycleQuandSousRecetteIndependante() {
+  // A veut ajouter B. B contient C, C ne pointe vers personne. Pas de cycle.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 20, name: "B", quantity: 100, unit: "Gramme" }],
+  };
+  const allRecipes = [
+    makeRecipeNode(10, "A", []),
+    makeRecipeNode(20, "B", [{ baseRecipeId: 30, name: "C" }]),
+    makeRecipeNode(30, "C", []),
+  ];
+  const result = validateRecipeDraft(formData, { allRecipes, editingId: 10 });
+  assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+}
+
+function testSansAllRecipesPasDeDetectionCycle() {
+  // Rétro-compatibilité : sans options.allRecipes, on ne lève pas d'erreur cycle
+  // même si le formData en contiendrait un. La détection est opt-in.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 10, name: "A", quantity: 100, unit: "Gramme" }],
+  };
+  const result = validateRecipeDraft(formData); // pas d'options
+  assert.strictEqual(result.valid, true);
+}
+
+function testSansEditingIdPasDeDetectionCycle() {
+  // Création (editingId null) : pas de cycle possible vers une recette qui n'existe pas encore.
+  const formData = {
+    ...validBaseRecipe(),
+    baseComponents: [{ baseRecipeId: 20, name: "B", quantity: 100, unit: "Gramme" }],
+  };
+  const allRecipes = [makeRecipeNode(20, "B", [])];
+  const result = validateRecipeDraft(formData, { allRecipes, editingId: null });
+  assert.strictEqual(result.valid, true);
+}
+
+function testDetectBaseComponentCycleAPIDirecte() {
+  // Test direct de la fonction exposée — utile pour l'UI qui pourrait l'appeler
+  // au moment de l'ajout d'une sous-recette (avant la soumission).
+  const allRecipes = [
+    makeRecipeNode(10, "A", []),
+    makeRecipeNode(20, "B", [{ baseRecipeId: 10, name: "A" }]),
+  ];
+  const cycle = detectBaseComponentCycle(10, [{ baseRecipeId: 20, name: "B" }], allRecipes);
+  assert.ok(cycle && cycle.baseRecipeId === 20);
+
+  const noCycle = detectBaseComponentCycle(10, [{ baseRecipeId: 30, name: "C" }], allRecipes);
+  assert.strictEqual(noCycle, null);
+}
+
 // ─── Groupe K — Validation cumulée et messages ────────────────────────────────
 
 function testFormulaireVideAccumuleErreurs() {
@@ -499,6 +642,18 @@ function runAll() {
     testBaseComponentPortionModePortionCountZeroInvalide,
     testBaseComponentPortionModeValide,
     testBaseComponentPortionModeIgnoreQuantityEtUnit,
+    // Imbrication (nouveau)
+    testBaseAvecUniquementBaseComponentsValide,
+    testBaseAvecBaseComponentsEnPortionValide,
+    testBaseAvecIngredientEtSousRecetteValide,
+    // Anti-cycle (nouveau)
+    testCycleDirectAReverseDansSesPropresSousRecettes,
+    testCycleIndirectABA,
+    testCycleProfondABCA,
+    testPasDeCycleQuandSousRecetteIndependante,
+    testSansAllRecipesPasDeDetectionCycle,
+    testSansEditingIdPasDeDetectionCycle,
+    testDetectBaseComponentCycleAPIDirecte,
     // Cumul
     testFormulaireVideAccumuleErreurs,
     testTousLesMessagesEnFrancais,

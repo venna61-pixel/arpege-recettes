@@ -4,14 +4,23 @@
   // une saisie "corriger une erreur → soumettre → erreur suivante → corriger → etc.".
   //
   // Volontairement hors périmètre (déléguer à d'autres couches) :
-  // - validation de références (ingredientId pointe sur un ingrédient existant,
-  //   baseRecipeId sur une recette existante) — nécessite le contexte ingrédients/recettes
+  // - validation de référence d'ingrédients (ingredientId pointe sur un ingrédient
+  //   existant) — nécessite le catalogue ingrédients
   // - validation de cohérence d'unités (l'unité saisie doit être convertible vers
   //   l'unité d'achat) — signalée au formulaire via FormulaCostsAndUnits.checkLineUnitConvertibility
   //   (avertissement non bloquant) et confirmée au calcul de coût par getCostStatus
-  function validateRecipeDraft(formData) {
+  //
+  // Param options (tous optionnels — rétro-compatibilité préservée) :
+  //   - allRecipes : référentiel complet des recettes pour la détection de cycle.
+  //                  Sans lui, la validation reste structurelle (signature historique).
+  //   - editingId  : id de la recette en cours d'édition (null pour une création).
+  //                  Indispensable pour détecter un cycle vers la recette éditée.
+  function validateRecipeDraft(formData, options) {
     const errors = [];
     const data = formData || {};
+    const opts = options || {};
+    const allRecipes = Array.isArray(opts.allRecipes) ? opts.allRecipes : null;
+    const editingId = opts.editingId == null ? null : Number(opts.editingId);
 
     // ─── Champs racine ──────────────────────────────────────────────────────
     const recipeType = data.recipeType;
@@ -58,11 +67,14 @@
     }
 
     // ─── Au moins un composant (ingrédient direct ou sous-recette) ──────────
+    // Règle uniforme depuis 2026-06-26 : toute recette (base ou finale) doit avoir
+    // au moins un composant. Avant, les recettes de base devaient obligatoirement
+    // avoir des ingrédients directs — limitation levée pour permettre l'imbrication
+    // (ex. biscuit composé d'un insert pistache + un sirop, sans ingrédient direct).
     const hasDirectIngredients = Array.isArray(data.directIngredients) && data.directIngredients.length > 0;
     const hasBaseComponents = Array.isArray(data.baseComponents) && data.baseComponents.length > 0;
-    const isFinalRecipe = recipeType === "final";
 
-    if (!hasDirectIngredients && (!isFinalRecipe || !hasBaseComponents)) {
+    if (!hasDirectIngredients && !hasBaseComponents) {
       errors.push({ field: "components", message: "Ajoute au moins un ingrédient ou une recette de base." });
     }
 
@@ -130,7 +142,73 @@
       });
     }
 
+    // ─── Détection de cycle dans les sous-recettes ──────────────────────────
+    // Seulement si on a reçu allRecipes + editingId (création d'une recette
+    // n'a pas d'id donc pas de cycle possible vers elle-même).
+    if (allRecipes && editingId != null && Array.isArray(data.baseComponents)) {
+      const cycle = detectBaseComponentCycle(editingId, data.baseComponents, allRecipes);
+      if (cycle) {
+        errors.push({
+          field: "baseComponents",
+          message: `Cycle détecté : la sous-recette « ${cycle.name || "?"} » contient déjà cette recette (directement ou via une autre sous-recette).`,
+        });
+      }
+    }
+
     return { valid: errors.length === 0, errors };
+  }
+
+  // ─── Détection de cycle ───────────────────────────────────────────────────
+  // Retourne le baseComponent fautif ({ baseRecipeId, name }) si la recette
+  // éditée est atteinte transitivement, sinon null. Le `visited` Set assure
+  // une terminaison même si le référentiel `allRecipes` contient déjà un
+  // cycle (cas d'un import de données corrompues).
+
+  // Vrai si en suivant les baseComponents depuis currentId on retombe sur targetId.
+  // Le visited Set empêche une boucle infinie si le référentiel contient déjà
+  // un cycle non relié à targetId (cas d'un import de données corrompues).
+  // Important : on vérifie l'égalité AVANT le visited.has — sans ça, si target
+  // est revisité on retournerait false alors qu'on tient justement le cycle.
+  function reachesRecipeId(currentId, targetId, allRecipes, visited) {
+    const cur = Number(currentId);
+    const tgt = Number(targetId);
+    if (!Number.isFinite(cur) || !Number.isFinite(tgt)) return false;
+    if (cur === tgt) return true;
+    if (visited.has(cur)) return false;
+    visited.add(cur);
+
+    const recipe = allRecipes.find((r) => Number(r?.id) === cur);
+    if (!recipe) return false;
+
+    const subs = Array.isArray(recipe.baseComponents) ? recipe.baseComponents : [];
+    for (const sub of subs) {
+      const subId = Number(sub?.baseRecipeId);
+      if (!Number.isFinite(subId)) continue;
+      if (reachesRecipeId(subId, tgt, allRecipes, visited)) return true;
+    }
+    return false;
+  }
+
+  function detectBaseComponentCycle(editingId, baseComponents, allRecipes) {
+    const target = Number(editingId);
+    if (!Number.isFinite(target)) return null;
+    if (!Array.isArray(baseComponents) || baseComponents.length === 0) return null;
+    if (!Array.isArray(allRecipes)) return null;
+
+    for (const component of baseComponents) {
+      const subId = Number(component?.baseRecipeId);
+      if (!Number.isFinite(subId)) continue;
+      // Cycle direct : on essaie d'inclure la recette éditée comme sa propre sous-recette.
+      if (subId === target) {
+        return { baseRecipeId: subId, name: component.name || "" };
+      }
+      // Cycle indirect : on descend dans la sous-recette et on cherche target.
+      const visited = new Set();
+      if (reachesRecipeId(subId, target, allRecipes, visited)) {
+        return { baseRecipeId: subId, name: component.name || "" };
+      }
+    }
+    return null;
   }
 
   function buildRecipePayload(formData, normalizeRecipe) {
@@ -147,6 +225,7 @@
 
   global.FormulaRecipeSubmission = {
     validateRecipeDraft,
+    detectBaseComponentCycle,
     buildRecipePayload,
     upsertRecipe,
   };

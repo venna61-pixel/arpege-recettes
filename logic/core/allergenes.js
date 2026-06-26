@@ -253,8 +253,13 @@
   }
 
   // Calcule le résumé complet des allergènes d'une recette.
-  // Parcourt les ingrédients directs ET les ingrédients des recettes de base utilisées.
+  // Parcourt les ingrédients directs ET, RÉCURSIVEMENT, les ingrédients des
+  // sous-recettes (N niveaux d'imbrication depuis 2026-06-26).
   // Priorité : allergènes saisis manuellement sur l'ingrédient > détection automatique par nom.
+  // Le champ `fromBaseRecipe` du rapport `incompleteIngredients` désigne la
+  // sous-recette immédiate qui apporte l'ingrédient (pas le chemin complet).
+  // Protection anti-cycle : un visited Set sur les ids déjà parcourus empêche
+  // une boucle infinie si le référentiel contient un cycle (import corrompu).
   // Retourne : { allergens, hasIncomplete, incompleteIngredients }
   function computeRecipeAllergeneSummary(recipe, allIngredients, allRecipes) {
     if (allRecipes === undefined) allRecipes = [];
@@ -289,14 +294,28 @@
       }
     }
 
-    (recipe.directIngredients || []).forEach(function (line) { processLine(line, null); });
-
-    (recipe.baseComponents || []).forEach(function (comp) {
-      var base = allRecipes.find(function (r) { return Number(r.id) === Number(comp.baseRecipeId); });
-      if (base) {
-        (base.directIngredients || []).forEach(function (line) { processLine(line, base.name); });
+    // Parcourt les ingrédients directs d'une recette puis descend dans ses
+    // sous-recettes. sourceLabel = null pour la racine, sinon le nom de la
+    // sous-recette immédiatement responsable de la ligne.
+    function visitRecipe(currentRecipe, sourceLabel, visited) {
+      if (!currentRecipe) return;
+      var id = Number(currentRecipe.id);
+      if (Number.isFinite(id)) {
+        if (visited.has(id)) return;
+        visited.add(id);
       }
-    });
+      (currentRecipe.directIngredients || []).forEach(function (line) {
+        processLine(line, sourceLabel);
+      });
+      (currentRecipe.baseComponents || []).forEach(function (comp) {
+        var sub = allRecipes.find(function (r) { return Number(r.id) === Number(comp.baseRecipeId); });
+        if (sub) visitRecipe(sub, sub.name, visited);
+      });
+    }
+
+    if (recipe) {
+      visitRecipe(recipe, null, new Set());
+    }
 
     return {
       allergens: Array.from(allergenSet).sort(),

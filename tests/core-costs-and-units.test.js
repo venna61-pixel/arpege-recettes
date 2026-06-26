@@ -422,6 +422,58 @@ function testBaseRecipeIdMismatchFallbackNom() {
   assert.strictEqual(cost, 5);
 }
 
+// ─── Imbrication récursive (depuis 2026-06-26) ────────────────────────────────
+// Verrouille le fait que calculateRecipeTotalCost descend dans N niveaux de
+// sous-recettes (recette de base composée d'une autre recette de base, etc.).
+
+function testCoutRecetteBaseImbrickee() {
+  // Innermost : 1 Kg d'ingrédient à 10 €/Kg → coût 10 €, rendement 2 Kg → 5 €/Kg
+  const innermost = {
+    id: 301,
+    name: 'Insert pistache',
+    recipeType: 'base',
+    directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }],
+    baseComponents: [],
+    outputQuantity: 2,
+    outputUnit: 'Kg',
+    covers: 2,
+    wasteCoeff: 0,
+  };
+  // Middle : recette de base composée d'1 Kg de l'innermost → consomme tout (coût 5 € pour 1 Kg)
+  const middle = {
+    id: 302,
+    name: 'Biscuit pistache',
+    recipeType: 'base',
+    directIngredients: [],
+    baseComponents: [{ baseRecipeId: 301, name: 'Insert pistache', quantity: 1, unit: 'Kg' }],
+    outputQuantity: 1,
+    outputUnit: 'Kg',
+    covers: 1,
+    wasteCoeff: 0,
+  };
+  // Cas que Vanessa décrit : recette de base qui n'a QUE des sous-recettes.
+  const cost = calculateRecipeTotalCost(middle, [innermost, middle]);
+  assert.strictEqual(cost, 5, '1 Kg de middle coûte 5 € (puisque innermost rend 2 Kg à 10 €, soit 5 €/Kg)');
+}
+
+function testCoutTriplementImbrickee() {
+  // A (innermost) → coût 10 € pour 1 Kg ; rendement 1 Kg → 10 €/Kg
+  // B utilise 1 Kg de A → coût 10 € pour 1 Kg ; rendement 1 Kg → 10 €/Kg
+  // C utilise 1 Kg de B → coût 10 € pour 1 Kg
+  const a = { id: 401, name: 'A', recipeType: 'base', directIngredients: [{ ingredientId: 1, quantity: 1, unit: 'Kg', unitPrice: 'Kg', pricePerUnit: 10, wasteCoeff: 0 }], baseComponents: [], outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0 };
+  const b = { id: 402, name: 'B', recipeType: 'base', directIngredients: [], baseComponents: [{ baseRecipeId: 401, name: 'A', quantity: 1, unit: 'Kg' }], outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0 };
+  const c = { id: 403, name: 'C', recipeType: 'base', directIngredients: [], baseComponents: [{ baseRecipeId: 402, name: 'B', quantity: 1, unit: 'Kg' }], outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0 };
+  const cost = calculateRecipeTotalCost(c, [a, b, c]);
+  assert.strictEqual(cost, 10, 'coût propagé sur 3 niveaux');
+}
+
+function testCoutAvecCycleRetourneNull() {
+  // Cycle direct A → A (référentiel corrompu). Doit retourner null, pas planter.
+  const a = { id: 501, name: 'A', recipeType: 'base', directIngredients: [], baseComponents: [{ baseRecipeId: 501, name: 'A', quantity: 1, unit: 'Kg' }], outputQuantity: 1, outputUnit: 'Kg', covers: 1, wasteCoeff: 0 };
+  const cost = calculateRecipeTotalCost(a, [a]);
+  assert.strictEqual(cost, null, 'cycle détecté, coût null');
+}
+
 function testCheckLineUnitConvertibiliteUnitesIdentiques() {
   const line = { ingredientId: 1, name: 'A', quantity: 1, unit: 'Kg' };
   const catalog = [{ id: 1, name: 'A', price: 5, unit: 'Kg' }];
@@ -642,6 +694,10 @@ function runAll() {
     testCompatAncienneRecetteSansUsageMode,
     testBaseRecipeIdMismatchFallbackNom,
     testBaseRecipeIntrouvableRetourneNull,
+    // Imbrication récursive (nouveau)
+    testCoutRecetteBaseImbrickee,
+    testCoutTriplementImbrickee,
+    testCoutAvecCycleRetourneNull,
     testCheckLineUnitConvertibiliteUnitesIdentiques,
     testCheckLineUnitConvertibiliteMemeGroupe,
     testCheckLineUnitConvertibiliteGroupesDifferents,

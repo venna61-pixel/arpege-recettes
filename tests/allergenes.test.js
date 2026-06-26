@@ -206,6 +206,76 @@ function testSummaryIngredientInconnu() {
   assert.strictEqual(result.incompleteIngredients.length, 1);
 }
 
+// ─── Récursion sur sous-recettes imbriquées (depuis 2026-06-26) ───────────────
+
+function testSummaryImbricationDeuxNiveaux() {
+  // Recette finale → recette de base intermédiaire → sous-sous-recette contenant pistache
+  const ingredients = [{ id: 1, name: "Pistache", allergenes: ["Fruits à coque"] }];
+  const innerBase = { id: 100, name: "Insert pistache", directIngredients: [{ ingredientId: 1, name: "Pistache" }], baseComponents: [] };
+  const middleBase = { id: 200, name: "Biscuit pistache", directIngredients: [], baseComponents: [{ baseRecipeId: 100, name: "Insert pistache" }] };
+  const final = { id: 300, name: "Entremets", directIngredients: [], baseComponents: [{ baseRecipeId: 200, name: "Biscuit pistache" }] };
+
+  const result = computeRecipeAllergeneSummary(final, ingredients, [innerBase, middleBase, final]);
+  assert.ok(result.allergens.includes("Fruits à coque"), "allergène remonté depuis 2 niveaux d'imbrication");
+}
+
+function testSummaryImbricationTroisNiveaux() {
+  // Chaîne A → B → C → D : pistache au niveau D doit remonter à A
+  const ingredients = [{ id: 1, name: "Pistache", allergenes: ["Fruits à coque"] }];
+  const d = { id: 40, name: "D", directIngredients: [{ ingredientId: 1, name: "Pistache" }], baseComponents: [] };
+  const c = { id: 30, name: "C", directIngredients: [], baseComponents: [{ baseRecipeId: 40, name: "D" }] };
+  const b = { id: 20, name: "B", directIngredients: [], baseComponents: [{ baseRecipeId: 30, name: "C" }] };
+  const a = { id: 10, name: "A", directIngredients: [], baseComponents: [{ baseRecipeId: 20, name: "B" }] };
+
+  const result = computeRecipeAllergeneSummary(a, ingredients, [a, b, c, d]);
+  assert.ok(result.allergens.includes("Fruits à coque"), "allergène remonté depuis 3 niveaux d'imbrication");
+}
+
+function testSummaryImbricationCumuleeMultiNiveaux() {
+  // A contient B (qui apporte gluten) et C (qui apporte œufs) → A doit cumuler les deux
+  const ingredients = [
+    { id: 1, name: "Farine", allergenes: ["Gluten"] },
+    { id: 2, name: "Oeuf", allergenes: ["Œufs"] },
+  ];
+  const b = { id: 20, name: "B", directIngredients: [{ ingredientId: 1, name: "Farine" }], baseComponents: [] };
+  const c = { id: 30, name: "C", directIngredients: [{ ingredientId: 2, name: "Oeuf" }], baseComponents: [] };
+  const a = { id: 10, name: "A", directIngredients: [], baseComponents: [
+    { baseRecipeId: 20, name: "B" },
+    { baseRecipeId: 30, name: "C" },
+  ] };
+
+  const result = computeRecipeAllergeneSummary(a, ingredients, [a, b, c]);
+  assert.ok(result.allergens.includes("Gluten"), "gluten remonté de B");
+  assert.ok(result.allergens.includes("Œufs"), "œufs remontés de C");
+}
+
+function testSummaryAntiCycleNePlanrtePas() {
+  // Référentiel corrompu : A→B et B→A. Le calcul ne doit ni planter ni boucler.
+  const ingredients = [{ id: 1, name: "Beurre", allergenes: ["Lait/Lactose"] }];
+  const a = { id: 10, name: "A", directIngredients: [{ ingredientId: 1, name: "Beurre" }], baseComponents: [{ baseRecipeId: 20, name: "B" }] };
+  const b = { id: 20, name: "B", directIngredients: [], baseComponents: [{ baseRecipeId: 10, name: "A" }] };
+
+  const result = computeRecipeAllergeneSummary(a, ingredients, [a, b]);
+  // Le seul ingrédient présent étant Beurre, on s'attend à Lait/Lactose et au non-plantage.
+  assert.ok(result.allergens.includes("Lait/Lactose"), "calcul terminé malgré le cycle");
+}
+
+function testSummaryIncompletDansSousSousRecette() {
+  // Un ingrédient sans allergenes dans une sous-sous-recette doit remonter dans incompleteIngredients
+  // avec fromBaseRecipe = nom de sa recette immédiate.
+  const ingredients = [{ id: 1, name: "Mystère", allergenes: null }];
+  const inner = { id: 100, name: "Sous-base inconnue", directIngredients: [{ ingredientId: 1, name: "Mystère" }], baseComponents: [] };
+  const middle = { id: 200, name: "Base intermédiaire", directIngredients: [], baseComponents: [{ baseRecipeId: 100, name: "Sous-base inconnue" }] };
+  const root = { id: 300, name: "Racine", directIngredients: [], baseComponents: [{ baseRecipeId: 200, name: "Base intermédiaire" }] };
+
+  const result = computeRecipeAllergeneSummary(root, ingredients, [inner, middle, root]);
+  assert.strictEqual(result.hasIncomplete, true, "incomplet détecté en profondeur");
+  assert.ok(
+    result.incompleteIngredients.some((e) => e.fromBaseRecipe === "Sous-base inconnue"),
+    "fromBaseRecipe pointe la sous-recette immédiate"
+  );
+}
+
 // ALLERGENES_14 : vérification du référentiel officiel
 function testAllergenes14Complet() {
   const list = window.FormulaAllergenes.ALLERGENES_14;
@@ -252,6 +322,12 @@ function runAll() {
     testSummaryIngredientSansAllergenesManuel,
     testSummaryAvecRecetteDeBase,
     testSummaryIngredientInconnu,
+    // Imbrication récursive (nouveau)
+    testSummaryImbricationDeuxNiveaux,
+    testSummaryImbricationTroisNiveaux,
+    testSummaryImbricationCumuleeMultiNiveaux,
+    testSummaryAntiCycleNePlanrtePas,
+    testSummaryIncompletDansSousSousRecette,
   ];
 
   for (const testFn of tests) {
