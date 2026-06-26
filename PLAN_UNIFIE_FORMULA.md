@@ -53,7 +53,7 @@ L'IA d'import et le journal des ventes sont **gardés** mais repositionnés **ap
 **Phase 0 audit & Phase 1 stabilisation critique — clôturées le 14 juin 2026.**
 
 - Audit complet en 7 phases (structure, bugs runtime, sécurité, qualité, performance, robustesse, tests).
-- 434 tests verts (`node tests/run-all.js`).
+- 470 tests verts (`node tests/run-all.js`).
 - Error Boundary global, `JSON.parse` sécurisé, Google Analytics désactivé.
 - Validation métier renforcée (`validateRecipeDraft`).
 - Sauvegarde automatique avant import/fusion (`FormulaSafetyBackup`).
@@ -67,6 +67,8 @@ L'IA d'import et le journal des ventes sont **gardés** mais repositionnés **ap
 - Centralisation `FormulaStorageKeys` (A1 + A2 livrés — `b9281c2`, `b2c0ffb`).
 - Pinning CDN Babel `@7` (`684965a`).
 - Warning cost-status propagé depuis sous-recettes (`3146c6d`).
+- Centralisation palette UI dans `FormulaUITokens` + CSS variables (chantier Phase 1 `ui-tokens.js`, voie hybride, `5799f69`).
+- Sous-recettes imbriquées N niveaux (cas pâtissier signalé par le cuisinier pilote) : autorisation produit + détection cycle + allergènes récursifs (`608efe7`, `e93a0b7`, commit 3 ci-après). Backend déjà récursif, UI et PDF debridés.
 
 ### Forces consolidées
 
