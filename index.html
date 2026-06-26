@@ -2317,7 +2317,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
         portionCount: line?.usageMode === "portion" ? parseLocalizedNumber(line?.portionCount, 1) : line?.portionCount,
       })),
     };
-    const validation = validateRecipeDraft(normalizedFormData);
+    const validation = validateRecipeDraft(normalizedFormData, { allRecipes: recipes, editingId });
     if (!validation.valid) {
       alert(validation.errors.map((e) => "• " + e.message).join("\n"));
       return;
@@ -2589,7 +2589,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select value={formData.recipeType} onChange={(e) => setFormData({ ...formData, recipeType: e.target.value, baseComponents: e.target.value === "base" ? [] : formData.baseComponents, outputUnit: e.target.value === "final" ? "Portion" : formData.outputUnit })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
+              <select value={formData.recipeType} onChange={(e) => setFormData({ ...formData, recipeType: e.target.value, outputUnit: e.target.value === "final" ? "Portion" : formData.outputUnit })} className="w-full px-3 py-2 rounded-lg border border-gray-300">
                 {RECIPE_TYPE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
@@ -2671,7 +2671,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
             </div>
           </div>
 
-          {formData.recipeType === "final" && (
+          {(
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
               <h4 className="font-medium text-gray-700 mb-3">Ajouter une recette de base</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -2795,7 +2795,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   })}
                   </div>
                 </div>
-              {formData.recipeType === "final" && (
+              {(
                 <div>
                   <h4 className="font-medium text-gray-700 mb-2">Recettes de base liées ({formData.baseComponents.length})</h4>
                   <div className="space-y-2">
