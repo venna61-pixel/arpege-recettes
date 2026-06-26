@@ -53,7 +53,7 @@ L'IA d'import et le journal des ventes sont **gardés** mais repositionnés **ap
 **Phase 0 audit & Phase 1 stabilisation critique — clôturées le 14 juin 2026.**
 
 - Audit complet en 7 phases (structure, bugs runtime, sécurité, qualité, performance, robustesse, tests).
-- 470 tests verts (`node tests/run-all.js`).
+- 489 tests verts (`node tests/run-all.js`).
 - Error Boundary global, `JSON.parse` sécurisé, Google Analytics désactivé.
 - Validation métier renforcée (`validateRecipeDraft`).
 - Sauvegarde automatique avant import/fusion (`FormulaSafetyBackup`).
@@ -68,7 +68,8 @@ L'IA d'import et le journal des ventes sont **gardés** mais repositionnés **ap
 - Pinning CDN Babel `@7` (`684965a`).
 - Warning cost-status propagé depuis sous-recettes (`3146c6d`).
 - Centralisation palette UI dans `FormulaUITokens` + CSS variables (chantier Phase 1 `ui-tokens.js`, voie hybride, `5799f69`).
-- Sous-recettes imbriquées N niveaux (cas pâtissier signalé par le cuisinier pilote) : autorisation produit + détection cycle + allergènes récursifs (`608efe7`, `e93a0b7`, commit 3 ci-après). Backend déjà récursif, UI et PDF debridés.
+- Sous-recettes imbriquées N niveaux (cas pâtissier signalé par le cuisinier pilote) : autorisation produit + détection cycle + allergènes récursifs (`608efe7`, `e93a0b7`, `8eb73e0`, `6fdde19`, `167e31c`). Backend déjà récursif, UI et PDF debridés.
+- Fiche d'impression "format chef" (ref. fiche Orient Estival du chef) : nouveau module `FormulaRecipePrinting` (`logic/core/recipe-printing.js`) qui génère les blocs imprimables dans l'ordre de production (tri topologique : sous-recettes profondes en premier, racine en dernier). Consolidation des multipliers si une sous-recette est utilisée plusieurs fois. Chaque bloc en 2 colonnes (ingrédients à gauche, procédé à droite). Les sous-recettes référencées dans un bloc parent portent la mention "voir bloc dédié" dans la colonne Coût (évite le double comptage). 19 tests dédiés. Refactor `index.html` : -261 lignes (suppression de 4 builders dupliqués).
 
 ### Forces consolidées
 

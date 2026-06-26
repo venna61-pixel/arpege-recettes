@@ -23,6 +23,7 @@ const tests = [
   "data-status.test.js",
   "storage-keys.test.js",
   "ui-tokens.test.js",
+  "recipe-printing.test.js",
 ];
 
 let passed = 0;
