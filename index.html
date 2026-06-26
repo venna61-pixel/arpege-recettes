@@ -1411,7 +1411,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
           return `
             <section class="subrecipe-block">
               <h2>${idx + 1}. ${escapeHtml(baseRecipe.name)}</h2>
-              <p class="meta"><strong>Utilisation dans la recette finale :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:var(--alert-danger-text);">${invalidReason}</span>` : ""}</p>
+              <p class="meta"><strong>Utilisation :</strong> ${usageLabel}${invalidReason ? ` • <span style="color:var(--alert-danger-text);">${invalidReason}</span>` : ""}</p>
               <div class="grid">
                 <div>
                   <h3>Ingrédients adaptés</h3>
@@ -1463,10 +1463,10 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
         </head>
         <body>
           <h1>${escapeHtml(normalized.name)}</h1>
-          <p class="meta"><strong>Couverts :</strong> ${escapeHtml(normalized.covers)}</p>
+          <p class="meta"><strong>${normalized.recipeType === "base" ? "Recette de base" : "Recette finale"}</strong> • <strong>Couverts :</strong> ${escapeHtml(normalized.covers)}${normalized.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml(normalized.outputQuantity)} ${escapeHtml(normalized.outputUnit)}` : ""}</p>
           ${baseBlocks}
           <section class="subrecipe-block">
-            <h2>Montage / finition</h2>
+            <h2>${normalized.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2>
             <div class="procedure">${buildProcedureHtml(normalized.procedure)}</div>
           </section>
         </body>
@@ -1516,7 +1516,7 @@ const RecipeDetailModal = ({ recipe, allRecipes, ingredients, onUpdateIngredient
           <p className="text-sm text-gray-500 mt-1">{normalized.covers} couverts{normalized.recipeType === "base" ? ` • Rendement : ${normalized.outputQuantity} ${normalized.outputUnit}` : ""}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button onClick={handlePrintPdf} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche (PDF)</button>
-            {normalized.recipeType !== "base" && (
+            {(normalized.recipeType !== "base" || normalized.baseComponents.length > 0) && (
               <button onClick={handlePrintProductionSheet} className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">Imprimer fiche complète de production</button>
             )}
           </div>
@@ -1958,11 +1958,11 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef, cur
         </head>
         <body>
           <h1>${escapeHtml(adaptedRecipe.name)} (adaptée)</h1>
-          <p class="meta"><strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}</p>
+          <p class="meta"><strong>${adaptedRecipe.recipeType === "base" ? "Recette de base" : "Recette finale"}</strong> • <strong>Couverts adaptés :</strong> ${escapeHtml((adaptedRecipe.covers || 0).toFixed(2))}${adaptedRecipe.recipeType === "base" ? ` • <strong>Rendement :</strong> ${escapeHtml((Number(adaptedRecipe.outputQuantity || 0) * multiplier).toFixed(2))} ${escapeHtml(adaptedRecipe.outputUnit)}` : ""}</p>
           ${(() => { const { allergens: a, hasIncomplete: inc } = computeRecipeAllergeneSummary(normalized, ingredients, recipes); return `<section class="subrecipe-block"><h2>Allergènes</h2>${a.length > 0 ? `<p style="color:var(--alert-danger-text);font-weight:600;">${escapeHtml(a.join(" · "))}</p>` : `<p style="color:var(--alert-success-text);font-weight:600;">Aucun allergène</p>`}${inc ? `<p style="color:var(--alert-warning-muted);font-size:13px;font-style:italic;">⚠ La liste peut être incomplète</p>` : ""}</section>`; })()}
           ${baseBlocks}
           <section class="subrecipe-block">
-            <h2>Montage / finition</h2>
+            <h2>${adaptedRecipe.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2>
             <div class="procedure">${buildProcedureHtml(adaptedRecipe.procedure)}</div>
             ${buildProcedureWarningHtml({ multiplierValue: multiplier, dimensions: detectProcedureWarnings(adaptedRecipe.procedure).dimensions, cookingTimes: detectProcedureWarnings(adaptedRecipe.procedure).cookingTimes })}
           </section>
@@ -2039,7 +2039,7 @@ const AdaptModal = ({ recipe, recipes, ingredients, isOpen, onClose, isChef, cur
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={handlePrintAdaptedSheet} className="bg-[#1A3A4A] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2A4A5A]">Imprimer la fiche adaptée (PDF)</button>
-              {normalized.recipeType !== "base" && (
+              {(normalized.recipeType !== "base" || normalized.baseComponents.length > 0) && (
                 <button onClick={handlePrintAdaptedProductionSheet} className="bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">Imprimer fiche complète adaptée</button>
               )}
             </div>
@@ -2508,7 +2508,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
           ${r.directIngredients.length > 0 ? `<section><h2>Ingrédients directs (${r.directIngredients.length})</h2>
             <table><thead><tr><th>Ingrédient</th><th>Quantité</th>${isChef ? "<th style='text-align:right;'>Coût</th>" : ""}</tr></thead><tbody>${directRows}</tbody></table></section>` : ""}
           ${subrecipeBlocks}
-          <section class="subrecipe-block"><h2>Montage / finition</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
+          <section class="subrecipe-block"><h2>${r.recipeType === "base" ? "Procédé final" : "Montage / finition"}</h2><div class="procedure">${procHtml(r.procedure)}</div></section>
           <section><h2>Allergènes</h2>${allergenesHtml}</section>
           ${isChef ? `<section><h2>Coûts</h2>${!costStatus.valid ? `<p style="color:var(--alert-danger-text);font-weight:600;">${esc(costStatus.message)}</p>` : `<p><strong>Total :</strong> ${Number(totalCost||0).toFixed(2)}${currencySymbol} • <strong>Par couvert :</strong> ${r.covers > 0 ? (Number(totalCost||0)/r.covers).toFixed(2) : "0.00"}${currencySymbol}</p>`}</section>` : ""}
         </article>`;
