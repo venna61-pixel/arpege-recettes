@@ -22,6 +22,7 @@ const tests = [
   "rentabilite.test.js",
   "data-status.test.js",
   "storage-keys.test.js",
+  "ui-tokens.test.js",
 ];
 
 let passed = 0;

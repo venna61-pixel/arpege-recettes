@@ -152,7 +152,7 @@ On sait exactement quelle première version peut être vendue ou testée par des
 
 | Chantier | Action | Critère d'acceptation | Statut |
 |---|---|---|---|
-| **`ui-tokens.js`** | Centraliser les 245 couleurs hardcodées de `index.html`. | Plus de couleurs en dur. Tokens prêts à être convertis en config Tailwind en Phase 3. | À faire |
+| **`ui-tokens.js`** | Centraliser les couleurs hardcodées de `index.html`. | Plus de couleurs en dur. Tokens prêts à être convertis en config Tailwind en Phase 3. | Livré partiellement (2026-06-26) — `logic/core/ui-tokens.js`, 26 tokens (brand/gray/alert/overlay) exposés en JS + injectés en CSS variables sur `:root`. `var(--xxx)` utilisé pour les styles inline JSX et les 5 templates PDF (~113 occurrences). Les ~249 classes Tailwind arbitrary restent en `[#xxxxxx]` : le **Tailwind Play CDN** ne compile pas les arbitrary values avec `var()`. Substitution propre via `tailwind.config.js` prévue en Phase 3 (Vite). 18 tests dédiés. |
 | **Éditeur procédé moderne** | Remplacer `document.execCommand` (deprecated) dans `logic/core/editor.js` par l'API `Selection`/`Range`. | Formatage riche (gras, italique, couleur, listes) fonctionne sans API obsolète. | À faire |
 | **Système de notification unifié** | Remplacer les `alert()` natifs par un composant maison (toast ou modal léger) branché sur `FormulaConstants.MESSAGES`. | Plus aucun `alert()` natif dans `index.html`. | À faire |
 | **Factorisation impression PDF** | Déduplication des 4 fonctions `handlePrint*` (≈ 800 lignes dupliquées). | Une fonction commune génère les fiches. | À faire |
