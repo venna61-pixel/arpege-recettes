@@ -217,7 +217,8 @@
 
   function upsertRecipe(recipes, payload, editingId) {
     if (editingId) {
-      return recipes.map((r) => Number(r.id) === Number(editingId) ? { ...payload, id: editingId } : r);
+      const updatedAt = new Date().toISOString();
+      return recipes.map((r) => Number(r.id) === Number(editingId) ? { ...payload, id: editingId, updatedAt } : r);
     }
     const nextId = recipes.reduce((max, r) => Math.max(max, Number(r.id)), 0) + 1;
     return [...recipes, { ...payload, id: nextId, createdAt: payload.createdAt || new Date().toISOString() }];

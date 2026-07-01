@@ -550,14 +550,20 @@ function testUpsertRecipeMetAJourBonneRecette() {
   const recipes = [{ id: 1, name: "A" }, { id: 2, name: "B" }];
   const payload = { name: "B2" };
   const updated = upsertRecipe(recipes, payload, 2);
-  assert.deepStrictEqual(updated, [{ id: 1, name: "A" }, { id: 2, name: "B2" }]);
+  assert.strictEqual(updated.length, 2);
+  assert.deepStrictEqual(updated[0], { id: 1, name: "A" });
+  const { updatedAt, ...editedWithoutTimestamp } = updated[1];
+  assert.deepStrictEqual(editedWithoutTimestamp, { id: 2, name: "B2" });
 }
 
 function testComparaisonRobusteIdStringEtNumber() {
   const recipes = [{ id: 1, name: "A" }, { id: 2, name: "B" }];
   const payload = { name: "B-string-id" };
   const updated = upsertRecipe(recipes, payload, "2");
-  assert.deepStrictEqual(updated, [{ id: 1, name: "A" }, { id: "2", name: "B-string-id" }]);
+  assert.strictEqual(updated.length, 2);
+  assert.deepStrictEqual(updated[0], { id: 1, name: "A" });
+  const { updatedAt, ...editedWithoutTimestamp } = updated[1];
+  assert.deepStrictEqual(editedWithoutTimestamp, { id: "2", name: "B-string-id" });
 }
 
 function testUpsertRecipeGrandeListeSansPlantage() {
@@ -587,6 +593,31 @@ function testUpsertRecipeUpdateNeTouchesPasCreatedAt() {
   const payload = { name: "A modifié", createdAt: "2023-01-01T00:00:00.000Z" };
   const updated = upsertRecipe(recipes, payload, 1);
   assert.strictEqual(updated[0].createdAt, "2023-01-01T00:00:00.000Z");
+}
+
+// À l'édition, upsertRecipe doit poser un updatedAt = maintenant pour que
+// l'affichage puisse basculer sur "Modifiée le". Voir libellés dans index.html.
+function testUpsertRecipeEditionPoseUpdatedAt() {
+  const before = new Date().toISOString();
+  const recipes = [{ id: 1, name: "A", createdAt: "2023-01-01T00:00:00.000Z" }];
+  const updated = upsertRecipe(recipes, { name: "A modifié" }, 1);
+  const after = new Date().toISOString();
+  assert.ok(updated[0].updatedAt, "updatedAt doit être posé à l'édition");
+  assert.ok(updated[0].updatedAt >= before && updated[0].updatedAt <= after);
+}
+
+function testUpsertRecipeEditionEcraseUpdatedAtPrecedent() {
+  const ancienUpdatedAt = "2023-05-01T00:00:00.000Z";
+  const recipes = [{ id: 1, name: "A", createdAt: "2023-01-01T00:00:00.000Z", updatedAt: ancienUpdatedAt }];
+  const before = new Date().toISOString();
+  const updated = upsertRecipe(recipes, { name: "A re-modifié", updatedAt: ancienUpdatedAt }, 1);
+  assert.notStrictEqual(updated[0].updatedAt, ancienUpdatedAt);
+  assert.ok(updated[0].updatedAt >= before);
+}
+
+function testUpsertRecipeCreationNePoseAsUpdatedAt() {
+  const created = upsertRecipe([], { name: "Nouvelle" }, null);
+  assert.strictEqual(created[0].updatedAt, undefined);
 }
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
@@ -666,6 +697,9 @@ function runAll() {
     testUpsertRecipeCreatedAtGenereSiAbsent,
     testUpsertRecipeCreatedAtPreserveSiPresent,
     testUpsertRecipeUpdateNeTouchesPasCreatedAt,
+    testUpsertRecipeEditionPoseUpdatedAt,
+    testUpsertRecipeEditionEcraseUpdatedAtPrecedent,
+    testUpsertRecipeCreationNePoseAsUpdatedAt,
   ];
 
   for (const testFn of tests) {

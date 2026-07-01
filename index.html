@@ -2700,7 +2700,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   <p>{recipe.directIngredients.length} ingrédient(s) direct(s)</p>
                   {recipe.baseComponents.length > 0 && <p>{recipe.baseComponents.length} recette(s) de base liée(s)</p>}
                   <p>{recipe.recipeType === "base" ? `Rendement : ${recipe.outputQuantity} ${recipe.outputUnit} • ${recipe.covers} couverts` : `${recipe.covers} couverts`}</p>
-                  {recipe.createdAt && <p className="text-xs text-gray-400">Créé le {new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                  {(recipe.updatedAt || recipe.createdAt) && <p className="text-xs text-gray-400">{recipe.updatedAt ? "Modifiée le" : "Créée le"} {new Date(recipe.updatedAt || recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
                   {isChef && (costStatus.valid ? <p className="text-lg font-bold text-[#C8956C]">{Number(totalCost || 0).toFixed(2)}{currencySymbol} <span className="text-sm font-normal text-gray-500 ml-2">({recipe.covers > 0 ? (Number(totalCost || 0) / recipe.covers).toFixed(2) : "0.00"}{currencySymbol}/couvert)</span></p> : <p className="text-sm text-red-600 font-medium">Coût indisponible</p>)}
                   {(() => { const { allergens, hasIncomplete } = computeRecipeAllergeneSummary(recipe, ingredients, normalizedRecipes); return (<div className="mt-1">{allergens.length > 0 && <p className="text-red-800 font-medium text-xs">Allergènes : {allergens.join(" · ")}</p>}{hasIncomplete && <p className={`text-amber-500 text-xs italic ${selectionMode ? "" : "cursor-pointer hover:underline"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>⚠ Allergènes incomplets — cliquer pour compléter</p>}{!hasIncomplete && allergens.length === 0 && <p className="text-green-600 text-xs">Aucun allergène</p>}</div>); })()}
                 </div>
@@ -2732,7 +2732,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                   {recipe.categories.slice(0, 1).map(cat => <span key={cat} className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#C8956C] text-white">{cat}</span>)}
                 </div>
                 <h3 className={`text-sm font-bold text-[#1A3A4A] leading-tight mb-1 ${selectionMode ? "" : "cursor-pointer hover:text-[#C8956C]"}`} onClick={selectionMode ? undefined : () => setDetailRecipe(recipe)}>{recipe.name}</h3>
-                {recipe.createdAt && <p className="text-xs text-gray-400 mb-2">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                {(recipe.updatedAt || recipe.createdAt) && <p className="text-xs text-gray-400 mb-2">{recipe.updatedAt ? "Modifiée le" : "Créée le"} {new Date(recipe.updatedAt || recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</p>}
                 {isChef && costStatus.valid && <p className="text-sm font-bold text-[#C8956C] mb-2">{Number(totalCost || 0).toFixed(2)}{currencySymbol}</p>}
                 {!selectionMode && (
                   <div className="flex gap-1">
@@ -2762,7 +2762,7 @@ const RecipesManager = ({ ingredients, setIngredients, recipes, setRecipes, isCh
                 {recipe.categories.length > 0 && <span className="text-xs text-gray-400 ml-2 hidden sm:inline">{recipe.categories.join(" · ")}</span>}
               </div>
               <span className="text-xs text-gray-500 flex-shrink-0 hidden sm:inline">{recipe.covers} cvt</span>
-              {recipe.createdAt && <span className="text-xs text-gray-400 flex-shrink-0 hidden md:inline">{new Date(recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>}
+              {(recipe.updatedAt || recipe.createdAt) && <span className="text-xs text-gray-400 flex-shrink-0 hidden md:inline">{recipe.updatedAt ? "Modifiée le" : "Créée le"} {new Date(recipe.updatedAt || recipe.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>}
               {isChef && <span className="text-sm font-medium text-[#C8956C] flex-shrink-0 hidden sm:inline">{costStatus.valid ? `${Number(totalCost || 0).toFixed(2)}${currencySymbol}` : "—"}</span>}
               {!selectionMode && (
                 <div className="flex gap-1 flex-shrink-0">
