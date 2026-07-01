@@ -19,6 +19,7 @@ const {
   resolveEffectiveYield,
   checkLineUnitConvertibility,
   checkUnitCatalogConsistency,
+  normalizeRecipe,
 } = window.FormulaCostsAndUnits;
 
 function testConversionCompatible() {
@@ -662,6 +663,30 @@ function testCostStatusDetecteCycleEntreRecettes() {
   assert.ok(status.message.includes('Cycle'), `Le message doit annoncer un cycle, reçu : "${status.message}"`);
 }
 
+// Régression : normalizeRecipe ne doit PAS inventer un createdAt quand la recette
+// n'en a pas — sinon chaque re-render change la date affichée, et l'utilisateur
+// voit la date "création" d'une vieille recette bouger dès qu'une autre est
+// sauvegardée. Voir cause racine documentée dans le commit associé.
+function testNormalizeRecipeSansCreatedAtRenvoieUndefined() {
+  const recipe = { id: 1, name: 'Ancienne', directIngredients: [], baseComponents: [] };
+  const normalized = normalizeRecipe(recipe);
+  assert.strictEqual(normalized.createdAt, undefined);
+}
+
+function testNormalizeRecipeSansCreatedAtEstDeterministe() {
+  const recipe = { id: 1, name: 'Ancienne', directIngredients: [], baseComponents: [] };
+  const first = normalizeRecipe(recipe);
+  const second = normalizeRecipe(recipe);
+  assert.strictEqual(first.createdAt, second.createdAt);
+}
+
+function testNormalizeRecipePreserveCreatedAtExistant() {
+  const iso = '2024-03-15T10:00:00.000Z';
+  const recipe = { id: 1, name: 'R', createdAt: iso, directIngredients: [], baseComponents: [] };
+  const normalized = normalizeRecipe(recipe);
+  assert.strictEqual(normalized.createdAt, iso);
+}
+
 function runAll() {
   const tests = [
     testConversionCompatible,
@@ -710,6 +735,9 @@ function runAll() {
     testCostStatusFinalePropageMessageSousRecetteIngredientSansPrix,
     testCostStatusPropageSurDeuxNiveauxDeSousRecettes,
     testCostStatusDetecteCycleEntreRecettes,
+    testNormalizeRecipeSansCreatedAtRenvoieUndefined,
+    testNormalizeRecipeSansCreatedAtEstDeterministe,
+    testNormalizeRecipePreserveCreatedAtExistant,
   ];
 
   for (const testFn of tests) {

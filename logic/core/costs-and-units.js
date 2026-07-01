@@ -243,7 +243,7 @@
       outputUnit: recipe.outputUnit || (recipe.recipeType === "final" ? "Portion" : "Kg"),
       covers: Number(recipe.covers || 1),
       wasteCoeff: Number(recipe.wasteCoeff ?? 0),
-      createdAt: recipe.createdAt || new Date().toISOString(),
+      createdAt: recipe.createdAt,
     };
   };
 
